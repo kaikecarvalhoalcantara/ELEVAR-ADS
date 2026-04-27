@@ -1,10 +1,10 @@
 import { promises as fs } from "node:fs";
 import { createHash } from "node:crypto";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { storagePath } from "./storage";
 import type { ProjectDraft } from "./types";
 
-const DRAFTS_ROOT = storagePath("drafts");
+let DRAFTS_ROOT = storagePath("drafts");
 
 export function newDraftId(): string {
   return createHash("sha1")
@@ -13,8 +13,33 @@ export function newDraftId(): string {
     .slice(0, 12);
 }
 
+async function tryEnsureDir(dir: string): Promise<boolean> {
+  try {
+    await fs.mkdir(dir, { recursive: true });
+    return true;
+  } catch (err) {
+    console.error(`[drafts] mkdir ${dir} falhou: ${(err as Error).message}`);
+    return false;
+  }
+}
+
+/**
+ * Garante que DRAFTS_ROOT seja escrevível em runtime.
+ * Se falhar (ex: /data tem problema runtime), faz fallback dinâmico
+ * pra /tmp/elevar-storage/drafts.
+ */
 async function ensureRoot(): Promise<void> {
-  await fs.mkdir(DRAFTS_ROOT, { recursive: true });
+  const ok = await tryEnsureDir(DRAFTS_ROOT);
+  if (ok) return;
+
+  // Fallback runtime
+  const tmpRoot = resolve("/tmp/elevar-storage/drafts");
+  console.warn(`[drafts] FALLBACK runtime — mudando DRAFTS_ROOT pra ${tmpRoot}`);
+  const ok2 = await tryEnsureDir(tmpRoot);
+  if (!ok2) {
+    throw new Error(`Storage indisponível: nem ${DRAFTS_ROOT} nem ${tmpRoot}`);
+  }
+  DRAFTS_ROOT = tmpRoot;
 }
 
 function pathFor(id: string): string {
@@ -24,9 +49,6 @@ function pathFor(id: string): string {
   return join(DRAFTS_ROOT, `${id}.json`);
 }
 
-// Serializa gravações por draftId pra evitar corrupção quando o auto-save
-// dispara várias vezes em sequência rápida. Cada nova gravação é encadeada
-// depois da anterior pro mesmo id.
 const writeChains = new Map<string, Promise<unknown>>();
 
 async function renameWithRetry(src: string, dest: string, attempts = 6): Promise<boolean> {
@@ -36,8 +58,6 @@ async function renameWithRetry(src: string, dest: string, attempts = 6): Promise
       return true;
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
-      // EPERM/EBUSY/EACCES no Windows: arquivo travado por OneDrive,
-      // antivírus ou outro processo. Aguarda e tenta de novo.
       if (
         (code === "EPERM" || code === "EBUSY" || code === "EACCES") &&
         i < attempts - 1
@@ -67,14 +87,11 @@ export async function saveDraft(draft: ProjectDraft): Promise<void> {
         await fs.writeFile(tmp, content, "utf8");
         const renamed = await renameWithRetry(tmp, target);
         if (!renamed) {
-          // Fallback: write direto no target. Nesse ponto a chain de writes
-          // já garante que estamos sozinhos. Sem atomicidade, mas funciona.
           await fs.writeFile(target, content, "utf8");
           await fs.unlink(tmp).catch(() => undefined);
         }
       } catch (err) {
         await fs.unlink(tmp).catch(() => undefined);
-        // Última tentativa: write direto
         await fs.writeFile(target, content, "utf8");
       }
     });
@@ -82,11 +99,6 @@ export async function saveDraft(draft: ProjectDraft): Promise<void> {
   await cur;
 }
 
-/**
- * Tenta extrair o primeiro JSON completo (top-level) de uma string —
- * usado quando um draft existente foi corrompido por gravações concorrentes
- * (concatenação de dois JSONs num arquivo só).
- */
 function findFirstCompleteJSON(raw: string): string | null {
   let depth = 0;
   let inString = false;
@@ -124,6 +136,7 @@ function findFirstCompleteJSON(raw: string): string | null {
 }
 
 export async function loadDraft(id: string): Promise<ProjectDraft | null> {
+  await ensureRoot();
   try {
     const raw = await fs.readFile(pathFor(id), "utf8");
     try {
@@ -133,7 +146,6 @@ export async function loadDraft(id: string): Promise<ProjectDraft | null> {
       if (trimmed) {
         try {
           const recovered = JSON.parse(trimmed) as ProjectDraft;
-          // re-grava o arquivo limpo pra não tentar recuperar de novo
           await saveDraft(recovered);
           return recovered;
         } catch {
@@ -141,7 +153,7 @@ export async function loadDraft(id: string): Promise<ProjectDraft | null> {
         }
       }
       throw new Error(
-        "Draft corrompido (provavelmente de versão antiga com bug de race). Crie um novo do zero.",
+        "Draft corrompido. Crie um novo do zero.",
       );
     }
   } catch (err) {
