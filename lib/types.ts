@@ -195,6 +195,17 @@ export interface ProjectStyle {
   colorFilter: ColorFilter;
 }
 
+export interface ProcessingState {
+  status: "pending" | "in_progress" | "complete" | "error";
+  currentAdIndex: number; // 0-based
+  totalAds: number;
+  message?: string;
+  errors?: string[];
+  // pra retry após redeploy: salvamos a copy original + opções
+  source?: string;
+  pageCount?: number;
+}
+
 export interface ProjectDraft extends ProjectStyle {
   id: string;
   cliente: string;
@@ -210,6 +221,7 @@ export interface ProjectDraft extends ProjectStyle {
   ads: AdDraft[];
   createdAt: number;
   updatedAt: number;
+  processing?: ProcessingState;
 }
 
 export type AssetKind = "image" | "video";

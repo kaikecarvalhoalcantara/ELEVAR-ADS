@@ -27,6 +27,7 @@ import type {
   IconName,
   PageDraft,
   PageElement,
+  ProcessingState,
   ProjectDraft,
   ProjectStyle,
   TextSegment,
@@ -193,6 +194,17 @@ export default function EditorPage() {
     if (id) reload();
   }, [id, reload]);
 
+  // Enquanto draft.processing != complete, fica polling a cada 3s
+  useEffect(() => {
+    if (!draft) return;
+    const status = draft.processing?.status;
+    if (!status || status === "complete") return;
+    const t = setInterval(() => {
+      reload();
+    }, 3000);
+    return () => clearInterval(t);
+  }, [draft?.processing?.status, draft?.processing?.currentAdIndex, reload]);
+
   function scheduleSave(next: EnrichedDraft, fromHistory = false) {
     if (!fromHistory && draft) {
       // Snapshot no undo stack — debounced 500ms pra slider não criar 100 entries
@@ -333,6 +345,10 @@ export default function EditorPage() {
   }
   if (!draft) {
     return <main className="p-8 text-neutral-400">Carregando rascunho…</main>;
+  }
+  // Tela de progresso enquanto processing != complete
+  if (draft.processing && draft.processing.status !== "complete") {
+    return <ProcessingScreen draft={draft} draftId={id} onRefresh={reload} />;
   }
   const ad = draft.ads[selectedAd];
   if (!ad) return <main className="p-8 text-neutral-400">Anúncio inválido</main>;
@@ -846,6 +862,101 @@ function EditableCanvas({
         {page.weight} · {page.animation} · {Math.round(fontSize)}px
       </div>
     </div>
+  );
+}
+
+/* ---------------- Processing screen (V11) ---------------- */
+
+function ProcessingScreen({
+  draft,
+  draftId,
+  onRefresh,
+}: {
+  draft: { processing?: ProcessingState; cliente: string; nicho: string; nome: string };
+  draftId: string;
+  onRefresh: () => void;
+}) {
+  const p = draft.processing!;
+  const pct = p.totalAds > 0 ? Math.round((p.currentAdIndex / p.totalAds) * 100) : 0;
+  const isError = p.status === "error";
+  const isPending = p.status === "pending" || p.status === "in_progress";
+
+  async function retry() {
+    try {
+      await fetch(`/api/draft/${draftId}/retry`, { method: "POST" });
+      setTimeout(onRefresh, 1000);
+    } catch {
+      // ignore
+    }
+  }
+
+  return (
+    <main className="min-h-screen flex items-center justify-center p-6">
+      <div className="w-full max-w-md space-y-4 bg-neutral-950 border border-neutral-800 rounded-lg p-6">
+        <div>
+          <div className="text-xs uppercase text-neutral-500">Gerando draft</div>
+          <h1 className="text-lg font-semibold mt-1 truncate">
+            {draft.cliente} — {draft.nicho} — {draft.nome}
+          </h1>
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-sm text-neutral-300">
+            {p.message || "Processando…"}
+          </div>
+          <div className="w-full h-2 bg-neutral-800 rounded overflow-hidden">
+            <div
+              className={`h-full transition-all duration-500 ${
+                isError ? "bg-red-500" : "bg-purple-500"
+              }`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <div className="text-xs text-neutral-500 flex justify-between">
+            <span>
+              {p.currentAdIndex} / {p.totalAds} anúncios
+            </span>
+            <span>{pct}%</span>
+          </div>
+        </div>
+
+        {p.errors && p.errors.length > 0 && (
+          <div className="text-xs text-amber-400 bg-amber-950/30 border border-amber-900 rounded p-2 max-h-32 overflow-y-auto">
+            <div className="font-semibold mb-1">{p.errors.length} avisos:</div>
+            <ul className="space-y-0.5">
+              {p.errors.slice(-5).map((e, i) => (
+                <li key={i} className="break-all">• {e}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {isPending && (
+          <p className="text-xs text-neutral-500">
+            Pode fechar a aba e voltar depois — o processamento continua no
+            servidor. Atualiza sozinho a cada 3s.
+          </p>
+        )}
+
+        {isError && (
+          <button
+            onClick={retry}
+            className="w-full px-4 py-2 rounded bg-purple-600 hover:bg-purple-500 font-semibold"
+          >
+            Tentar de novo
+          </button>
+        )}
+
+        {!isPending && !isError && (
+          <button
+            onClick={retry}
+            className="w-full px-4 py-2 rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-600 text-sm"
+          >
+            Re-disparar processamento
+          </button>
+        )}
+      </div>
+    </main>
   );
 }
 

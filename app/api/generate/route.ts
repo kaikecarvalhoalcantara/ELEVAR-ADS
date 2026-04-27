@@ -1,78 +1,21 @@
 import { NextResponse } from "next/server";
 import { parseSourceDoc } from "../../../lib/parser";
-import { cutIntoBeats } from "../../../lib/beats";
-import { planScenes } from "../../../lib/scene-planner";
-import { findBestAssetFor } from "../../../lib/client-assets";
-import { findOrFetchVideoForQuery } from "../../../lib/video-library";
 import { newDraftId, saveDraft } from "../../../lib/drafts";
 import { defaultProjectStyle } from "../../../lib/style-defaults";
-import {
-  enrichPageWithTemplate,
-  templateProjectOverrides,
-} from "../../../lib/template-presets";
+import { templateProjectOverrides } from "../../../lib/template-presets";
+import { processDraftAds } from "../../../lib/process-ads";
 import type {
   AdDraft,
-  AnimationKind,
   GenerateRequest,
-  PageDraft,
   ProjectDraft,
-  ScenePlan,
   ToneFilter,
   Vibe,
 } from "../../../lib/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 800;
+export const maxDuration = 60; // só pra criar skeleton + disparar worker
 
-const PAGES_PER_AD = 40; // alvo aproximado — cortes rápidos efeito dopamina
-const ANIMATION_ROTATION: AnimationKind[] = [
-  "teclado",
-  "subir",
-  "deslocar",
-  "mesclar",
-  "bloco",
-];
-
-/**
- * Escolhe ~35% das páginas pra serem "wordless" (sem texto, vídeo fala por
- * si só). Exclui as 2 primeiras (gancho) e as 2 últimas (CTA), e tenta não
- * deixar 2 wordless consecutivas pra manter o pulso visual.
- */
-function pickWordlessIndices(total: number): Set<number> {
-  const result = new Set<number>();
-  if (total < 8) return result;
-  const targetCount = Math.max(1, Math.floor((total - 4) * 0.35));
-  const pool: number[] = [];
-  for (let i = 2; i < total - 2; i++) pool.push(i);
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j]!, pool[i]!];
-  }
-  for (const idx of pool) {
-    if (result.size >= targetCount) break;
-    if (result.has(idx - 1) || result.has(idx + 1)) continue;
-    result.add(idx);
-  }
-  return result;
-}
-
-async function videoForScene(args: {
-  adNumber: number;
-  scene: ScenePlan;
-  format: GenerateRequest["format"];
-}): Promise<string> {
-  const asset = await findBestAssetFor({
-    adNumber: args.adNumber,
-    weight: args.scene.weight,
-    tags: args.scene.tags,
-  });
-  if (asset && asset.type === "video") return asset.filepath;
-  const v = await findOrFetchVideoForQuery({
-    query: args.scene.query,
-    format: args.format,
-  });
-  return v ?? "";
-}
+const PAGES_PER_AD = 40;
 
 export async function POST(request: Request) {
   let body: GenerateRequest;
@@ -117,63 +60,17 @@ export async function POST(request: Request) {
   if (body.baseAlign) projectStyle.baseAlign = body.baseAlign;
   if (body.colorFilter) projectStyle.colorFilter = body.colorFilter;
 
-  // Aplica overrides do template escolhido (se houver)
   const template = body.template;
   if (template) {
     Object.assign(projectStyle, templateProjectOverrides(template));
   }
 
-  const ads: AdDraft[] = [];
-  for (const ad of parsed.ads) {
-    try {
-      const beats = await cutIntoBeats({
-        copy: ad.copy,
-        pageCount: PAGES_PER_AD,
-        mood: body.mood,
-        audience: body.audience,
-        language: body.language,
-      });
-      const scenes = await planScenes({
-        ad,
-        beats,
-        mood: body.mood,
-        audience: body.audience,
-        language: body.language,
-        toneFilter,
-        vibe,
-      });
-      const pages: PageDraft[] = [];
-      // 20% das páginas viram "wordless" (vídeo fala por si só).
-      // Excluímos primeiras 2 (gancho) e últimas 2 (CTA) — esses sempre têm texto.
-      const wordlessIndices = pickWordlessIndices(scenes.length);
-      for (let i = 0; i < scenes.length; i++) {
-        const scene = scenes[i]!;
-        const videoSrc = await videoForScene({
-          adNumber: ad.number,
-          scene,
-          format: body.format,
-        });
-        const trimmedText = scene.text.split(" / ").slice(0, 2).join(" / ");
-        const basePage: PageDraft = {
-          text: trimmedText,
-          weight: scene.weight,
-          query: scene.query,
-          tags: scene.tags,
-          videoSrc,
-          animation: ANIMATION_ROTATION[i % ANIMATION_ROTATION.length]!,
-          hideText: wordlessIndices.has(i),
-        };
-        const enrichedPage = enrichPageWithTemplate(basePage, template, {
-          accentColor: projectStyle.accentColor,
-        });
-        pages.push(enrichedPage);
-      }
-      ads.push({ number: ad.number, padrao: ad.padrao, pages });
-    } catch (err) {
-      ads.push({ number: ad.number, padrao: ad.padrao, pages: [] });
-      console.error(`Erro montando AD ${ad.number}: ${(err as Error).message}`);
-    }
-  }
+  // Cria SKELETON com ads vazios — processamento real roda em background
+  const skeletonAds: AdDraft[] = parsed.ads.map((ad) => ({
+    number: ad.number,
+    padrao: ad.padrao,
+    pages: [], // vazio — worker preenche depois
+  }));
 
   const draft: ProjectDraft = {
     id: newDraftId(),
@@ -188,10 +85,25 @@ export async function POST(request: Request) {
     fontTransition: body.fontTransition,
     ...projectStyle,
     template,
-    ads,
+    ads: skeletonAds,
     createdAt: Date.now(),
     updatedAt: Date.now(),
+    processing: {
+      status: "pending",
+      currentAdIndex: 0,
+      totalAds: skeletonAds.length,
+      source: body.source,
+      pageCount: PAGES_PER_AD,
+      message: "Aguardando processamento…",
+    },
   };
   await saveDraft(draft);
+
+  // Dispara worker em background — NÃO awaita.
+  // O Node continua executando depois de retornar a response.
+  void processDraftAds(draft.id).catch((err) => {
+    console.error(`[processDraftAds ${draft.id}]`, err);
+  });
+
   return NextResponse.json({ ok: true, draftId: draft.id });
 }
