@@ -96,7 +96,11 @@ export async function findOrFetchVideoForQuery(
     return null;
   }
 
-  const min = opts.minPerQuery ?? 3;
+  // ECONOMIA DE MEMÓRIA: baixa só 1 vídeo por query — suficiente pra ter
+  // o vídeo na cena. Com 40 queries por ad x 10 ads = 400 vídeos no MAX,
+  // mas a maioria das queries se repete (cache hit), então fica em ~60-100
+  // downloads totais.
+  const min = opts.minPerQuery ?? 1;
   let cached = await listMp4s(dir);
   if (cached.length >= min) {
     return cached[Math.floor(Math.random() * cached.length)] ?? null;
@@ -113,32 +117,35 @@ export async function findOrFetchVideoForQuery(
     const videos = await searchPexelsVideos({
       query: opts.query,
       orientation,
-      perPage: 8,
+      perPage: 3, // só pega 3 results pra escolher
     });
-    console.log(`[video-library] Pexels query="${opts.query}" returned ${videos.length} results`);
+    console.log(`[video-library] Pexels q="${opts.query}" → ${videos.length} results`);
+    // Baixa só 1 vídeo (o primeiro válido)
     for (const video of videos) {
-      if ((await listMp4s(dir)).length >= min + 2) break;
       const file = pickBestVideoFile(video, dims);
       if (!file) continue;
       const dest = join(dir, `pexels_${video.id}.mp4`);
       try {
         await fs.access(dest);
-        continue;
+        // já cached, retorna ele
+        return dest;
       } catch {
-        // not present
+        // not present — baixa
       }
       try {
         await downloadTo(file.link, dest);
+        console.log(`[video-library] ↓ ${slug}/pexels_${video.id}.mp4`);
+        return dest;
       } catch (err) {
-        console.error(`[video-library] download falhou pra ${video.id}: ${(err as Error).message}`);
+        console.error(`[video-library] download ${video.id} falhou: ${(err as Error).message}`);
       }
     }
   } catch (err) {
-    console.error(`[video-library] Pexels search falhou pra "${opts.query}": ${(err as Error).message}`);
+    console.error(`[video-library] Pexels search "${opts.query}" falhou: ${(err as Error).message}`);
   }
   cached = await listMp4s(dir);
   if (cached.length === 0) {
-    console.warn(`[video-library] zero vídeos pra query "${opts.query}" (slug=${slug})`);
+    console.warn(`[video-library] ZERO vídeos pra "${opts.query}"`);
     return null;
   }
   return cached[Math.floor(Math.random() * cached.length)] ?? null;

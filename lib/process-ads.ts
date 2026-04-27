@@ -65,10 +65,20 @@ async function videoForScene(args: {
  * Não joga exceções; erros são salvos em processing.errors.
  */
 export async function processDraftAds(draftId: string): Promise<void> {
-  const draft = await loadDraft(draftId);
-  if (!draft) return;
-  if (!draft.processing) return;
-  if (draft.processing.status === "complete") return;
+  console.log(`[worker ${draftId}] iniciado`);
+  let draft = await loadDraft(draftId);
+  if (!draft) {
+    console.error(`[worker ${draftId}] draft NÃO ENCONTRADO no início`);
+    return;
+  }
+  if (!draft.processing) {
+    console.error(`[worker ${draftId}] draft sem processing state`);
+    return;
+  }
+  if (draft.processing.status === "complete") {
+    console.log(`[worker ${draftId}] já complete, saindo`);
+    return;
+  }
 
   const source = draft.processing.source;
   const pageCount = draft.processing.pageCount ?? 40;
@@ -84,23 +94,36 @@ export async function processDraftAds(draftId: string): Promise<void> {
   await saveDraft(draft);
 
   for (let i = 0; i < draft.ads.length; i++) {
+    // Recarrega draft a cada ad pra pegar mudanças concorrentes
+    const fresh1 = await loadDraft(draftId);
+    if (!fresh1) {
+      console.error(`[worker ${draftId}] draft sumiu mid-process (ad ${i})`);
+      return;
+    }
+    draft = fresh1;
     const adDraft = draft.ads[i]!;
-    if (adDraft.pages.length > 0) continue; // já processado
+    if (adDraft.pages.length > 0) {
+      console.log(`[worker ${draftId}] ad ${i+1} já processado, skip`);
+      continue;
+    }
 
-    draft.processing.currentAdIndex = i;
-    draft.processing.message = `Processando AD ${String(adDraft.number).padStart(2, "0")} (${i + 1}/${draft.ads.length})…`;
+    draft.processing!.currentAdIndex = i;
+    draft.processing!.message = `Processando AD ${String(adDraft.number).padStart(2, "0")} (${i + 1}/${draft.ads.length})…`;
     await saveDraft(draft);
+    console.log(`[worker ${draftId}] ▶ AD ${i+1}/${draft.ads.length} (n=${adDraft.number})`);
 
     const parsedAd = parsed.ads.find((a) => a.number === adDraft.number);
     if (!parsedAd) {
-      draft.processing.errors = [
-        ...(draft.processing.errors ?? []),
+      draft.processing!.errors = [
+        ...(draft.processing!.errors ?? []),
         `AD ${adDraft.number}: não encontrado no source`,
       ];
+      await saveDraft(draft);
       continue;
     }
 
     try {
+      console.log(`[worker ${draftId}] cutIntoBeats…`);
       const beats = await cutIntoBeats({
         copy: parsedAd.copy,
         pageCount,
@@ -108,6 +131,7 @@ export async function processDraftAds(draftId: string): Promise<void> {
         audience: draft.audience,
         language: draft.language,
       });
+      console.log(`[worker ${draftId}] beats=${beats.length}, planScenes…`);
       const scenes = await planScenes({
         ad: parsedAd as ParsedAd,
         beats,
@@ -117,15 +141,25 @@ export async function processDraftAds(draftId: string): Promise<void> {
         toneFilter: draft.toneFilter,
         vibe: draft.vibe,
       });
+      console.log(`[worker ${draftId}] scenes=${scenes.length}, baixando vídeos…`);
       const wordlessIndices = pickWordlessIndices(scenes.length);
       const pages: PageDraft[] = [];
+      let videosOk = 0;
+      let videosErr = 0;
       for (let j = 0; j < scenes.length; j++) {
         const scene = scenes[j]!;
-        const videoSrc = await videoForScene({
-          adNumber: adDraft.number,
-          scene,
-          format: draft.format,
-        });
+        let videoSrc = "";
+        try {
+          videoSrc = await videoForScene({
+            adNumber: adDraft.number,
+            scene,
+            format: draft.format,
+          });
+          if (videoSrc) videosOk++; else videosErr++;
+        } catch (err) {
+          console.error(`[worker ${draftId}] videoForScene ad${i+1} p${j+1} falhou: ${(err as Error).message}`);
+          videosErr++;
+        }
         const trimmedText = scene.text.split(" / ").slice(0, 2).join(" / ");
         const basePage: PageDraft = {
           text: trimmedText,
@@ -141,19 +175,25 @@ export async function processDraftAds(draftId: string): Promise<void> {
         });
         pages.push(enriched);
       }
+      console.log(`[worker ${draftId}] AD ${i+1} pronto — videos: ${videosOk} ok / ${videosErr} sem`);
       // Atualiza o ad e salva imediatamente
       const fresh = await loadDraft(draftId);
-      if (!fresh) return;
+      if (!fresh) {
+        console.error(`[worker ${draftId}] draft sumiu antes de salvar AD ${i+1}`);
+        return;
+      }
       fresh.ads[i] = { ...adDraft, pages };
       fresh.processing = draft.processing;
       await saveDraft(fresh);
-      draft.ads[i] = fresh.ads[i]!;
+      draft = fresh;
     } catch (err) {
-      draft.processing.errors = [
-        ...(draft.processing.errors ?? []),
-        `AD ${adDraft.number}: ${(err as Error).message}`,
-      ];
-      await saveDraft(draft);
+      const msg = `AD ${adDraft.number}: ${(err as Error).message}`;
+      console.error(`[worker ${draftId}] ${msg}`);
+      const cur = await loadDraft(draftId);
+      if (cur && cur.processing) {
+        cur.processing.errors = [...(cur.processing.errors ?? []), msg];
+        await saveDraft(cur);
+      }
     }
   }
 
@@ -164,5 +204,8 @@ export async function processDraftAds(draftId: string): Promise<void> {
     final.processing.message = "Concluído";
     final.processing.currentAdIndex = final.ads.length;
     await saveDraft(final);
+    console.log(`[worker ${draftId}] ✓ COMPLETO`);
+  } else {
+    console.error(`[worker ${draftId}] ✗ não pude marcar complete (draft sumiu)`);
   }
 }
