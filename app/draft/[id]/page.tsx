@@ -1585,6 +1585,7 @@ function extractProjectStyle(d: EnrichedDraft): ProjectStyle {
     baseOverlayOpacity: d.baseOverlayOpacity,
     baseAlign: d.baseAlign,
     colorFilter: d.colorFilter ?? "neutro",
+    template: d.template,
   };
 }
 

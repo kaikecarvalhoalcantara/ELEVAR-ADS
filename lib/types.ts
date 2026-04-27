@@ -193,6 +193,7 @@ export interface ProjectStyle {
   baseOverlayOpacity: number;
   baseAlign: Align;
   colorFilter: ColorFilter;
+  template?: TemplateStyle;
 }
 
 export interface ProcessingState {

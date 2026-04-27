@@ -792,25 +792,31 @@ function TemplateThumb({ id, active }: { id: TemplateStyle; active: boolean }) {
     return (
       <div
         className={`relative aspect-[9/14] rounded overflow-hidden ${ring}`}
-        style={{ background: "#000" }}
+        style={{
+          background:
+            "linear-gradient(135deg, #4a3520 0%, #2a1f15 50%, #0a0a0a 100%)",
+        }}
       >
-        {/* video só na metade superior */}
+        {/* gradient fade pro preto na metade inferior — sem borda dura */}
         <div
-          className="absolute top-0 left-0 right-0"
+          className="absolute inset-0"
           style={{
-            height: "60%",
             background:
-              "linear-gradient(180deg, #1a1308 0%, #2a1f15 100%)",
-            boxShadow: "inset 0 -10px 20px rgba(0,0,0,0.8)",
+              "linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.15) 38%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.92) 72%, #000 88%)",
           }}
         />
-        <div
-          className="absolute left-0 right-0 flex items-center justify-center"
-          style={{ top: "65%", bottom: 0 }}
-        >
-          <span className="text-white font-black text-[11px] tracking-tight uppercase text-center px-2 leading-tight">
-            VOCÊ NÃO<br />
-            <span style={{ color: "#d4af37" }}>ESTAVA PRONTO</span>
+        {/* texto centralizado bem no meio (na transição vídeo → preto) */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span
+            className="text-white font-black text-[11px] tracking-tight uppercase text-center px-2 leading-tight"
+            style={{
+              textShadow:
+                "-1px 0 0 rgba(0,0,0,0.9), 1px 0 0 rgba(0,0,0,0.9), 0 -1px 0 rgba(0,0,0,0.9), 0 1px 0 rgba(0,0,0,0.9), 0 3px 8px rgba(0,0,0,0.7)",
+            }}
+          >
+            A DIFERENÇA ENTRE
+            <br />
+            OS DOIS ERA UMA SÓ
           </span>
         </div>
       </div>

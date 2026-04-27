@@ -170,7 +170,13 @@ export const BeatScene: React.FC<Props> = ({
       )}
       <AbsoluteFill
         style={{
-          background: `linear-gradient(180deg, rgba(0,0,0,${overlayOpacity * 0.6}) 0%, rgba(0,0,0,${overlayOpacity}) 100%)`,
+          background:
+            projectStyle.template === "cinema"
+              ? // Cinema: gradient fade SUAVE da metade do canvas pro preto.
+                // Sem linha dura — vídeo aparece nítido em cima, transição
+                // suave no meio (onde fica o texto), preto denso embaixo.
+                `linear-gradient(180deg, rgba(0,0,0,${overlayOpacity * 0.4}) 0%, rgba(0,0,0,${overlayOpacity * 0.4}) 38%, rgba(0,0,0,0.6) 55%, rgba(0,0,0,0.92) 72%, #000 88%, #000 100%)`
+              : `linear-gradient(180deg, rgba(0,0,0,${overlayOpacity * 0.6}) 0%, rgba(0,0,0,${overlayOpacity}) 100%)`,
         }}
       />
       {beat.elements && beat.elements.length > 0 && (

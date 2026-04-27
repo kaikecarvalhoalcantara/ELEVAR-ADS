@@ -39,8 +39,8 @@ export const TEMPLATES: TemplateMeta[] = [
     id: "cinema",
     label: "Cinema (HDCOPY Novo)",
     description:
-      "Vídeo ocupa só a metade superior do canvas, com margem preta embaixo. Texto fica isolado nessa área preta.",
-    exampleHint: "Estilo cinematográfico minimalista — separação clara texto / imagem",
+      "Vídeo cobre todo canvas, mas a metade inferior tem gradient suave fade pra preto. Texto fica no MEIO, atravessando a transição. Sem linha dura.",
+    exampleHint: "Estilo cinematográfico — sombra densa segura a leitura sem cortar a imagem",
   },
 ];
 
@@ -119,15 +119,12 @@ export function enrichPageWithTemplate(
   }
 
   if (template === "cinema") {
-    // Vídeo ocupa só a METADE SUPERIOR (60% top) do canvas. O restante fica
-    // preto, e o texto se posiciona naturalmente no centro-baixo do canvas.
-    return {
-      ...page,
-      videoX: 0,
-      videoY: 0,
-      videoW: 1,
-      videoH: 0.6,
-    };
+    // Vídeo COBRE TODO o canvas (sem crop). O efeito "metade preta com
+    // sombra" é aplicado via gradient fade no overlay (em BeatScene quando
+    // detecta projectStyle.template === "cinema"). Texto fica no centro
+    // vertical do canvas — fica visualmente "no meio" da transição
+    // vídeo → preto, com a sombra suavizando a borda.
+    return page;
   }
 
   return page;

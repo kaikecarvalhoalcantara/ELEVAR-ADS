@@ -86,6 +86,7 @@ export async function POST(
         baseOverlayOpacity: draft.baseOverlayOpacity,
         baseAlign: draft.baseAlign,
         colorFilter: draft.colorFilter ?? "neutro",
+        template: draft.template,
       };
       const outputName = `${projectName} - AD ${String(ad.number).padStart(2, "0")}`;
       const outputPath = await renderAd({
