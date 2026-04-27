@@ -119,9 +119,14 @@ export async function POST(
       const downloadUrl = `/api/download/${id}/${ad.number}`;
       results.push({ number: ad.number, outputPath, downloadUrl });
     } catch (err) {
-      results.push({ number: ad.number, error: (err as Error).message });
+      const msg = (err as Error).message || "Render falhou (sem mensagem)";
+      console.error(`[render-route] AD ${ad.number} erro:`, err);
+      results.push({ number: ad.number, error: msg });
     }
   }
+
+  // Force garbage collection entre renders pra liberar memoria do Chromium
+  if (global.gc) global.gc();
 
   return NextResponse.json({ ok: true, projectName, results });
 }

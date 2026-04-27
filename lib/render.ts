@@ -78,21 +78,42 @@ export async function renderAd(input: RenderAdInput): Promise<string> {
   const outDir = input.outputDir ? resolve(input.outputDir) : OUTPUT_ROOT;
   await fs.mkdir(outDir, { recursive: true });
   const outputLocation = join(outDir, `${input.outputName}.mp4`);
-  await renderMedia({
-    composition,
-    serveUrl: bundleUrl,
-    codec: "h264",
-    outputLocation,
-    inputProps: propsForRemotion,
-    chromiumOptions: {
-      gl: "swangle",
-      headless: true,
-    },
-    // Em produção (Docker) usa o Chromium do sistema. Em dev, Remotion
-    // baixa o próprio.
-    browserExecutable: process.env.REMOTION_BROWSER_EXECUTABLE || undefined,
-  });
-  return outputLocation;
+  console.log(`[render] start "${input.outputName}" (${input.beats.length} beats)`);
+  try {
+    await renderMedia({
+      composition,
+      serveUrl: bundleUrl,
+      codec: "h264",
+      outputLocation,
+      inputProps: propsForRemotion,
+      // ECONOMIA DE MEMÓRIA: 1 frame por vez (sem paralelismo).
+      // Chromium do Remotion é pesadíssimo — sem isso, OOM kill.
+      concurrency: 1,
+      // Codec mais leve, qualidade média (suficiente pra ads)
+      crf: 28,
+      pixelFormat: "yuv420p",
+      chromiumOptions: {
+        gl: "swangle",
+        headless: true,
+        disableWebSecurity: true,
+        ignoreCertificateErrors: true,
+      },
+      // Em produção (Docker) usa o Chromium do sistema.
+      browserExecutable: process.env.REMOTION_BROWSER_EXECUTABLE || undefined,
+      // Log progresso pra Railway logs
+      onProgress: ({ progress, renderedFrames }) => {
+        if (renderedFrames % 30 === 0) {
+          console.log(`[render] ${input.outputName}: ${Math.round(progress * 100)}% (${renderedFrames} frames)`);
+        }
+      },
+      timeoutInMilliseconds: 180000, // 3min max por render
+    });
+    console.log(`[render] ✓ "${input.outputName}" → ${outputLocation}`);
+    return outputLocation;
+  } catch (err) {
+    console.error(`[render] ✗ "${input.outputName}" falhou: ${(err as Error).message}`);
+    throw err;
+  }
 }
 
 /**
