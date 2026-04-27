@@ -168,6 +168,12 @@ export type ColorFilter =
   | "dourado"
   | "azul";
 
+/**
+ * Template visual do projeto — escolhido no brand brief, aplica
+ * defaults coerentes nas páginas geradas.
+ */
+export type TemplateStyle = "classico" | "destaque" | "cinema";
+
 export interface AdDraft {
   number: number;
   padrao: Padrao;
@@ -200,6 +206,7 @@ export interface ProjectDraft extends ProjectStyle {
   audience: Audience;
   fontHook: string;
   fontTransition: string;
+  template?: TemplateStyle;
   ads: AdDraft[];
   createdAt: number;
   updatedAt: number;
@@ -249,6 +256,7 @@ export interface GenerateRequest {
   baseOverlayOpacity?: number;
   baseAlign?: Align;
   colorFilter?: ColorFilter;
+  template?: TemplateStyle;
 }
 
 export interface GenerateResultAd {

@@ -6,6 +6,10 @@ import { findBestAssetFor } from "../../../lib/client-assets";
 import { findOrFetchVideoForQuery } from "../../../lib/video-library";
 import { newDraftId, saveDraft } from "../../../lib/drafts";
 import { defaultProjectStyle } from "../../../lib/style-defaults";
+import {
+  enrichPageWithTemplate,
+  templateProjectOverrides,
+} from "../../../lib/template-presets";
 import type {
   AdDraft,
   AnimationKind,
@@ -113,6 +117,12 @@ export async function POST(request: Request) {
   if (body.baseAlign) projectStyle.baseAlign = body.baseAlign;
   if (body.colorFilter) projectStyle.colorFilter = body.colorFilter;
 
+  // Aplica overrides do template escolhido (se houver)
+  const template = body.template;
+  if (template) {
+    Object.assign(projectStyle, templateProjectOverrides(template));
+  }
+
   const ads: AdDraft[] = [];
   for (const ad of parsed.ads) {
     try {
@@ -144,7 +154,7 @@ export async function POST(request: Request) {
           format: body.format,
         });
         const trimmedText = scene.text.split(" / ").slice(0, 2).join(" / ");
-        pages.push({
+        const basePage: PageDraft = {
           text: trimmedText,
           weight: scene.weight,
           query: scene.query,
@@ -152,7 +162,11 @@ export async function POST(request: Request) {
           videoSrc,
           animation: ANIMATION_ROTATION[i % ANIMATION_ROTATION.length]!,
           hideText: wordlessIndices.has(i),
+        };
+        const enrichedPage = enrichPageWithTemplate(basePage, template, {
+          accentColor: projectStyle.accentColor,
         });
+        pages.push(enrichedPage);
       }
       ads.push({ number: ad.number, padrao: ad.padrao, pages });
     } catch (err) {
@@ -173,6 +187,7 @@ export async function POST(request: Request) {
     fontHook: body.fontHook,
     fontTransition: body.fontTransition,
     ...projectStyle,
+    template,
     ads,
     createdAt: Date.now(),
     updatedAt: Date.now(),

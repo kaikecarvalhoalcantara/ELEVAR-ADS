@@ -12,11 +12,13 @@ import type {
   GenerateRequest,
   Lang,
   Mood,
+  TemplateStyle,
   ToneFilter,
   Vibe,
 } from "../lib/types";
 import { COLOR_FILTER_LABELS } from "../lib/color-filters";
 import { buildTextShadow } from "../lib/text-utils";
+import { TEMPLATES } from "../lib/template-presets";
 
 const MOODS: Mood[] = [
   "sofisticado",
@@ -180,6 +182,8 @@ function GenerateTab() {
   const [lineHeight, setLineHeight] = useState(1.05);
   const [align, setAlign] = useState<Align>("center");
   const [colorFilter, setColorFilter] = useState<ColorFilter>("neutro");
+  // V10: template visual
+  const [template, setTemplate] = useState<TemplateStyle>("classico");
   // copy
   const [source, setSource] = useState("");
 
@@ -230,6 +234,7 @@ function GenerateTab() {
         baseOverlayOpacity: overlayOpacity,
         baseAlign: align,
         colorFilter,
+        template,
       };
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -259,7 +264,33 @@ function GenerateTab() {
       </Section>
 
       <Section
-        title="2. Formato e idioma"
+        title="2. Template visual"
+        hint="Escolhe o padrão de layout. Cada um aplica defaults coerentes nas páginas geradas — você ainda pode ajustar tudo depois no editor."
+      >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {TEMPLATES.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTemplate(t.id)}
+              className={`text-left rounded p-3 border transition ${
+                template === t.id
+                  ? "border-purple-500 bg-purple-900/20"
+                  : "border-neutral-700 hover:border-neutral-500"
+              }`}
+            >
+              <TemplateThumb id={t.id} active={template === t.id} />
+              <div className="mt-2 text-sm font-semibold">{t.label}</div>
+              <div className="text-xs text-neutral-400 mt-1">{t.description}</div>
+              <div className="text-[10px] text-neutral-500 mt-1.5 italic">
+                {t.exampleHint}
+              </div>
+            </button>
+          ))}
+        </div>
+      </Section>
+
+      <Section
+        title="3. Formato e idioma"
         hint="Define proporção do vídeo e idioma da copy"
       >
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -275,7 +306,7 @@ function GenerateTab() {
       </Section>
 
       <Section
-        title="3. Tom & Vibe"
+        title="4. Tom & Vibe"
         hint="Define o filtro visual + sensação cinematográfica. A IA usa isso pra escolher imagens não-óbvias."
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -321,7 +352,7 @@ function GenerateTab() {
       </Section>
 
       <Section
-        title="4. Público & Mood narrativo"
+        title="5. Público & Mood narrativo"
         hint="Mood é a curva emocional da copy. Público guia a estética."
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -331,7 +362,7 @@ function GenerateTab() {
       </Section>
 
       <Section
-        title="5. Tipografia"
+        title="6. Tipografia"
         hint="Default: ~60% gancho (uppercase bold), ~5% transição (sentence-case), ~35% sem texto. Fontes carregam do Google Fonts."
       >
         <label className="flex items-center gap-2 mb-3 text-sm">
@@ -360,7 +391,7 @@ function GenerateTab() {
       </Section>
 
       <Section
-        title="6. Cor & estilo visual"
+        title="7. Cor & estilo visual"
         hint="Calibrado automaticamente conforme o tom acima — ajuste se quiser. Tudo é editável depois no editor."
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -490,7 +521,7 @@ function GenerateTab() {
       </Section>
 
       <Section
-        title="7. Copy do anúncio"
+        title="8. Copy do anúncio"
         hint="Cole o doc inteiro com os 10 anúncios — formato 'AD 01 - PADRÃO HDCPY' / 'ANÚNCIO COMPLETO' já é reconhecido"
       >
         <textarea
@@ -715,6 +746,77 @@ function AssetsTab() {
       </ul>
     </div>
   );
+}
+
+/** Mini-preview visual de cada template (180×120, vertical-ish). */
+function TemplateThumb({ id, active }: { id: TemplateStyle; active: boolean }) {
+  const ring = active ? "ring-2 ring-purple-500" : "";
+  if (id === "classico") {
+    return (
+      <div
+        className={`relative aspect-[9/14] rounded overflow-hidden ${ring}`}
+        style={{
+          background:
+            "linear-gradient(135deg, #3a2818 0%, #0a0a0a 100%)",
+        }}
+      >
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-white font-black text-[11px] tracking-tight uppercase text-center px-2 leading-tight">
+            VOCÊ NÃO<br />ESTAVA PRONTO
+          </span>
+        </div>
+      </div>
+    );
+  }
+  if (id === "destaque") {
+    return (
+      <div
+        className={`relative aspect-[9/14] rounded overflow-hidden ${ring}`}
+        style={{
+          background:
+            "linear-gradient(135deg, #4a1a1a 0%, #0a0a0a 100%)",
+        }}
+      >
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="bg-black/65 px-2 py-1 rounded-sm shadow-lg">
+            <span className="text-white font-black text-[11px] tracking-tight uppercase text-center leading-tight">
+              VOCÊ NÃO<br />
+              <span style={{ color: "#ff3b3b" }}>ESTAVA PRONTO</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (id === "cinema") {
+    return (
+      <div
+        className={`relative aspect-[9/14] rounded overflow-hidden ${ring}`}
+        style={{ background: "#000" }}
+      >
+        {/* video só na metade superior */}
+        <div
+          className="absolute top-0 left-0 right-0"
+          style={{
+            height: "60%",
+            background:
+              "linear-gradient(180deg, #1a1308 0%, #2a1f15 100%)",
+            boxShadow: "inset 0 -10px 20px rgba(0,0,0,0.8)",
+          }}
+        />
+        <div
+          className="absolute left-0 right-0 flex items-center justify-center"
+          style={{ top: "65%", bottom: 0 }}
+        >
+          <span className="text-white font-black text-[11px] tracking-tight uppercase text-center px-2 leading-tight">
+            VOCÊ NÃO<br />
+            <span style={{ color: "#d4af37" }}>ESTAVA PRONTO</span>
+          </span>
+        </div>
+      </div>
+    );
+  }
+  return null;
 }
 
 function Field({
