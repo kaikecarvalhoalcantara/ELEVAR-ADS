@@ -18,6 +18,11 @@ const PUBLIC_BASE_URL =
  */
 function localPathToHttpUrl(absPath: string): string {
   if (!absPath) return "";
+  // Já é URL HTTP (Pexels CDN) → passa direto pro Remotion
+  if (absPath.startsWith("http://") || absPath.startsWith("https://")) {
+    return absPath;
+  }
+  // Filepath local (client assets) → serve via /api/local-video
   const rel = relative(getStorageRoot(), absPath);
   if (rel.startsWith("..")) {
     throw new Error(`Caminho fora do storage: ${absPath}`);
