@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import { createHash } from "node:crypto";
 import { join, resolve } from "node:path";
 import { storagePath } from "./storage";
+import { getDb, isPostgresAvailable } from "./db";
 import type { ProjectDraft } from "./types";
 
 let DRAFTS_ROOT = storagePath("drafts");
@@ -13,6 +14,43 @@ export function newDraftId(): string {
     .slice(0, 12);
 }
 
+/* ============================================================
+ * MODE A: Postgres (preferido — persiste sempre)
+ * ============================================================ */
+
+async function saveDraftPg(draft: ProjectDraft): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Postgres indisponível");
+  draft.updatedAt = Date.now();
+  await db.query(
+    `INSERT INTO drafts (id, data) VALUES ($1, $2)
+     ON CONFLICT (id) DO UPDATE
+     SET data = EXCLUDED.data, updated_at = NOW()`,
+    [draft.id, JSON.stringify(draft)],
+  );
+}
+
+async function loadDraftPg(id: string): Promise<ProjectDraft | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const res = await db.query(`SELECT data FROM drafts WHERE id = $1`, [id]);
+  if (res.rows.length === 0) return null;
+  return res.rows[0].data as ProjectDraft;
+}
+
+async function listDraftsPg(): Promise<ProjectDraft[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const res = await db.query(
+    `SELECT data FROM drafts ORDER BY updated_at DESC LIMIT 100`,
+  );
+  return res.rows.map((r) => r.data as ProjectDraft);
+}
+
+/* ============================================================
+ * MODE B: Filesystem (fallback se Postgres não disponível)
+ * ============================================================ */
+
 async function tryEnsureDir(dir: string): Promise<boolean> {
   try {
     await fs.mkdir(dir, { recursive: true });
@@ -23,22 +61,13 @@ async function tryEnsureDir(dir: string): Promise<boolean> {
   }
 }
 
-/**
- * Garante que DRAFTS_ROOT seja escrevível em runtime.
- * Se falhar (ex: /data tem problema runtime), faz fallback dinâmico
- * pra /tmp/elevar-storage/drafts.
- */
-async function ensureRoot(): Promise<void> {
+async function ensureFileRoot(): Promise<void> {
   const ok = await tryEnsureDir(DRAFTS_ROOT);
   if (ok) return;
-
-  // Fallback runtime
   const tmpRoot = resolve("/tmp/elevar-storage/drafts");
-  console.warn(`[drafts] FALLBACK runtime — mudando DRAFTS_ROOT pra ${tmpRoot}`);
+  console.warn(`[drafts] FALLBACK runtime — DRAFTS_ROOT pra ${tmpRoot}`);
   const ok2 = await tryEnsureDir(tmpRoot);
-  if (!ok2) {
-    throw new Error(`Storage indisponível: nem ${DRAFTS_ROOT} nem ${tmpRoot}`);
-  }
+  if (!ok2) throw new Error(`Storage indisponível`);
   DRAFTS_ROOT = tmpRoot;
 }
 
@@ -49,54 +78,26 @@ function pathFor(id: string): string {
   return join(DRAFTS_ROOT, `${id}.json`);
 }
 
-const writeChains = new Map<string, Promise<unknown>>();
-
-async function renameWithRetry(src: string, dest: string, attempts = 6): Promise<boolean> {
-  for (let i = 0; i < attempts; i++) {
+async function saveDraftFile(draft: ProjectDraft): Promise<void> {
+  await ensureFileRoot();
+  draft.updatedAt = Date.now();
+  const target = pathFor(draft.id);
+  const content = JSON.stringify(draft, null, 2);
+  const tmp = `${target}.tmp.${process.pid}.${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+  try {
+    await fs.writeFile(tmp, content, "utf8");
     try {
-      await fs.rename(src, dest);
-      return true;
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      if (
-        (code === "EPERM" || code === "EBUSY" || code === "EACCES") &&
-        i < attempts - 1
-      ) {
-        await new Promise((r) => setTimeout(r, 60 * (i + 1)));
-        continue;
-      }
-      return false;
+      await fs.rename(tmp, target);
+    } catch {
+      await fs.writeFile(target, content, "utf8");
+      await fs.unlink(tmp).catch(() => undefined);
     }
+  } catch {
+    await fs.unlink(tmp).catch(() => undefined);
+    await fs.writeFile(target, content, "utf8");
   }
-  return false;
-}
-
-export async function saveDraft(draft: ProjectDraft): Promise<void> {
-  const prev = writeChains.get(draft.id) ?? Promise.resolve();
-  const cur = prev
-    .catch(() => undefined)
-    .then(async () => {
-      await ensureRoot();
-      draft.updatedAt = Date.now();
-      const target = pathFor(draft.id);
-      const content = JSON.stringify(draft, null, 2);
-      const tmp = `${target}.tmp.${process.pid}.${Math.random()
-        .toString(36)
-        .slice(2, 8)}`;
-      try {
-        await fs.writeFile(tmp, content, "utf8");
-        const renamed = await renameWithRetry(tmp, target);
-        if (!renamed) {
-          await fs.writeFile(target, content, "utf8");
-          await fs.unlink(tmp).catch(() => undefined);
-        }
-      } catch (err) {
-        await fs.unlink(tmp).catch(() => undefined);
-        await fs.writeFile(target, content, "utf8");
-      }
-    });
-  writeChains.set(draft.id, cur);
-  await cur;
 }
 
 function findFirstCompleteJSON(raw: string): string | null {
@@ -135,8 +136,8 @@ function findFirstCompleteJSON(raw: string): string | null {
   return null;
 }
 
-export async function loadDraft(id: string): Promise<ProjectDraft | null> {
-  await ensureRoot();
+async function loadDraftFile(id: string): Promise<ProjectDraft | null> {
+  await ensureFileRoot();
   try {
     const raw = await fs.readFile(pathFor(id), "utf8");
     try {
@@ -146,15 +147,13 @@ export async function loadDraft(id: string): Promise<ProjectDraft | null> {
       if (trimmed) {
         try {
           const recovered = JSON.parse(trimmed) as ProjectDraft;
-          await saveDraft(recovered);
+          await saveDraftFile(recovered);
           return recovered;
         } catch {
           // fallthrough
         }
       }
-      throw new Error(
-        "Draft corrompido. Crie um novo do zero.",
-      );
+      throw new Error("Draft corrompido");
     }
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
@@ -162,8 +161,8 @@ export async function loadDraft(id: string): Promise<ProjectDraft | null> {
   }
 }
 
-export async function listDrafts(): Promise<ProjectDraft[]> {
-  await ensureRoot();
+async function listDraftsFile(): Promise<ProjectDraft[]> {
+  await ensureFileRoot();
   const entries = await fs.readdir(DRAFTS_ROOT);
   const drafts: ProjectDraft[] = [];
   for (const e of entries) {
@@ -177,4 +176,51 @@ export async function listDrafts(): Promise<ProjectDraft[]> {
     }
   }
   return drafts.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+/* ============================================================
+ * Public API — escolhe Postgres se disponível, senão arquivo
+ * ============================================================ */
+
+const writeChains = new Map<string, Promise<unknown>>();
+
+export async function saveDraft(draft: ProjectDraft): Promise<void> {
+  const prev = writeChains.get(draft.id) ?? Promise.resolve();
+  const cur = prev
+    .catch(() => undefined)
+    .then(async () => {
+      if (isPostgresAvailable()) {
+        try {
+          await saveDraftPg(draft);
+          return;
+        } catch (err) {
+          console.error(`[drafts] Postgres save falhou, fallback file: ${(err as Error).message}`);
+        }
+      }
+      await saveDraftFile(draft);
+    });
+  writeChains.set(draft.id, cur);
+  await cur;
+}
+
+export async function loadDraft(id: string): Promise<ProjectDraft | null> {
+  if (isPostgresAvailable()) {
+    try {
+      return await loadDraftPg(id);
+    } catch (err) {
+      console.error(`[drafts] Postgres load falhou, fallback file: ${(err as Error).message}`);
+    }
+  }
+  return loadDraftFile(id);
+}
+
+export async function listDrafts(): Promise<ProjectDraft[]> {
+  if (isPostgresAvailable()) {
+    try {
+      return await listDraftsPg();
+    } catch (err) {
+      console.error(`[drafts] Postgres list falhou, fallback file: ${(err as Error).message}`);
+    }
+  }
+  return listDraftsFile();
 }
