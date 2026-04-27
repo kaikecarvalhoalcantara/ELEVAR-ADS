@@ -95,6 +95,15 @@ export async function renderAd(input: RenderAdInput): Promise<string> {
   return outputLocation;
 }
 
+/**
+ * Computa o filepath canônico do MP4 renderizado pra um ad específico.
+ * Usado tanto no render quanto nas rotas de download.
+ */
+export function mp4PathForAd(projectName: string, adNumber: number): string {
+  const filename = `${projectName} - AD ${String(adNumber).padStart(2, "0")}.mp4`;
+  return join(OUTPUT_ROOT, filename);
+}
+
 export function buildProjectName(args: {
   cliente: string;
   nicho: string;

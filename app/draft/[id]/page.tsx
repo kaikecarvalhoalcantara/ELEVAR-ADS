@@ -59,6 +59,7 @@ export default function EditorPage() {
   const [savingTimer, setSavingTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [renderStatus, setRenderStatus] = useState<string | null>(null);
+  const [renderedAds, setRenderedAds] = useState<{ number: number; downloadUrl: string }[]>([]);
   const [showAnimPreview, setShowAnimPreview] = useState(false);
   // V8: multi-select via Set
   const [selectedElementIds, setSelectedElementIds] = useState<Set<string>>(new Set());
@@ -323,10 +324,21 @@ export default function EditorPage() {
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error);
-      const ok = data.results.filter((r: { outputPath?: string }) => r.outputPath).length;
-      const fail = data.results.length - ok;
+      const succeeded = (data.results as { number: number; downloadUrl?: string; error?: string }[])
+        .filter((r) => r.downloadUrl && !r.error)
+        .map((r) => ({ number: r.number, downloadUrl: r.downloadUrl! }));
+      const fail = data.results.length - succeeded.length;
+      setRenderedAds((prev) => {
+        const merged = [...prev];
+        for (const item of succeeded) {
+          const existing = merged.findIndex((m) => m.number === item.number);
+          if (existing >= 0) merged[existing] = item;
+          else merged.push(item);
+        }
+        return merged.sort((a, b) => a.number - b.number);
+      });
       setRenderStatus(
-        `✓ Renderizado ${ok}/${data.results.length}${fail > 0 ? ` (${fail} falha${fail === 1 ? "" : "s"})` : ""}. Em ./generated/`,
+        `✓ Renderizado ${succeeded.length}/${data.results.length}${fail > 0 ? ` (${fail} falha${fail === 1 ? "" : "s"})` : ""}. Clique abaixo pra baixar.`,
       );
     } catch (e) {
       setRenderStatus(`Falha: ${(e as Error).message}`);
@@ -426,8 +438,31 @@ export default function EditorPage() {
       </header>
 
       {renderStatus && (
-        <div className="px-4 py-1.5 text-xs text-neutral-300 bg-neutral-900 border-b border-neutral-800">
-          {renderStatus}
+        <div className="px-4 py-1.5 text-xs text-neutral-300 bg-neutral-900 border-b border-neutral-800 flex items-center gap-3 flex-wrap">
+          <span>{renderStatus}</span>
+          {renderedAds.length > 0 && (
+            <>
+              {renderedAds.map((r) => (
+                <a
+                  key={r.number}
+                  href={r.downloadUrl}
+                  download
+                  className="px-2 py-0.5 rounded bg-green-700 hover:bg-green-600 text-white text-[11px] font-semibold"
+                >
+                  ⬇ AD {String(r.number).padStart(2, "0")}
+                </a>
+              ))}
+              {renderedAds.length > 1 && (
+                <a
+                  href={`/api/download/${id}/zip`}
+                  download
+                  className="px-2 py-0.5 rounded bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-semibold"
+                >
+                  ⬇ Todos (ZIP)
+                </a>
+              )}
+            </>
+          )}
         </div>
       )}
 

@@ -50,7 +50,12 @@ export async function POST(
     date: new Date(draft.createdAt),
   });
 
-  const results: { number: number; outputPath?: string; error?: string }[] = [];
+  const results: {
+    number: number;
+    outputPath?: string;
+    downloadUrl?: string;
+    error?: string;
+  }[] = [];
   for (const ad of wanted) {
     if (ad.pages.length === 0) {
       results.push({ number: ad.number, error: "Sem páginas neste anúncio" });
@@ -111,7 +116,8 @@ export async function POST(
         projectStyle,
         outputName,
       });
-      results.push({ number: ad.number, outputPath });
+      const downloadUrl = `/api/download/${id}/${ad.number}`;
+      results.push({ number: ad.number, outputPath, downloadUrl });
     } catch (err) {
       results.push({ number: ad.number, error: (err as Error).message });
     }
