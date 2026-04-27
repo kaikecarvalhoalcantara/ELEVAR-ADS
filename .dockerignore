@@ -1,0 +1,21 @@
+node_modules
+.next
+.git
+.gitignore
+.env
+.env.local
+.env*.local
+
+# Dados locais que NÃO devem ir pro container — vão no volume persistente
+drafts
+video-cache
+generated
+client-assets
+my_videos
+
+# Logs e caches
+*.log
+.DS_Store
+Thumbs.db
+.idea
+.vscode

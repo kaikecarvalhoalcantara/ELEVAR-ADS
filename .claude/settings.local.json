@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import pypdf; print\\('pypdf OK'\\)\")",
+      "Bash(python -c \"import pdfplumber; print\\('pdfplumber OK'\\)\")",
+      "Bash(py --version)",
+      "Bash(where pdftotext *)",
+      "Bash(where pdftoppm *)",
+      "Bash(mkdir -p /tmp/ads_text)",
+      "Bash(pdftotext -layout \"/c/Users/klayv/Downloads/formato hard copy.pdf\" /tmp/ads_text/formato.txt)",
+      "Bash(pdftotext -layout \"/c/Users/klayv/Downloads/10 ADS - WILLIAN - NICHE STORE .pdf\" /tmp/ads_text/willian.txt)",
+      "Bash(pdftotext -layout \"/c/Users/klayv/Downloads/ads 02 matheus.pdf\" /tmp/ads_text/matheus02.txt)",
+      "Bash(pdftotext -layout \"/c/Users/klayv/Downloads/ads 04 gabriel.pdf\" /tmp/ads_text/gabriel04.txt)",
+      "Bash(pdftotext -layout -l 80 \"/c/Users/klayv/Downloads/ADS.pdf\" /tmp/ads_text/ADS_first80.txt)",
+      "Read(//tmp/ads_text/**)",
+      "Bash(cygpath -w /tmp/ads_text/)",
+      "Bash(npm --version)",
+      "mcp__d7afed47-10c2-44cf-bf0c-f543eeda4d18__resolve-shortlink",
+      "mcp__d7afed47-10c2-44cf-bf0c-f543eeda4d18__get-design",
+      "Bash(npm install *)",
+      "WebFetch(domain:www.canva.dev)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(curl -sI http://127.0.0.1:3000/)",
+      "Bash(curl -s http://127.0.0.1:3000/)",
+      "Bash(netstat -ano)",
+      "Bash(awk '{print $NF}')",
+      "Bash(curl -sS -X POST http://127.0.0.1:3000/api/generate -H \"Content-Type: application/json\" -d '{}')",
+      "Bash(curl -sS -X POST http://127.0.0.1:3000/api/sync-library -H \"Content-Type: application/json\" -d '{\"combos\":[],\"format\":\"9:16\"}')",
+      "Bash(curl -sS http://127.0.0.1:3000/api/client-assets)",
+      "Bash(curl -sS http://127.0.0.1:3000/api/debug-env)",
+      "Bash(xxd \"C:/Users/klayv/OneDrive/Desktop/kaike projeto/.env.local\")",
+      "Bash(node -e ' *)",
+      "Bash(node -e 'try{JSON.parse\\(require\\('\\\\''fs'\\\\''\\).readFileSync\\('\\\\''__TRACKED_VAR__'\\\\'','\\\\''utf8'\\\\''\\)\\);console.log\\('\\\\''OK'\\\\'','\\\\''__TRACKED_VAR__'\\\\''\\)}catch\\(e\\){console.log\\('\\\\''CORRUPT'\\\\'','\\\\''__TRACKED_VAR__'\\\\'','\\\\'':'\\\\'',e.message.slice\\(0,80\\)\\)}')",
+      "Bash(curl -sI http://127.0.0.1:3000/login)",
+      "Bash(curl -sS -X POST http://127.0.0.1:3000/api/auth/login -H \"Content-Type: application/json\" -d '{\"password\":\"errada\"}')",
+      "Bash(curl -sI -X POST http://127.0.0.1:3000/api/auth/logout)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}
