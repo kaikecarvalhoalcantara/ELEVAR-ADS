@@ -4,6 +4,18 @@ import { buildProjectName, renderAd } from "../../../../../lib/render";
 import type { PageWithStyle } from "../../../../../remotion/AdComposition";
 import type { ProjectStyle } from "../../../../../lib/types";
 
+// Captura uncaughtException global pra evitar container crash quando
+// Remotion gera erros assíncronos (ERR_INVALID_STATE etc).
+if (typeof process !== "undefined" && !((globalThis as Record<string, unknown>).__renderHandlersInstalled)) {
+  process.on("uncaughtException", (err) => {
+    console.error("[uncaughtException no render]", err);
+  });
+  process.on("unhandledRejection", (err) => {
+    console.error("[unhandledRejection no render]", err);
+  });
+  (globalThis as Record<string, unknown>).__renderHandlersInstalled = true;
+}
+
 export const runtime = "nodejs";
 export const maxDuration = 800;
 
