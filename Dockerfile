@@ -38,8 +38,11 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
-# Storage persistente (Railway monta volume aqui)
-ENV STORAGE_DIR=/data
+# Storage — usamos /tmp/elevar-storage que SEMPRE funciona em qualquer container.
+# /tmp persiste durante a vida do container (entre requests) mas some no redeploy.
+# Pra persistência total: configurar volume Railway em /data e mudar isto pra /data
+# (mas hoje o volume Railway tem comportamento esquisito que ENOENT em runtime).
+ENV STORAGE_DIR=/tmp/elevar-storage
 
 COPY package.json package-lock.json* ./
 RUN npm ci --no-audit --no-fund

@@ -1,14 +1,14 @@
 import { promises as fs } from "node:fs";
 import { createWriteStream } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { Format } from "./types";
 import { pickBestVideoFile, searchPexelsVideos } from "./pexels";
 import { storagePath } from "./storage";
 
-const CACHE_ROOT = storagePath("video-cache");
-const BY_QUERY_DIR = join(CACHE_ROOT, "by-query");
+let CACHE_ROOT = storagePath("video-cache");
+let BY_QUERY_DIR = join(CACHE_ROOT, "by-query");
 
 const FORMAT_DIMS: Record<Format, { width: number; height: number }> = {
   "9:16": { width: 1080, height: 1920 },
@@ -28,6 +28,32 @@ export function slugify(query: string): string {
     .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
+}
+
+async function tryMkdir(dir: string): Promise<boolean> {
+  try {
+    await fs.mkdir(dir, { recursive: true });
+    return true;
+  } catch (err) {
+    console.error(`[video-library] mkdir ${dir} falhou: ${(err as Error).message}`);
+    return false;
+  }
+}
+
+/**
+ * Garante que CACHE_ROOT seja escrevível em runtime.
+ * Mesmo padrão do drafts.ts — se /data falhar, fallback pra /tmp.
+ */
+async function ensureCacheRoot(): Promise<void> {
+  const ok = await tryMkdir(BY_QUERY_DIR);
+  if (ok) return;
+  const tmpRoot = resolve("/tmp/elevar-storage/video-cache");
+  const tmpByQuery = join(tmpRoot, "by-query");
+  console.warn(`[video-library] FALLBACK runtime — mudando CACHE_ROOT pra ${tmpRoot}`);
+  const ok2 = await tryMkdir(tmpByQuery);
+  if (!ok2) throw new Error(`Storage de vídeo indisponível`);
+  CACHE_ROOT = tmpRoot;
+  BY_QUERY_DIR = tmpByQuery;
 }
 
 async function listMp4s(dir: string): Promise<string[]> {
@@ -61,9 +87,14 @@ export interface FetchOptions {
 export async function findOrFetchVideoForQuery(
   opts: FetchOptions,
 ): Promise<string | null> {
+  await ensureCacheRoot();
   const slug = slugify(opts.query);
   const dir = join(BY_QUERY_DIR, slug);
-  await fs.mkdir(dir, { recursive: true });
+  const mkOk = await tryMkdir(dir);
+  if (!mkOk) {
+    console.error(`[video-library] não consegui criar pasta da query: ${slug}`);
+    return null;
+  }
 
   const min = opts.minPerQuery ?? 3;
   let cached = await listMp4s(dir);
@@ -84,6 +115,7 @@ export async function findOrFetchVideoForQuery(
       orientation,
       perPage: 8,
     });
+    console.log(`[video-library] Pexels query="${opts.query}" returned ${videos.length} results`);
     for (const video of videos) {
       if ((await listMp4s(dir)).length >= min + 2) break;
       const file = pickBestVideoFile(video, dims);
@@ -97,14 +129,17 @@ export async function findOrFetchVideoForQuery(
       }
       try {
         await downloadTo(file.link, dest);
-      } catch {
-        // skip and try next
+      } catch (err) {
+        console.error(`[video-library] download falhou pra ${video.id}: ${(err as Error).message}`);
       }
     }
-  } catch {
-    // network failure — fall through to whatever's cached
+  } catch (err) {
+    console.error(`[video-library] Pexels search falhou pra "${opts.query}": ${(err as Error).message}`);
   }
   cached = await listMp4s(dir);
-  if (cached.length === 0) return null;
+  if (cached.length === 0) {
+    console.warn(`[video-library] zero vídeos pra query "${opts.query}" (slug=${slug})`);
+    return null;
+  }
   return cached[Math.floor(Math.random() * cached.length)] ?? null;
 }
