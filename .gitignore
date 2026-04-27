@@ -13,6 +13,10 @@ generated/
 drafts/
 client-assets/
 
+# Pastas de referência local — não vão pra produção
+BANCO DE IMAGENS PASTA/
+referencias PROJETOS/
+
 *.log
 .DS_Store
 Thumbs.db
