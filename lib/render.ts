@@ -86,27 +86,30 @@ export async function renderAd(input: RenderAdInput): Promise<string> {
       codec: "h264",
       outputLocation,
       inputProps: propsForRemotion,
-      // ECONOMIA DE MEMÓRIA: 1 frame por vez (sem paralelismo).
-      // Chromium do Remotion é pesadíssimo — sem isso, OOM kill.
-      concurrency: 1,
-      // Codec mais leve, qualidade média (suficiente pra ads)
-      crf: 28,
+      // ECONOMIA TOTAL DE MEMÓRIA — pra não OOM kill no Railway:
+      concurrency: 1, // 1 frame por vez
+      crf: 30, // qualidade média-baixa (compressão maior)
       pixelFormat: "yuv420p",
+      // JPEG em vez de PNG — frames 5x mais leves em memória
+      imageFormat: "jpeg",
+      jpegQuality: 80,
+      // Codec ffmpeg mais leve
+      videoBitrate: "1200k",
       chromiumOptions: {
         gl: "swangle",
         headless: true,
         disableWebSecurity: true,
         ignoreCertificateErrors: true,
+        // Flags Chromium pra usar menos memória em container Linux
+        enableMultiProcessOnLinux: false,
       },
-      // Em produção (Docker) usa o Chromium do sistema.
       browserExecutable: process.env.REMOTION_BROWSER_EXECUTABLE || undefined,
-      // Log progresso pra Railway logs
       onProgress: ({ progress, renderedFrames }) => {
         if (renderedFrames % 30 === 0) {
           console.log(`[render] ${input.outputName}: ${Math.round(progress * 100)}% (${renderedFrames} frames)`);
         }
       },
-      timeoutInMilliseconds: 180000, // 3min max por render
+      timeoutInMilliseconds: 240000, // 4min max
     });
     console.log(`[render] ✓ "${input.outputName}" → ${outputLocation}`);
     return outputLocation;
