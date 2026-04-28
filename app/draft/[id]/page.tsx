@@ -30,6 +30,7 @@ import type {
   ProcessingState,
   ProjectDraft,
   ProjectStyle,
+  RenderProgress,
   TextSegment,
 } from "../../../lib/types";
 
@@ -59,7 +60,6 @@ export default function EditorPage() {
   const [savingTimer, setSavingTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [renderStatus, setRenderStatus] = useState<string | null>(null);
-  const [renderedAds, setRenderedAds] = useState<{ number: number; downloadUrl: string }[]>([]);
   const [showAnimPreview, setShowAnimPreview] = useState(false);
   // V8: multi-select via Set
   const [selectedElementIds, setSelectedElementIds] = useState<Set<string>>(new Set());
@@ -206,6 +206,60 @@ export default function EditorPage() {
     return () => clearInterval(t);
   }, [draft?.processing?.status, draft?.processing?.currentAdIndex, reload]);
 
+  // Enquanto draft.rendering.status === "in_progress", polling a cada 3s
+  // pra atualizar fila/completos/erros e fazer aparecer botão verde de cada AD
+  useEffect(() => {
+    if (!draft) return;
+    const status = draft.rendering?.status;
+    if (status !== "in_progress") return;
+    const t = setInterval(() => {
+      reload();
+    }, 3000);
+    return () => clearInterval(t);
+  }, [
+    draft?.rendering?.status,
+    draft?.rendering?.currentAdNumber,
+    draft?.rendering?.completedAdNumbers?.length,
+    draft?.rendering?.failedAdNumbers?.length,
+    reload,
+  ]);
+
+  // Sincroniza renderStatus textual com o estado do draft.rendering
+  useEffect(() => {
+    if (!draft?.rendering) return;
+    const r = draft.rendering;
+    if (r.status === "in_progress") {
+      const cur = r.currentAdNumber;
+      const done = r.completedAdNumbers.length;
+      const total = r.queueAdNumbers.length;
+      setRenderStatus(
+        cur != null
+          ? `Renderizando AD ${String(cur).padStart(2, "0")}… (${done}/${total} prontos)`
+          : `Iniciando renderização… (${done}/${total} prontos)`,
+      );
+    } else if (r.status === "complete") {
+      const done = r.completedAdNumbers.length;
+      const total = r.queueAdNumbers.length;
+      const fails = r.failedAdNumbers;
+      if (fails.length === 0) {
+        setRenderStatus(`✓ Renderizado ${done}/${total}. Clique abaixo pra baixar.`);
+      } else {
+        const errors = fails
+          .map((f) => `AD ${String(f.number).padStart(2, "0")}: ${f.error}`)
+          .join(" | ");
+        setRenderStatus(
+          `Renderizado ${done}/${total}. ❌ ERROS: ${errors}`,
+        );
+      }
+    }
+  }, [
+    draft?.rendering?.status,
+    draft?.rendering?.currentAdNumber,
+    draft?.rendering?.completedAdNumbers?.length,
+    draft?.rendering?.failedAdNumbers?.length,
+    draft?.rendering?.queueAdNumbers?.length,
+  ]);
+
   function scheduleSave(next: EnrichedDraft, fromHistory = false) {
     if (!fromHistory && draft) {
       // Snapshot no undo stack — debounced 500ms pra slider não criar 100 entries
@@ -315,7 +369,12 @@ export default function EditorPage() {
   }
 
   async function renderAds(adNumbers: number[] | null) {
-    setRenderStatus("Renderizando... cada anúncio leva 30-60s.");
+    // Bloqueia se já tem render rodando
+    if (draft?.rendering?.status === "in_progress") {
+      setRenderStatus("Já tem renderização rodando, aguarde…");
+      return;
+    }
+    setRenderStatus("Disparando renderização…");
     try {
       const res = await fetch(`/api/draft/${id}/render`, {
         method: "POST",
@@ -324,36 +383,14 @@ export default function EditorPage() {
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error);
-      const allResults = data.results as {
-        number: number;
-        downloadUrl?: string;
-        error?: string;
-      }[];
-      const succeeded = allResults
-        .filter((r) => r.downloadUrl && !r.error)
-        .map((r) => ({ number: r.number, downloadUrl: r.downloadUrl! }));
-      const failed = allResults.filter((r) => r.error);
-      setRenderedAds((prev) => {
-        const merged = [...prev];
-        for (const item of succeeded) {
-          const existing = merged.findIndex((m) => m.number === item.number);
-          if (existing >= 0) merged[existing] = item;
-          else merged.push(item);
-        }
-        return merged.sort((a, b) => a.number - b.number);
-      });
-      if (failed.length === 0) {
-        setRenderStatus(
-          `✓ Renderizado ${succeeded.length}/${allResults.length}. Clique abaixo pra baixar.`,
-        );
-      } else {
-        const errors = failed
-          .map((f) => `AD ${String(f.number).padStart(2, "0")}: ${f.error}`)
-          .join(" | ");
-        setRenderStatus(
-          `Renderizado ${succeeded.length}/${allResults.length}. ❌ ERROS: ${errors}`,
-        );
-      }
+      // Worker tá rodando em background — o polling do useEffect
+      // atualiza draft.rendering e os botões verdes aparecem sozinhos
+      const queue = (data.queueAdNumbers as number[] | undefined) ?? [];
+      setRenderStatus(
+        `Renderização iniciada pra ${queue.length} anúncio${queue.length === 1 ? "" : "s"}. Aguarde…`,
+      );
+      // Força reload imediato pra polling pegar o estado novo rápido
+      reload();
     } catch (e) {
       setRenderStatus(`Falha: ${(e as Error).message}`);
     }
@@ -438,47 +475,23 @@ export default function EditorPage() {
           </button>
           <button
             onClick={() => renderAds([ad.number])}
-            className="px-3 py-1 rounded bg-purple-600 hover:bg-purple-500 text-sm font-semibold"
+            disabled={draft.rendering?.status === "in_progress"}
+            className="px-3 py-1 rounded bg-purple-600 hover:bg-purple-500 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Baixar este AD
           </button>
           <button
             onClick={() => renderAds(null)}
-            className="px-3 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-sm border border-neutral-600"
+            disabled={draft.rendering?.status === "in_progress"}
+            className="px-3 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-sm border border-neutral-600 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Baixar todos ({draft.ads.length})
           </button>
         </div>
       </header>
 
-      {renderStatus && (
-        <div className="px-4 py-1.5 text-xs text-neutral-300 bg-neutral-900 border-b border-neutral-800 flex items-center gap-3 flex-wrap">
-          <span>{renderStatus}</span>
-          {renderedAds.length > 0 && (
-            <>
-              {renderedAds.map((r) => (
-                <a
-                  key={r.number}
-                  href={r.downloadUrl}
-                  download
-                  className="px-2 py-0.5 rounded bg-green-700 hover:bg-green-600 text-white text-[11px] font-semibold"
-                >
-                  ⬇ AD {String(r.number).padStart(2, "0")}
-                </a>
-              ))}
-              {renderedAds.length > 1 && (
-                <a
-                  href={`/api/download/${id}/zip`}
-                  download
-                  className="px-2 py-0.5 rounded bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-semibold"
-                >
-                  ⬇ Todos (ZIP)
-                </a>
-              )}
-            </>
-          )}
-        </div>
-      )}
+      <RenderStatusBar draft={draft} draftId={id} renderStatus={renderStatus} />
+
 
       <div className="flex flex-1 min-h-0">
         {/* CENTER: editable canvas */}
@@ -1006,6 +1019,109 @@ function ProcessingScreen({
         )}
       </div>
     </main>
+  );
+}
+
+/* ---------------- Render status bar (botões verdes progressivos) ---------------- */
+
+function RenderStatusBar({
+  draft,
+  draftId,
+  renderStatus,
+}: {
+  draft: { rendering?: RenderProgress };
+  draftId: string;
+  renderStatus: string | null;
+}) {
+  const r = draft.rendering;
+  // Mostra a barra se: (a) tem renderStatus textual (acabou de disparar)
+  // OU (b) tem rendering state com algo relevante
+  const hasState =
+    r &&
+    (r.status === "in_progress" ||
+      r.status === "complete" ||
+      r.completedAdNumbers.length > 0 ||
+      r.failedAdNumbers.length > 0);
+  if (!renderStatus && !hasState) return null;
+
+  const completed = r?.completedAdNumbers ?? [];
+  const failed = r?.failedAdNumbers ?? [];
+  const inProgress = r?.status === "in_progress";
+  const currentAd = r?.currentAdNumber;
+  const queue = r?.queueAdNumbers ?? [];
+
+  return (
+    <div className="px-4 py-1.5 text-xs text-neutral-300 bg-neutral-900 border-b border-neutral-800 flex items-center gap-3 flex-wrap">
+      {inProgress && (
+        <span className="inline-block w-3 h-3 rounded-full bg-purple-500 animate-pulse" />
+      )}
+      <span>{renderStatus}</span>
+
+      {/* Fila visual: pendente / atual / completo / erro */}
+      {queue.length > 0 && (
+        <div className="flex items-center gap-1 flex-wrap">
+          {queue.map((n) => {
+            const isDone = completed.includes(n);
+            const isFail = failed.find((f) => f.number === n);
+            const isCurrent = currentAd === n;
+            const label = `AD ${String(n).padStart(2, "0")}`;
+            if (isDone) {
+              return (
+                <a
+                  key={n}
+                  href={`/api/download/${draftId}/${n}`}
+                  download
+                  className="px-2 py-0.5 rounded bg-green-700 hover:bg-green-600 text-white text-[11px] font-semibold"
+                  title="Baixar"
+                >
+                  ⬇ {label}
+                </a>
+              );
+            }
+            if (isFail) {
+              return (
+                <span
+                  key={n}
+                  className="px-2 py-0.5 rounded bg-red-900 text-red-200 text-[11px] font-semibold"
+                  title={isFail.error}
+                >
+                  ✗ {label}
+                </span>
+              );
+            }
+            if (isCurrent) {
+              return (
+                <span
+                  key={n}
+                  className="px-2 py-0.5 rounded bg-purple-700 text-white text-[11px] font-semibold animate-pulse"
+                >
+                  ▶ {label}
+                </span>
+              );
+            }
+            return (
+              <span
+                key={n}
+                className="px-2 py-0.5 rounded bg-neutral-800 text-neutral-500 text-[11px]"
+              >
+                {label}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ZIP — só quando tem 2+ ads completos */}
+      {completed.length >= 2 && (
+        <a
+          href={`/api/download/${draftId}/zip`}
+          download
+          className="px-2 py-0.5 rounded bg-purple-700 hover:bg-purple-600 text-white text-[11px] font-semibold ml-auto"
+        >
+          ⬇ Todos prontos (ZIP) — {completed.length}
+        </a>
+      )}
+    </div>
   );
 }
 

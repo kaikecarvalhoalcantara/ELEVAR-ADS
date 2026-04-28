@@ -207,6 +207,19 @@ export interface ProcessingState {
   pageCount?: number;
 }
 
+export interface RenderProgress {
+  status: "idle" | "in_progress" | "complete" | "error";
+  queueAdNumbers: number[]; // ads pra renderizar
+  completedAdNumbers: number[]; // ads concluídos
+  failedAdNumbers: { number: number; error: string }[]; // ads que falharam
+  currentAdNumber?: number; // ad sendo renderizado agora
+  currentChunk?: number; // chunk atual
+  totalChunks?: number;
+  message?: string;
+  startedAt?: number;
+  finishedAt?: number;
+}
+
 export interface ProjectDraft extends ProjectStyle {
   id: string;
   cliente: string;
@@ -223,6 +236,7 @@ export interface ProjectDraft extends ProjectStyle {
   createdAt: number;
   updatedAt: number;
   processing?: ProcessingState;
+  rendering?: RenderProgress;
 }
 
 export type AssetKind = "image" | "video";

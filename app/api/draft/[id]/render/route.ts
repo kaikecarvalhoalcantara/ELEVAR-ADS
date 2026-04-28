@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
-import { loadDraft } from "../../../../../lib/drafts";
-import { buildProjectName, renderAd } from "../../../../../lib/render";
-import type { PageWithStyle } from "../../../../../remotion/AdComposition";
-import type { ProjectStyle } from "../../../../../lib/types";
+import { loadDraft, saveDraft } from "../../../../../lib/drafts";
+import { renderAdsInBackground } from "../../../../../lib/render-worker";
 
 // Captura uncaughtException global pra evitar container crash quando
-// Remotion gera erros assíncronos (ERR_INVALID_STATE etc).
+// Remotion gera erros assíncronos.
 if (typeof process !== "undefined" && !((globalThis as Record<string, unknown>).__renderHandlersInstalled)) {
   process.on("uncaughtException", (err) => {
     console.error("[uncaughtException no render]", err);
@@ -17,10 +15,10 @@ if (typeof process !== "undefined" && !((globalThis as Record<string, unknown>).
 }
 
 export const runtime = "nodejs";
-export const maxDuration = 800;
+export const maxDuration = 60; // só pra disparar worker
 
 interface Body {
-  adNumbers?: number[]; // if omitted: render all
+  adNumbers?: number[]; // omit = todos
 }
 
 export async function POST(
@@ -36,97 +34,49 @@ export async function POST(
   }
   const draft = await loadDraft(id);
   if (!draft) {
-    return NextResponse.json({ ok: false, error: "Draft não encontrado" }, { status: 404 });
+    return NextResponse.json(
+      { ok: false, error: "Draft não encontrado" },
+      { status: 404 },
+    );
   }
 
-  const wanted = body.adNumbers && body.adNumbers.length > 0
-    ? draft.ads.filter((a) => body.adNumbers!.includes(a.number))
-    : draft.ads;
+  const wantedNumbers =
+    body.adNumbers && body.adNumbers.length > 0
+      ? body.adNumbers
+      : draft.ads.filter((a) => a.pages.length > 0).map((a) => a.number);
 
-  const projectName = buildProjectName({
-    cliente: draft.cliente,
-    nicho: draft.nicho,
-    nome: draft.nome,
-    date: new Date(draft.createdAt),
+  if (wantedNumbers.length === 0) {
+    return NextResponse.json(
+      { ok: false, error: "Nenhum AD com páginas pra renderizar" },
+      { status: 400 },
+    );
+  }
+
+  // Reset estado de rendering pra esses ads (limpa erros antigos)
+  if (!draft.rendering) {
+    draft.rendering = {
+      status: "in_progress",
+      queueAdNumbers: wantedNumbers,
+      completedAdNumbers: [],
+      failedAdNumbers: [],
+    };
+  } else {
+    draft.rendering.status = "in_progress";
+    draft.rendering.queueAdNumbers = wantedNumbers;
+    draft.rendering.failedAdNumbers = draft.rendering.failedAdNumbers.filter(
+      (f) => !wantedNumbers.includes(f.number),
+    );
+  }
+  await saveDraft(draft);
+
+  // Spawn worker em background — não awaita
+  void renderAdsInBackground(id, wantedNumbers).catch((err) => {
+    console.error(`[render-worker ${id}] uncaught:`, err);
   });
 
-  const results: {
-    number: number;
-    outputPath?: string;
-    downloadUrl?: string;
-    error?: string;
-  }[] = [];
-  for (const ad of wanted) {
-    if (ad.pages.length === 0) {
-      results.push({ number: ad.number, error: "Sem páginas neste anúncio" });
-      continue;
-    }
-    try {
-      const beats: PageWithStyle[] = ad.pages.map((p) => ({
-        text: p.text,
-        weight: p.weight,
-        fontSize: p.fontSize,
-        color: p.color,
-        letterSpacing: p.letterSpacing,
-        lineHeight: p.lineHeight,
-        textShadowBlur: p.textShadowBlur,
-        textShadowOpacity: p.textShadowOpacity,
-        overlayOpacity: p.overlayOpacity,
-        align: p.align,
-        hideText: p.hideText,
-        segments: p.segments,
-        iconAbove: p.iconAbove,
-        iconBelow: p.iconBelow,
-        iconColor: p.iconColor,
-        videoZoom: p.videoZoom,
-        videoFlipH: p.videoFlipH,
-        videoFlipV: p.videoFlipV,
-        videoTrimStart: p.videoTrimStart,
-        elements: p.elements,
-        videoX: p.videoX,
-        videoY: p.videoY,
-        videoW: p.videoW,
-        videoH: p.videoH,
-      }));
-      const videos = ad.pages.map((p) => p.videoSrc);
-      const animations = ad.pages.map((p) => p.animation);
-      const projectStyle: ProjectStyle = {
-        toneFilter: draft.toneFilter,
-        vibe: draft.vibe,
-        baseColor: draft.baseColor,
-        accentColor: draft.accentColor,
-        baseFontSize: draft.baseFontSize,
-        baseLetterSpacing: draft.baseLetterSpacing,
-        baseLineHeight: draft.baseLineHeight,
-        baseShadowBlur: draft.baseShadowBlur,
-        baseShadowOpacity: draft.baseShadowOpacity,
-        baseOverlayOpacity: draft.baseOverlayOpacity,
-        baseAlign: draft.baseAlign,
-        colorFilter: draft.colorFilter ?? "neutro",
-        template: draft.template,
-      };
-      const outputName = `${projectName} - AD ${String(ad.number).padStart(2, "0")}`;
-      const outputPath = await renderAd({
-        beats,
-        videos,
-        animations,
-        format: draft.format,
-        fontHook: draft.fontHook,
-        fontTransition: draft.fontTransition,
-        projectStyle,
-        outputName,
-      });
-      const downloadUrl = `/api/download/${id}/${ad.number}`;
-      results.push({ number: ad.number, outputPath, downloadUrl });
-    } catch (err) {
-      const msg = (err as Error).message || "Render falhou (sem mensagem)";
-      console.error(`[render-route] AD ${ad.number} erro:`, err);
-      results.push({ number: ad.number, error: msg });
-    }
-  }
-
-  // Force garbage collection entre renders pra liberar memoria do Chromium
-  if (global.gc) global.gc();
-
-  return NextResponse.json({ ok: true, projectName, results });
+  return NextResponse.json({
+    ok: true,
+    message: `Renderização disparada pra ${wantedNumbers.length} anúncio${wantedNumbers.length === 1 ? "" : "s"}. Acompanhe o progresso.`,
+    queueAdNumbers: wantedNumbers,
+  });
 }
