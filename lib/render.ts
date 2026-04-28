@@ -1,6 +1,7 @@
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { promises as fs } from "node:fs";
+import { spawn } from "node:child_process";
 import { join, relative, resolve, sep } from "node:path";
 import type { AdProps, PageWithStyle } from "../remotion/AdComposition";
 import type { AnimationKind, Format, PageStyle, ProjectStyle } from "./types";
@@ -57,6 +58,54 @@ export interface RenderAdInput {
   outputDir?: string;
 }
 
+// Tamanho de chunk em frames. 200 frames @ 24fps = ~8 segundos de vídeo.
+// Cada chunk é renderizado num Chromium fresh — memória zera entre chunks.
+const CHUNK_FRAMES = 200;
+
+function ffmpegConcat(chunks: string[], outputPath: string): Promise<void> {
+  return new Promise((resolveP, rejectP) => {
+    if (chunks.length === 0) {
+      rejectP(new Error("Nenhum chunk pra concatenar"));
+      return;
+    }
+    if (chunks.length === 1) {
+      // Move direto, sem concat
+      fs.rename(chunks[0]!, outputPath)
+        .then(() => resolveP())
+        .catch(rejectP);
+      return;
+    }
+    const listPath = `${outputPath}.concat.txt`;
+    const listContent = chunks.map((c) => `file '${c.replace(/'/g, "'\\''")}'`).join("\n");
+    fs.writeFile(listPath, listContent, "utf8")
+      .then(() => {
+        const proc = spawn("ffmpeg", [
+          "-y",
+          "-f",
+          "concat",
+          "-safe",
+          "0",
+          "-i",
+          listPath,
+          "-c",
+          "copy",
+          outputPath,
+        ]);
+        let stderr = "";
+        proc.stderr.on("data", (d) => {
+          stderr += d.toString();
+        });
+        proc.on("close", async (code) => {
+          await fs.unlink(listPath).catch(() => undefined);
+          if (code === 0) resolveP();
+          else rejectP(new Error(`ffmpeg concat exit ${code}: ${stderr.slice(-500)}`));
+        });
+        proc.on("error", rejectP);
+      })
+      .catch(rejectP);
+  });
+}
+
 export async function renderAd(input: RenderAdInput): Promise<string> {
   const bundleUrl = await getBundle();
   const httpVideos = input.videos.map((p) => localPathToHttpUrl(p));
@@ -78,42 +127,63 @@ export async function renderAd(input: RenderAdInput): Promise<string> {
   const outDir = input.outputDir ? resolve(input.outputDir) : OUTPUT_ROOT;
   await fs.mkdir(outDir, { recursive: true });
   const outputLocation = join(outDir, `${input.outputName}.mp4`);
-  console.log(`[render] start "${input.outputName}" (${input.beats.length} beats)`);
+  const totalFrames = composition.durationInFrames;
+  const chunkCount = Math.ceil(totalFrames / CHUNK_FRAMES);
+  console.log(
+    `[render] start "${input.outputName}" — ${totalFrames} frames em ${chunkCount} chunks`,
+  );
+
+  const chunkPaths: string[] = [];
   try {
-    await renderMedia({
-      composition,
-      serveUrl: bundleUrl,
-      codec: "h264",
-      outputLocation,
-      inputProps: propsForRemotion,
-      // ECONOMIA TOTAL DE MEMÓRIA — pra não OOM kill no Railway:
-      concurrency: 1, // 1 frame por vez
-      crf: 30, // qualidade média-baixa (compressão maior)
-      pixelFormat: "yuv420p",
-      // JPEG em vez de PNG — frames 5x mais leves em memória
-      imageFormat: "jpeg",
-      jpegQuality: 80,
-      // Codec ffmpeg mais leve
-      videoBitrate: "1200k",
-      chromiumOptions: {
-        gl: "swangle",
-        headless: true,
-        disableWebSecurity: true,
-        ignoreCertificateErrors: true,
-        // Flags Chromium pra usar menos memória em container Linux
-        enableMultiProcessOnLinux: false,
-      },
-      browserExecutable: process.env.REMOTION_BROWSER_EXECUTABLE || undefined,
-      onProgress: ({ progress, renderedFrames }) => {
-        if (renderedFrames % 30 === 0) {
-          console.log(`[render] ${input.outputName}: ${Math.round(progress * 100)}% (${renderedFrames} frames)`);
-        }
-      },
-      timeoutInMilliseconds: 240000, // 4min max
-    });
+    for (let i = 0; i < chunkCount; i++) {
+      const startFrame = i * CHUNK_FRAMES;
+      const endFrame = Math.min(startFrame + CHUNK_FRAMES - 1, totalFrames - 1);
+      const chunkPath = `${outputLocation}.chunk-${String(i).padStart(3, "0")}.mp4`;
+      console.log(
+        `[render] chunk ${i + 1}/${chunkCount} (frames ${startFrame}-${endFrame})`,
+      );
+      await renderMedia({
+        composition,
+        serveUrl: bundleUrl,
+        codec: "h264",
+        outputLocation: chunkPath,
+        inputProps: propsForRemotion,
+        frameRange: [startFrame, endFrame],
+        concurrency: 1,
+        crf: 26,
+        pixelFormat: "yuv420p",
+        imageFormat: "jpeg",
+        jpegQuality: 85,
+        videoBitrate: "2500k",
+        chromiumOptions: {
+          gl: "swangle",
+          headless: true,
+          disableWebSecurity: true,
+          ignoreCertificateErrors: true,
+          enableMultiProcessOnLinux: false,
+        },
+        browserExecutable: process.env.REMOTION_BROWSER_EXECUTABLE || undefined,
+        timeoutInMilliseconds: 180000,
+      });
+      chunkPaths.push(chunkPath);
+      // Sugere ao Node fazer GC depois de cada chunk
+      if (global.gc) global.gc();
+      console.log(`[render] ✓ chunk ${i + 1}/${chunkCount}`);
+    }
+    // Concatena chunks num único MP4 final
+    console.log(`[render] concatenando ${chunkPaths.length} chunks…`);
+    await ffmpegConcat(chunkPaths, outputLocation);
+    // Cleanup chunks
+    for (const p of chunkPaths) {
+      await fs.unlink(p).catch(() => undefined);
+    }
     console.log(`[render] ✓ "${input.outputName}" → ${outputLocation}`);
     return outputLocation;
   } catch (err) {
+    // Cleanup chunks parciais
+    for (const p of chunkPaths) {
+      await fs.unlink(p).catch(() => undefined);
+    }
     console.error(`[render] ✗ "${input.outputName}" falhou: ${(err as Error).message}`);
     throw err;
   }

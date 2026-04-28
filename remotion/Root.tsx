@@ -48,17 +48,16 @@ export const Root: React.FC = () => {
 };
 
 function dimsFor(format: AdProps["format"]) {
-  // 540p — extremamente leve pra render no Railway. Pra ads de Reels/
-  // Stories que viram comprimidos pelo Meta/TikTok mesmo, esse tamanho
-  // funciona perfeito. Reduz ~16x consumo de memória vs 1080p.
+  // 1080p — qualidade alta. Render funciona porque agora é em CHUNKS
+  // de 200 frames cada (Chromium é recriado entre chunks, memória zera).
   switch (format) {
     case "9:16":
-      return { width: 540, height: 960 };
+      return { width: 1080, height: 1920 };
     case "4:5":
-      return { width: 540, height: 675 };
+      return { width: 1080, height: 1350 };
     case "16:9":
-      return { width: 960, height: 540 };
+      return { width: 1920, height: 1080 };
     case "1:1":
-      return { width: 540, height: 540 };
+      return { width: 1080, height: 1080 };
   }
 }
