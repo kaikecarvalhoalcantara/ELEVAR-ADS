@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { promises as fs, createWriteStream } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { slugify } from "../../../../lib/video-library";
+import { storagePath } from "../../../../lib/storage";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-const CACHE_ROOT = resolve(process.cwd(), "video-cache");
+// IMPORTANTE: usa STORAGE_ROOT (= /data no Railway) — não process.cwd()
+// que aponta pra /app (read-only / não bate com /api/local-video).
+const CACHE_ROOT = storagePath("video-cache");
 const BY_QUERY_DIR = join(CACHE_ROOT, "by-query");
 
 interface Body {
