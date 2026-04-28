@@ -34,8 +34,8 @@ import type {
 } from "../../../lib/types";
 
 const ANIMATIONS: AnimationKind[] = ["teclado", "subir", "deslocar", "mesclar", "bloco"];
-const FRAMES_PER_BEAT = 60;
-const FPS = 30;
+const FRAMES_PER_BEAT = 48;
+const FPS = 24;
 
 interface EnrichedPage extends PageDraft {
   videoUrl: string;
