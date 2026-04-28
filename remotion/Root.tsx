@@ -1,8 +1,8 @@
 import { Composition } from "remotion";
 import { AdComposition, type AdProps } from "./AdComposition";
 
-const FPS = 30;
-const FRAMES_PER_BEAT = 60;
+const FPS = 24; // 30 era o ideal, mas 24 é cinema-standard e 20% mais rápido pra render
+const FRAMES_PER_BEAT = 48; // 2 segundos por beat em 24fps
 
 const previewProps: AdProps = {
   beats: [
@@ -48,14 +48,16 @@ export const Root: React.FC = () => {
 };
 
 function dimsFor(format: AdProps["format"]) {
+  // Resolução reduzida pra economizar memória/CPU no Railway.
+  // 720p é visualmente OK pra ads, render é 4x mais leve que 1080p.
   switch (format) {
     case "9:16":
-      return { width: 1080, height: 1920 };
+      return { width: 720, height: 1280 };
     case "4:5":
-      return { width: 1080, height: 1350 };
+      return { width: 720, height: 900 };
     case "16:9":
-      return { width: 1920, height: 1080 };
+      return { width: 1280, height: 720 };
     case "1:1":
-      return { width: 1080, height: 1080 };
+      return { width: 720, height: 720 };
   }
 }

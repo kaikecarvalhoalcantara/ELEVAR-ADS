@@ -324,10 +324,15 @@ export default function EditorPage() {
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error);
-      const succeeded = (data.results as { number: number; downloadUrl?: string; error?: string }[])
+      const allResults = data.results as {
+        number: number;
+        downloadUrl?: string;
+        error?: string;
+      }[];
+      const succeeded = allResults
         .filter((r) => r.downloadUrl && !r.error)
         .map((r) => ({ number: r.number, downloadUrl: r.downloadUrl! }));
-      const fail = data.results.length - succeeded.length;
+      const failed = allResults.filter((r) => r.error);
       setRenderedAds((prev) => {
         const merged = [...prev];
         for (const item of succeeded) {
@@ -337,9 +342,18 @@ export default function EditorPage() {
         }
         return merged.sort((a, b) => a.number - b.number);
       });
-      setRenderStatus(
-        `✓ Renderizado ${succeeded.length}/${data.results.length}${fail > 0 ? ` (${fail} falha${fail === 1 ? "" : "s"})` : ""}. Clique abaixo pra baixar.`,
-      );
+      if (failed.length === 0) {
+        setRenderStatus(
+          `✓ Renderizado ${succeeded.length}/${allResults.length}. Clique abaixo pra baixar.`,
+        );
+      } else {
+        const errors = failed
+          .map((f) => `AD ${String(f.number).padStart(2, "0")}: ${f.error}`)
+          .join(" | ");
+        setRenderStatus(
+          `Renderizado ${succeeded.length}/${allResults.length}. ❌ ERROS: ${errors}`,
+        );
+      }
     } catch (e) {
       setRenderStatus(`Falha: ${(e as Error).message}`);
     }

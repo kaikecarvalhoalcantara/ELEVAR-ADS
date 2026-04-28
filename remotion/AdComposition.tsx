@@ -8,7 +8,7 @@ import type {
 } from "../lib/types";
 import { defaultProjectStyle } from "../lib/style-defaults";
 
-export const FRAMES_PER_BEAT = 60;
+export const FRAMES_PER_BEAT = 48; // 2s a 24fps
 
 export interface PageWithStyle extends Beat, PageStyle {
   hideText?: boolean;
