@@ -368,6 +368,26 @@ export default function EditorPage() {
     scheduleSave(next);
   }
 
+  async function cleanupRenders(all: boolean) {
+    const label = all ? "TODOS os vídeos renderizados" : "vídeos com mais de 24h";
+    if (!confirm(`Apagar ${label}? Você perde a possibilidade de re-baixar.`)) return;
+    setRenderStatus("Limpando renders…");
+    try {
+      const res = await fetch(`/api/cleanup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ all }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error ?? "Falha");
+      setRenderStatus(
+        `🧹 Limpo: ${data.deletedCount} arquivos, liberou ${data.freedMB}MB.`,
+      );
+    } catch (e) {
+      setRenderStatus(`Falha no cleanup: ${(e as Error).message}`);
+    }
+  }
+
   async function renderAds(adNumbers: number[] | null) {
     // Bloqueia se já tem render rodando
     if (draft?.rendering?.status === "in_progress") {
@@ -486,6 +506,14 @@ export default function EditorPage() {
             className="px-3 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-sm border border-neutral-600 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Baixar todos ({draft.ads.length})
+          </button>
+          <button
+            onClick={() => cleanupRenders(true)}
+            disabled={draft.rendering?.status === "in_progress"}
+            className="px-2 py-1 rounded bg-neutral-900 hover:bg-red-900 text-sm border border-neutral-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Apaga TODOS os MP4s renderizados pra liberar disco. Volume Railway é 500MB."
+          >
+            🗑️
           </button>
         </div>
       </header>

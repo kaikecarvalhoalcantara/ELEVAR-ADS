@@ -1,5 +1,6 @@
 import { loadDraft, saveDraft } from "./drafts";
 import { buildProjectName, renderAd } from "./render";
+import { cleanOldRenders } from "./cleanup";
 import type { PageWithStyle } from "../remotion/AdComposition";
 import type { ProjectStyle } from "./types";
 
@@ -15,6 +16,19 @@ export async function renderAdsInBackground(
   adNumbers: number[],
 ): Promise<void> {
   console.log(`[render-worker ${draftId}] iniciado pra ${adNumbers.length} ads`);
+
+  // Cleanup auto: apaga MP4s >24h ANTES de começar — libera espaço
+  // pra novos renders. Volume Railway é 500MB, sem isso enche em 1-2 dias.
+  try {
+    const c = await cleanOldRenders();
+    if (c.deletedCount > 0) {
+      console.log(
+        `[render-worker ${draftId}] cleanup: liberou ${(c.freedBytes / 1024 / 1024).toFixed(1)}MB (${c.deletedCount} arquivos)`,
+      );
+    }
+  } catch (e) {
+    console.warn(`[render-worker ${draftId}] cleanup falhou: ${(e as Error).message}`);
+  }
 
   const start = await loadDraft(draftId);
   if (!start) {
