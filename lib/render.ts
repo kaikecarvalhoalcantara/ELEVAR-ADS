@@ -150,11 +150,12 @@ export async function renderAd(input: RenderAdInput): Promise<string> {
         inputProps: propsForRemotion,
         frameRange: [startFrame, endFrame],
         concurrency: 1,
-        crf: 26,
+        // CRF (qualidade variável) — mais previsível que bitrate fixo.
+        // 23-26 é qualidade alta, 27-30 é boa, 30+ é compressivo.
+        crf: 23,
         pixelFormat: "yuv420p",
         imageFormat: "jpeg",
         jpegQuality: 85,
-        videoBitrate: "2500k",
         chromiumOptions: {
           gl: "swangle",
           headless: true,
