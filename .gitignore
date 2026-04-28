@@ -7,11 +7,12 @@ build/
 .env.local
 .env*.local
 
-video-cache/
-my_videos/
-generated/
-drafts/
-client-assets/
+# Pastas de DADOS na raiz (com / no início pra não ignorar app/api/...)
+/video-cache/
+/my_videos/
+/generated/
+/drafts/
+/client-assets/
 
 # Pastas de referência local — não vão pra produção
 BANCO DE IMAGENS PASTA/
