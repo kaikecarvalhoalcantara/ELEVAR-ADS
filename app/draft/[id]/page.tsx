@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Player, type PlayerRef } from "@remotion/player";
 import { AdComposition, type AdProps } from "../../../remotion/AdComposition";
 import {
+  buildLetterEffect,
   buildTextShadow,
   computeFitFontSize,
   normalizePageText,
@@ -749,6 +750,14 @@ function EditableCanvas({
   const multiDragStartRef = useRef<Map<string, { x: number; y: number }> | null>(null);
   // V13: hover na palavra dispara preview da animação (estilo Canva)
   const [hoverAnimKey, setHoverAnimKey] = useState<number | null>(null);
+  // V21: Auto-preview da animação quando user mexe na velocidade ou troca a animação.
+  // Reseta o key (= remount) → CSS animation roda do zero. Pra usuário ver
+  // imediatamente como ficou sem precisar passar mouse em cima.
+  useEffect(() => {
+    setHoverAnimKey(Date.now());
+    const t = setTimeout(() => setHoverAnimKey(null), 1500);
+    return () => clearTimeout(t);
+  }, [page.animationEntryDuration, page.animationExitDuration, page.animation]);
   // V11: drag pra mover o texto
   const textDragRef = useRef<{
     startX: number;
@@ -934,6 +943,17 @@ function EditableCanvas({
         color: "transparent",
       }
     : {};
+  // V21: Letter effect (preset estilo Canva)
+  const letterEffectStyle = buildLetterEffect(
+    page.letterEffect,
+    page.letterEffectIntensity ?? 50,
+    page.letterEffectColor ?? "#ffd700",
+    style.color,
+  );
+  // Se efeito tem overrideShadow, ignora o textShadow base
+  const finalTextShadow = letterEffectStyle.overrideShadow
+    ? letterEffectStyle.textShadow
+    : textShadowValue;
   const iconAboveSvg = iconSvgString(page.iconAbove);
   const iconBelowSvg = iconSvgString(page.iconBelow);
   const shadowOffsetY = Math.max(2, Math.round(style.shadowBlur / 6));
@@ -1190,7 +1210,35 @@ function EditableCanvas({
                 lineHeight: style.lineHeight,
                 letterSpacing: `${style.letterSpacing}em`,
                 fontSize: fontSize * scale,
-                textShadow: textShadowValue,
+                textShadow: finalTextShadow,
+                // V21: letter effect override de cor/stroke/background quando ativo
+                ...(letterEffectStyle.overrideShadow
+                  ? {
+                      ...(letterEffectStyle.color !== undefined
+                        ? { color: letterEffectStyle.color }
+                        : {}),
+                      ...(letterEffectStyle.WebkitTextFillColor
+                        ? { WebkitTextFillColor: letterEffectStyle.WebkitTextFillColor }
+                        : {}),
+                      ...(letterEffectStyle.WebkitTextStroke
+                        ? { WebkitTextStroke: letterEffectStyle.WebkitTextStroke }
+                        : {}),
+                      ...(letterEffectStyle.background
+                        ? {
+                            background: letterEffectStyle.background,
+                            padding: letterEffectStyle.padding,
+                            display: "inline-block",
+                          }
+                        : {}),
+                    }
+                  : {}),
+                // V21: duração da CSS preview reflete os frames escolhidos
+                // (24fps → segundos). Aplica só quando preview tá ativo.
+                ...(hoverAnimKey
+                  ? {
+                      animationDuration: `${(page.animationEntryDuration ?? 14) / FPS}s`,
+                    }
+                  : {}),
               }}
             >
               {iconAboveSvg && (
@@ -2171,6 +2219,8 @@ function ControlPanel({
   const selectedElement = (page.elements ?? []).find((e) => e.id === selectedElementId) ?? null;
   const selectedElements = (page.elements ?? []).filter((e) => selectedElementIds.has(e.id));
   const multiSelected = selectedElements.length >= 2;
+  // V21: usado pelo LetterEffectGrid
+  const isHook = page.weight === "hook" || page.weight === "punch";
   function alignSelected(mode: "left" | "centerH" | "right" | "top" | "centerV" | "bottom") {
     if (!multiSelected) return;
     const xs = selectedElements.map((e) => e.x);
@@ -2359,6 +2409,21 @@ function ControlPanel({
           onChange={(v) => onUpdatePage({ lineHeight: v })}
         />
       </Group>
+
+      {/* V21: Efeitos de letra — grid 3x3 estilo Canva */}
+      <CollapsibleGroup
+        label="🎨 Efeitos de letra (estilo Canva)"
+        hint="Aplica preset visual no texto. Intensidade controla a força do efeito."
+      >
+        <LetterEffectGrid
+          value={page.letterEffect ?? "none"}
+          intensity={page.letterEffectIntensity ?? 50}
+          color={page.letterEffectColor ?? "#ffd700"}
+          baseColor={page.color ?? draft.baseColor}
+          fontFamily={isHook ? draft.fontHook : draft.fontTransition}
+          onChange={(patch) => onUpdatePage(patch)}
+        />
+      </CollapsibleGroup>
 
       {/* V16: Arsenal — efeitos de letra (italic / weight / underline / case / rotation / skew) */}
       <CollapsibleGroup
@@ -3528,13 +3593,14 @@ function ColorGradingPanel({
     step: number;
     defaultValue: number;
     format: (v: number) => string;
+    sliderClass?: string; // V21: classe CSS pra gradiente colorido
   }> = [
     { key: "videoBrightness", label: "Brilho", min: 50, max: 150, step: 1, defaultValue: 100, format: (v) => `${v}%` },
     { key: "videoContrast", label: "Contraste", min: 50, max: 150, step: 1, defaultValue: 100, format: (v) => `${v}%` },
     { key: "videoSaturation", label: "Saturação", min: 0, max: 200, step: 1, defaultValue: 100, format: (v) => `${v}%` },
     { key: "videoVibrance", label: "Vibração", min: -100, max: 100, step: 1, defaultValue: 0, format: (v) => `${v > 0 ? "+" : ""}${v}` },
-    { key: "videoTemperature", label: "Temperatura", min: -100, max: 100, step: 1, defaultValue: 0, format: (v) => v === 0 ? "neutra" : v > 0 ? `+${v} ☀` : `${v} ❄` },
-    { key: "videoHue", label: "Matiz", min: -180, max: 180, step: 1, defaultValue: 0, format: (v) => `${v}°` },
+    { key: "videoTemperature", label: "Temperatura", min: -100, max: 100, step: 1, defaultValue: 0, format: (v) => v === 0 ? "neutra" : v > 0 ? `+${v} ☀` : `${v} ❄`, sliderClass: "slider-temperature" },
+    { key: "videoHue", label: "Matiz", min: -180, max: 180, step: 1, defaultValue: 0, format: (v) => `${v}°`, sliderClass: "slider-hue" },
     { key: "videoHighlights", label: "Destaques", min: -100, max: 100, step: 1, defaultValue: 0, format: (v) => `${v > 0 ? "+" : ""}${v}` },
     { key: "videoShadows", label: "Sombras", min: -100, max: 100, step: 1, defaultValue: 0, format: (v) => `${v > 0 ? "+" : ""}${v}` },
     { key: "videoWhites", label: "Brancos", min: -100, max: 100, step: 1, defaultValue: 0, format: (v) => `${v > 0 ? "+" : ""}${v}` },
@@ -3606,7 +3672,7 @@ function ColorGradingPanel({
                     [s.key]: v === s.defaultValue ? undefined : v,
                   } as Partial<EnrichedPage>);
                 }}
-                className="w-full"
+                className={`w-full ${s.sliderClass ?? ""}`}
               />
             </div>
           );
@@ -3743,14 +3809,11 @@ function VideoControlsPanel({
                 <span>Inverter (V)</span>
               </label>
             </Row>
-            <Range
-              label="Cortar início (trim)"
-              value={page.videoTrimStart ?? 0}
-              min={0}
-              max={20}
-              step={0.5}
-              format={(v) => `${v.toFixed(1)}s`}
-              onChange={(v) => onUpdate({ videoTrimStart: v })}
+            {/* V21: Trim mais bem feito — input visual com start + end +
+                preview de duração do trecho escolhido */}
+            <VideoTrimControl
+              page={page}
+              onUpdate={onUpdate}
             />
             <p className="text-[10px] text-neutral-500 leading-tight">
               💡 Pra mover/redimensionar a área do vídeo no canvas, arraste
@@ -3762,6 +3825,276 @@ function VideoControlsPanel({
       <div className="px-3 py-1.5 border-t border-neutral-800 text-[9px] text-neutral-500 leading-tight">
         Controles per-página. Clique no ✕ ou no texto pra fechar.
       </div>
+    </div>
+  );
+}
+
+/**
+ * V21: Trim de vídeo bem feito — detecta duração do clip, mostra
+ * timeline visual com handles de início e fim, calcula trecho útil.
+ */
+function VideoTrimControl({
+  page,
+  onUpdate,
+}: {
+  page: EnrichedPage;
+  onUpdate: (patch: Partial<EnrichedPage>) => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [duration, setDuration] = useState<number | null>(null);
+  const [previewTime, setPreviewTime] = useState<number | null>(null);
+
+  const trimStart = page.videoTrimStart ?? 0;
+  const maxEnd = duration ?? 30;
+  const trimEnd = page.videoTrimEnd ?? maxEnd;
+
+  function fmt(s: number): string {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return m > 0
+      ? `${m}:${String(sec).padStart(2, "0")}`
+      : `${s.toFixed(1)}s`;
+  }
+
+  // Preview frame quando user arrasta os handles
+  useEffect(() => {
+    if (videoRef.current && previewTime !== null) {
+      videoRef.current.currentTime = previewTime;
+    }
+  }, [previewTime]);
+
+  const usefulDuration = Math.max(0, trimEnd - trimStart);
+
+  return (
+    <div className="space-y-2">
+      <div className="text-[11px] text-neutral-400 font-semibold flex justify-between">
+        <span>Cortar vídeo</span>
+        {duration && (
+          <span className="text-[9px] text-neutral-500">
+            duração: {fmt(duration)}
+          </span>
+        )}
+      </div>
+      {/* Vídeo invisível só pra detectar duração + scrub */}
+      {page.videoUrl && (
+        <video
+          ref={videoRef}
+          src={page.videoUrl}
+          muted
+          playsInline
+          preload="metadata"
+          className="w-full rounded bg-black aspect-video object-contain"
+          onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+          style={{ maxHeight: 80 }}
+        />
+      )}
+      {/* Slider duplo: início */}
+      <div>
+        <div className="flex justify-between text-[10px] text-neutral-400">
+          <span>Início (corta começo)</span>
+          <span className={trimStart > 0 ? "text-purple-300" : "text-neutral-500"}>
+            {fmt(trimStart)}
+          </span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={maxEnd}
+          step={0.1}
+          value={trimStart}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            const safeV = Math.min(v, trimEnd - 0.5);
+            onUpdate({ videoTrimStart: safeV });
+            setPreviewTime(safeV);
+          }}
+          onMouseUp={() => setPreviewTime(null)}
+          className="w-full"
+        />
+      </div>
+      {/* Slider duplo: fim */}
+      <div>
+        <div className="flex justify-between text-[10px] text-neutral-400">
+          <span>Fim (corta final)</span>
+          <span
+            className={
+              page.videoTrimEnd !== undefined
+                ? "text-purple-300"
+                : "text-neutral-500"
+            }
+          >
+            {fmt(trimEnd)}
+            {page.videoTrimEnd === undefined && (
+              <span className="text-neutral-600 ml-1">(usa todo)</span>
+            )}
+          </span>
+        </div>
+        <input
+          type="range"
+          min={0.5}
+          max={maxEnd}
+          step={0.1}
+          value={trimEnd}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            const safeV = Math.max(v, trimStart + 0.5);
+            onUpdate({
+              videoTrimEnd: safeV >= maxEnd - 0.05 ? undefined : safeV,
+            });
+            setPreviewTime(safeV);
+          }}
+          onMouseUp={() => setPreviewTime(null)}
+          className="w-full"
+        />
+      </div>
+      {/* Indicador visual da seleção */}
+      <div className="relative h-2 bg-neutral-800 rounded overflow-hidden">
+        <div
+          className="absolute h-full bg-purple-500/60"
+          style={{
+            left: `${(trimStart / maxEnd) * 100}%`,
+            right: `${100 - (trimEnd / maxEnd) * 100}%`,
+          }}
+        />
+      </div>
+      <div className="flex justify-between text-[10px] text-neutral-500">
+        <span>Trecho útil:</span>
+        <span className="text-neutral-300">{fmt(usefulDuration)}</span>
+      </div>
+      {(trimStart > 0 || page.videoTrimEnd !== undefined) && (
+        <button
+          onClick={() =>
+            onUpdate({ videoTrimStart: undefined, videoTrimEnd: undefined })
+          }
+          className="text-[10px] text-neutral-400 hover:text-neutral-200 underline w-full text-center"
+        >
+          Resetar trim (usar vídeo inteiro)
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * V21: Grid 3x3 de efeitos de letra estilo Canva. Cada card mostra
+ * "Ag" renderizado com o efeito ativo. Click seleciona, slider
+ * ajusta intensidade.
+ */
+function LetterEffectGrid({
+  value,
+  intensity,
+  color,
+  baseColor,
+  fontFamily,
+  onChange,
+}: {
+  value: NonNullable<EnrichedPage["letterEffect"]>;
+  intensity: number;
+  color: string;
+  baseColor: string;
+  fontFamily: string;
+  onChange: (
+    patch: Partial<
+      Pick<
+        EnrichedPage,
+        "letterEffect" | "letterEffectIntensity" | "letterEffectColor"
+      >
+    >,
+  ) => void;
+}) {
+  const effects: Array<{
+    key: NonNullable<EnrichedPage["letterEffect"]>;
+    label: string;
+  }> = [
+    { key: "none", label: "Nenhum" },
+    { key: "projetada", label: "Projetada" },
+    { key: "brilhante", label: "Brilhante" },
+    { key: "eco", label: "Eco" },
+    { key: "contorno", label: "Contorno" },
+    { key: "fundo", label: "Fundo" },
+    { key: "desalinhado", label: "Desalinhado" },
+    { key: "vazado", label: "Vazado" },
+    { key: "neon", label: "Neon" },
+    { key: "falha", label: "Falha" },
+  ];
+
+  function previewStyle(key: typeof value): React.CSSProperties {
+    const fx = buildLetterEffect(key, intensity, color, baseColor);
+    const result: React.CSSProperties = {
+      fontFamily: `"${fontFamily}", system-ui, sans-serif`,
+      fontWeight: 900,
+      fontSize: 28,
+      color: baseColor,
+      lineHeight: 1,
+    };
+    if (fx.textShadow) result.textShadow = fx.textShadow;
+    if (fx.color) result.color = fx.color;
+    if (fx.WebkitTextFillColor) result.WebkitTextFillColor = fx.WebkitTextFillColor;
+    if (fx.WebkitTextStroke) result.WebkitTextStroke = fx.WebkitTextStroke;
+    if (fx.background) {
+      result.background = fx.background;
+      result.padding = fx.padding;
+      result.display = "inline-block";
+    }
+    return result;
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-3 gap-1.5">
+        {effects.map((fx) => (
+          <button
+            key={fx.key}
+            onClick={() => onChange({ letterEffect: fx.key })}
+            className={`flex flex-col items-center justify-center rounded p-2 border transition-colors ${
+              value === fx.key
+                ? "border-purple-500 bg-purple-900/20"
+                : "border-neutral-800 bg-neutral-900 hover:border-neutral-600"
+            }`}
+            style={{ minHeight: 70 }}
+          >
+            <div
+              className="flex items-center justify-center mb-1"
+              style={{ minHeight: 36 }}
+            >
+              <span style={previewStyle(fx.key)}>Ag</span>
+            </div>
+            <span className="text-[10px] text-neutral-300">{fx.label}</span>
+          </button>
+        ))}
+      </div>
+      {value !== "none" && (
+        <>
+          <div>
+            <div className="flex justify-between text-[10px] text-neutral-400">
+              <span>Intensidade</span>
+              <span className="text-purple-300">{intensity}%</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={intensity}
+              onChange={(e) =>
+                onChange({ letterEffectIntensity: Number(e.target.value) })
+              }
+              className="w-full"
+            />
+          </div>
+          {/* Cor do efeito (afeta brilhante, eco, fundo, neon) */}
+          {(value === "brilhante" ||
+            value === "eco" ||
+            value === "fundo" ||
+            value === "neon") && (
+            <ColorField
+              label="Cor do efeito"
+              value={color}
+              onChange={(v) => onChange({ letterEffectColor: v })}
+            />
+          )}
+        </>
+      )}
     </div>
   );
 }

@@ -104,6 +104,7 @@ export async function renderAdsInBackground(
       videoY: p.videoY,
       videoW: p.videoW,
       videoH: p.videoH,
+      videoTrimEnd: p.videoTrimEnd,
       textOffsetX: p.textOffsetX,
       textOffsetY: p.textOffsetY,
       textShadowColor: p.textShadowColor,
@@ -141,6 +142,10 @@ export async function renderAdsInBackground(
       animationSpeed: p.animationSpeed,
       animationEntryDuration: p.animationEntryDuration,
       animationExitDuration: p.animationExitDuration,
+      // V21: letter effect
+      letterEffect: p.letterEffect,
+      letterEffectIntensity: p.letterEffectIntensity,
+      letterEffectColor: p.letterEffectColor,
     }));
     const videos = ad.pages.map((p) => p.videoSrc);
     const animations = ad.pages.map((p) => p.animation);

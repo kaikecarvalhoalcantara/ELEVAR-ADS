@@ -20,6 +20,7 @@ export interface PageWithStyle extends Beat, PageStyle {
   videoFlipH?: boolean;
   videoFlipV?: boolean;
   videoTrimStart?: number;
+  videoTrimEnd?: number;
   elements?: import("../lib/types").PageElement[];
   videoX?: number;
   videoY?: number;
@@ -62,6 +63,20 @@ export interface PageWithStyle extends Beat, PageStyle {
   animationSpeed?: number;
   animationEntryDuration?: number;
   animationExitDuration?: number;
+  // V21: letter effect
+  letterEffect?:
+    | "none"
+    | "projetada"
+    | "brilhante"
+    | "eco"
+    | "contorno"
+    | "fundo"
+    | "desalinhado"
+    | "vazado"
+    | "neon"
+    | "falha";
+  letterEffectIntensity?: number;
+  letterEffectColor?: string;
 }
 
 export interface AdProps {

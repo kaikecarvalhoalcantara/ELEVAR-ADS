@@ -122,6 +122,136 @@ export function buildTextShadow(opts: {
   return strokeParts.length > 0 ? `${strokeParts.join(", ")}, ${drop}` : drop;
 }
 
+// ============================================================
+// V21: Letter effects — presets estilo Canva
+// ============================================================
+
+export type LetterEffect =
+  | "none"
+  | "projetada"
+  | "brilhante"
+  | "eco"
+  | "contorno"
+  | "fundo"
+  | "desalinhado"
+  | "vazado"
+  | "neon"
+  | "falha";
+
+export interface LetterEffectStyle {
+  textShadow?: string;
+  color?: string;
+  WebkitTextStroke?: string;
+  WebkitTextFillColor?: string;
+  background?: string;
+  padding?: string;
+  /** se true, desabilita o textShadow base do user (efeito tem o seu próprio) */
+  overrideShadow?: boolean;
+}
+
+/**
+ * Constrói as propriedades CSS pra um efeito de letra escolhido.
+ * Intensidade 0..100 controla força. Cor opcional pra customizar o efeito.
+ */
+export function buildLetterEffect(
+  effect: LetterEffect | undefined,
+  intensity: number = 50,
+  color: string = "#ffd700",
+  baseColor: string = "#ffffff",
+): LetterEffectStyle {
+  if (!effect || effect === "none") return {};
+  const i = Math.max(0, Math.min(100, intensity)) / 100; // 0..1
+
+  switch (effect) {
+    case "projetada":
+      // Sombra projetada com offset diagonal
+      return {
+        textShadow: `${6 * i}px ${6 * i}px ${10 * i}px rgba(0,0,0,0.65)`,
+        overrideShadow: true,
+      };
+    case "brilhante":
+      // Glow dourado em camadas
+      return {
+        textShadow: [
+          `0 0 ${10 * i}px ${color}`,
+          `0 0 ${22 * i}px ${color}`,
+          `0 0 ${44 * i}px ${color}aa`,
+          `0 0 2px rgba(0,0,0,0.7)`,
+        ].join(", "),
+        overrideShadow: true,
+      };
+    case "eco":
+      // Ghost shadows laterais com transparência decrescente
+      return {
+        textShadow: [
+          `${8 * i}px 0 0 ${color}cc`,
+          `${16 * i}px 0 0 ${color}88`,
+          `${24 * i}px 0 0 ${color}44`,
+        ].join(", "),
+        overrideShadow: true,
+      };
+    case "contorno":
+      // Só contorno — texto vazado preenchido com cor
+      return {
+        color: "transparent",
+        WebkitTextFillColor: "transparent",
+        WebkitTextStroke: `${1 + 2 * i}px ${baseColor}`,
+        overrideShadow: true,
+      };
+    case "fundo":
+      // Faixa colorida atrás (highlight)
+      return {
+        background: color,
+        padding: `0 ${0.15 + 0.1 * i}em`,
+        overrideShadow: true,
+      };
+    case "desalinhado":
+      // Chromatic aberration sutil
+      return {
+        textShadow: [
+          `-${2 * i}px 0 0 #ff0040`,
+          `${2 * i}px 0 0 #00d4ff`,
+          `0 ${1 * i}px 2px rgba(0,0,0,0.5)`,
+        ].join(", "),
+        overrideShadow: true,
+      };
+    case "vazado":
+      // Hollow — só linha fina ao redor das letras
+      return {
+        color: "transparent",
+        WebkitTextFillColor: "transparent",
+        WebkitTextStroke: `${0.5 + 1.2 * i}px ${baseColor}`,
+        textShadow: `0 0 ${4 * i}px rgba(0,0,0,0.3)`,
+        overrideShadow: true,
+      };
+    case "neon":
+      // Glow MUITO forte multicor estilo letreiro
+      return {
+        textShadow: [
+          `0 0 4px white`,
+          `0 0 ${8 * i}px white`,
+          `0 0 ${20 * i}px ${color}`,
+          `0 0 ${40 * i}px ${color}`,
+          `0 0 ${60 * i}px ${color}aa`,
+        ].join(", "),
+        overrideShadow: true,
+      };
+    case "falha":
+      // Glitch forte — RGB split + offsets múltiplos
+      return {
+        textShadow: [
+          `${3 * i}px 0 0 #ff0040`,
+          `-${3 * i}px 0 0 #00d4ff`,
+          `${5 * i}px ${2 * i}px 0 #ff0040aa`,
+          `-${5 * i}px -${2 * i}px 0 #00d4ffaa`,
+        ].join(", "),
+        overrideShadow: true,
+      };
+    default:
+      return {};
+  }
+}
+
 /**
  * Computa font-size que CABE em 2 linhas visuais sem quebra extra.
  * Considera tanto o targetMax estético quanto o limite imposto pelo

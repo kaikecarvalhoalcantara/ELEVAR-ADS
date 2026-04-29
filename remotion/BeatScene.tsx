@@ -9,10 +9,12 @@ import type {
   TextSegment,
 } from "../lib/types";
 import {
+  buildLetterEffect,
   buildTextShadow,
   computeFitFontSize,
   normalizePageText,
 } from "../lib/text-utils";
+import type { LetterEffect } from "../lib/text-utils";
 import { colorFilterCss, combinedVideoFilter } from "../lib/color-filters";
 import { iconSvgString } from "../lib/icons";
 import {
@@ -65,6 +67,7 @@ interface Props {
       videoFlipH?: boolean;
       videoFlipV?: boolean;
       videoTrimStart?: number;
+      videoTrimEnd?: number;
       elements?: PageElement[];
       videoX?: number;
       videoY?: number;
@@ -107,6 +110,10 @@ interface Props {
       animationSpeed?: number;
       animationEntryDuration?: number;
       animationExitDuration?: number;
+      // V21: letter effect
+      letterEffect?: LetterEffect;
+      letterEffectIntensity?: number;
+      letterEffectColor?: string;
     };
   videoSrc: string | null;
   animation: AnimationKind;
@@ -211,6 +218,15 @@ export const BeatScene: React.FC<Props> = ({
       }
     : {};
 
+  // V21: Letter effect (preset estilo Canva)
+  const letterFx = buildLetterEffect(
+    beat.letterEffect,
+    beat.letterEffectIntensity ?? 50,
+    beat.letterEffectColor ?? "#ffd700",
+    color,
+  );
+  const finalShadow = letterFx.overrideShadow ? letterFx.textShadow : computedShadow;
+
   const baseStyle: React.CSSProperties = {
     fontFamily: `"${fontFamily}", system-ui, sans-serif`,
     fontWeight,
@@ -221,11 +237,30 @@ export const BeatScene: React.FC<Props> = ({
     textTransform,
     lineHeight,
     letterSpacing: `${letterSpacing}em`,
-    textShadow: computedShadow,
+    textShadow: finalShadow,
     padding: "0 6%",
     fontSize: fontSizeBase,
     whiteSpace: "nowrap" as const,
     ...gradientStyle,
+    // V21: letter effect override quando ativo
+    ...(letterFx.overrideShadow
+      ? {
+          ...(letterFx.color !== undefined ? { color: letterFx.color } : {}),
+          ...(letterFx.WebkitTextFillColor
+            ? { WebkitTextFillColor: letterFx.WebkitTextFillColor }
+            : {}),
+          ...(letterFx.WebkitTextStroke
+            ? { WebkitTextStroke: letterFx.WebkitTextStroke }
+            : {}),
+          ...(letterFx.background
+            ? {
+                background: letterFx.background,
+                padding: letterFx.padding,
+                display: "inline-block",
+              }
+            : {}),
+        }
+      : {}),
   };
 
   const AnimComp = animationComponent(animation);

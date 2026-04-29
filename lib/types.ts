@@ -107,6 +107,20 @@ export interface PageStyle {
   animationSpeed?: number;          // 0.5..2 (default 1)
   animationEntryDuration?: number;  // frames (default 14)
   animationExitDuration?: number;   // frames (default 14)
+  // V21: efeito visual da letra (preset estilo Canva)
+  letterEffect?:
+    | "none"
+    | "projetada"   // drop shadow projetada
+    | "brilhante"   // glow dourado
+    | "eco"         // ghosts laterais
+    | "contorno"    // só contorno (texto vazado)
+    | "fundo"       // faixa colorida atrás
+    | "desalinhado" // chromatic aberration
+    | "vazado"      // hollow (stroke fino, sem fill)
+    | "neon"        // glow forte multicor
+    | "falha";      // glitch (RGB split forte)
+  letterEffectIntensity?: number;   // 0..100 (default 50)
+  letterEffectColor?: string;       // cor de destaque do efeito (hex)
 }
 
 export interface TextSegment {
@@ -201,6 +215,7 @@ export interface PageDraft extends PageStyle {
   videoFlipH?: boolean;
   videoFlipV?: boolean;
   videoTrimStart?: number; // segundos pra pular do início do clip
+  videoTrimEnd?: number;   // V21: segundos onde o clip deve PARAR (corta o final)
   // V5: shapes/elementos sobre o vídeo (sombra, retângulo de destaque, etc)
   elements?: PageElement[];
   // V9: posição/tamanho do vídeo de fundo (default = preenche canvas)

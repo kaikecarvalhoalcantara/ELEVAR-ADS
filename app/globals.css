@@ -90,3 +90,69 @@ body {
   50% { transform: translateY(-6px); }
 }
 .anim-preview-flutuar { animation: anim-preview-flutuar 1.4s ease-in-out infinite; }
+
+/* V21: Sliders coloridos pra Temperatura (frio→quente) e Matiz (rainbow) */
+input[type="range"].slider-temperature {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, #4da6ff 0%, #b3d9ff 35%, #f5f5f5 50%, #ffd699 65%, #ff9b4d 100%);
+  outline: none;
+}
+input[type="range"].slider-temperature::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid #a855f7;
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(168, 85, 247, 0.6);
+}
+input[type="range"].slider-temperature::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid #a855f7;
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(168, 85, 247, 0.6);
+}
+
+input[type="range"].slider-hue {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right,
+    hsl(0, 70%, 60%) 0%,
+    hsl(60, 70%, 60%) 16.6%,
+    hsl(120, 70%, 60%) 33.3%,
+    hsl(180, 70%, 60%) 50%,
+    hsl(240, 70%, 60%) 66.6%,
+    hsl(300, 70%, 60%) 83.3%,
+    hsl(360, 70%, 60%) 100%);
+  outline: none;
+}
+input[type="range"].slider-hue::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid #a855f7;
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(168, 85, 247, 0.6);
+}
+input[type="range"].slider-hue::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid #a855f7;
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(168, 85, 247, 0.6);
+}
