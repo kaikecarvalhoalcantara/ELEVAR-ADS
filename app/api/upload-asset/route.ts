@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { saveUploadedFile } from "../../../lib/client-assets";
+import { localPathToHttpUrl } from "../../../lib/http-utils";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -26,7 +27,9 @@ export async function POST(request: Request) {
       originalName: file.name,
       bytes,
     });
-    return NextResponse.json({ ok: true, asset });
+    // V25: retorna URL pronta pro browser/Remotion
+    const url = localPathToHttpUrl(asset.filepath);
+    return NextResponse.json({ ok: true, asset, url });
   } catch (err) {
     return NextResponse.json(
       { ok: false, error: (err as Error).message },

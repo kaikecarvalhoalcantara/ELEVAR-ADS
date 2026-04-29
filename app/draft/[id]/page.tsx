@@ -473,7 +473,10 @@ export default function EditorPage() {
     const ad = draft.ads[selectedAd];
     const src = ad?.pages[selectedPage];
     if (!ad || !src) return;
+    // V25: copia TODOS os campos de estilo. Exclui apenas conteúdo
+    // específico da página (texto, vídeo, ícones, elementos, segments).
     const fields: Partial<PageDraft> = {
+      // Estilo de texto base (PageStyle)
       fontSize: src.fontSize,
       color: src.color,
       letterSpacing: src.letterSpacing,
@@ -482,15 +485,84 @@ export default function EditorPage() {
       textShadowOpacity: src.textShadowOpacity,
       overlayOpacity: src.overlayOpacity,
       align: src.align,
+      // V12: cor sombra + outline
+      textShadowColor: src.textShadowColor,
+      textStrokeColor: src.textStrokeColor,
+      textStrokeWidth: src.textStrokeWidth,
+      // V16: italic, weight, underline, strike, case, rotation, skew
+      italic: src.italic,
+      fontWeightOverride: src.fontWeightOverride,
+      underline: src.underline,
+      strikethrough: src.strikethrough,
+      letterCase: src.letterCase,
+      rotation: src.rotation,
+      skewX: src.skewX,
+      // V11/V23: posição + scaleX
+      textOffsetX: src.textOffsetX,
+      textOffsetY: src.textOffsetY,
+      textScaleX: src.textScaleX,
+      // V14/V16: glow + gradiente per-page
+      glowColor: src.glowColor,
+      glowIntensity: src.glowIntensity,
+      gradientEnabled: src.gradientEnabled,
+      gradientFrom: src.gradientFrom,
+      gradientTo: src.gradientTo,
+      gradientAngle: src.gradientAngle,
+      // V18: fundo
+      backgroundColor: src.backgroundColor,
+      videoRemoved: src.videoRemoved,
+      // V17: color grading do vídeo
+      videoBrightness: src.videoBrightness,
+      videoContrast: src.videoContrast,
+      videoSaturation: src.videoSaturation,
+      videoHue: src.videoHue,
+      videoTemperature: src.videoTemperature,
+      videoVibrance: src.videoVibrance,
+      videoHighlights: src.videoHighlights,
+      videoShadows: src.videoShadows,
+      videoWhites: src.videoWhites,
+      videoBlacks: src.videoBlacks,
+      // V19: velocidade animação
+      animationSpeed: src.animationSpeed,
+      animationEntryDuration: src.animationEntryDuration,
+      animationExitDuration: src.animationExitDuration,
+      // V21: letter effect
+      letterEffect: src.letterEffect,
+      letterEffectIntensity: src.letterEffectIntensity,
+      letterEffectColor: src.letterEffectColor,
+      // V4: vídeo transforms
+      videoZoom: src.videoZoom,
+      videoFlipH: src.videoFlipH,
+      videoFlipV: src.videoFlipV,
+      // animation type também
+      animation: src.animation,
     };
     const next: EnrichedDraft = {
       ...draft,
       ads: draft.ads.map((a, i) => {
         if (scope === "this-ad" && i !== selectedAd) return a;
-        return { ...a, pages: a.pages.map((p) => ({ ...p, ...fields })) };
+        return {
+          ...a,
+          pages: a.pages.map((p, pIdx) => {
+            // Pula a própria página fonte (não muda a si mesma)
+            if (i === selectedAd && pIdx === selectedPage) return p;
+            return { ...p, ...fields };
+          }),
+        };
       }),
     };
     scheduleSave(next);
+    // Feedback visual pra confirmar que aplicou
+    const count =
+      scope === "this-ad"
+        ? Math.max(0, ad.pages.length - 1)
+        : draft.ads.reduce((n, a, i) => n + a.pages.length - (i === selectedAd ? 1 : 0), 0);
+    setRenderStatus(
+      `✅ Estilo aplicado em ${count} página${count === 1 ? "" : "s"} ${
+        scope === "this-ad" ? "deste anúncio" : "do projeto inteiro"
+      }`,
+    );
+    setTimeout(() => setRenderStatus(null), 3500);
   }
 
   async function cleanupRenders(all: boolean) {
@@ -3978,6 +4050,9 @@ function VideoControlsPanel({
           </p>
         </div>
 
+        {/* V25: Importar vídeo/imagem do PC direto pra esta página */}
+        <ImportVideoButton onUpdate={onUpdate} />
+
         {/* Bloco 2: Transforms — só faz sentido se vídeo NÃO removido */}
         {!page.videoRemoved && (
           <div className="space-y-2">
@@ -4032,6 +4107,74 @@ function VideoControlsPanel({
       <div className="px-3 py-1.5 border-t border-neutral-800 text-[9px] text-neutral-500 leading-tight">
         Controles per-página. Clique no ✕ ou no texto pra fechar.
       </div>
+    </div>
+  );
+}
+
+/**
+ * V25: Botão de importar vídeo/imagem do PC direto pra página atual.
+ * Faz upload via /api/upload-asset e seta videoSrc + videoUrl da página.
+ */
+function ImportVideoButton({
+  onUpdate,
+}: {
+  onUpdate: (patch: Partial<EnrichedPage>) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleFile(file: File) {
+    setBusy(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/upload-asset", {
+        method: "POST",
+        body: form,
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error ?? "Falha no upload");
+      // Seta videoSrc + videoUrl + restaura vídeo (caso estivesse removido)
+      onUpdate({
+        videoSrc: data.asset.filepath,
+        videoUrl: data.url,
+        videoRemoved: false,
+      });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-1">
+      <button
+        onClick={() => inputRef.current?.click()}
+        disabled={busy}
+        className="w-full text-xs px-2 py-1.5 rounded border bg-purple-900/30 border-purple-600 text-purple-200 hover:bg-purple-900/50 disabled:opacity-50 flex items-center justify-center gap-2"
+      >
+        {busy ? "⏳ Subindo..." : "📁 Importar vídeo/imagem do PC"}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="video/mp4,video/quicktime,video/webm,image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleFile(f);
+          e.target.value = ""; // permite reimportar mesmo arquivo
+        }}
+      />
+      {error && (
+        <p className="text-[10px] text-red-400">Erro: {error}</p>
+      )}
+      <p className="text-[10px] text-neutral-500 leading-tight">
+        💡 Sobe direto pra ESTA página. Aceita MP4/MOV/WEBM e imagens.
+      </p>
     </div>
   );
 }
