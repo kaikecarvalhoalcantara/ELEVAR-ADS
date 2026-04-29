@@ -76,6 +76,18 @@ export interface PageStyle {
   gradientFrom?: string;
   gradientTo?: string;
   gradientAngle?: number;          // 0..360
+  // V17: Color grading per-page (estilo Canva — sliders sobre o vídeo)
+  // Todos os defaults = "neutro" (sem alteração) → 0 ou 100 dependendo do tipo
+  videoBrightness?: number;        // 50..150 (default 100 = neutro)
+  videoContrast?: number;          // 50..150 (default 100)
+  videoSaturation?: number;        // 0..200 (default 100)
+  videoHue?: number;               // -180..180 graus (default 0)
+  videoTemperature?: number;       // -100..100 (default 0 = neutro, neg=frio, pos=quente)
+  videoVibrance?: number;          // -100..100 (default 0)
+  videoHighlights?: number;        // -100..100 (default 0) — clareia/escurece tons claros
+  videoShadows?: number;           // -100..100 (default 0) — clareia/escurece tons escuros
+  videoWhites?: number;            // -100..100 (default 0) — extremo dos brancos
+  videoBlacks?: number;            // -100..100 (default 0) — extremo dos pretos
 }
 
 export interface TextSegment {

@@ -9,7 +9,11 @@ import {
   computeFitFontSize,
   normalizePageText,
 } from "../../../lib/text-utils";
-import { COLOR_FILTER_LABELS, colorFilterCss } from "../../../lib/color-filters";
+import {
+  COLOR_FILTER_LABELS,
+  colorFilterCss,
+  combinedVideoFilter,
+} from "../../../lib/color-filters";
 import {
   HOOK_FONT_GROUPS,
   TRANSITION_FONT_GROUPS,
@@ -65,6 +69,8 @@ export default function EditorPage() {
   const id = (params?.id as string) ?? "";
 
   const [draft, setDraft] = useState<EnrichedDraft | null>(null);
+  // V17: estado lifted pra mostrar painel de color grading quando vídeo selecionado
+  const [videoIsSelected, setVideoIsSelected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedAd, setSelectedAd] = useState(0);
   const [selectedPage, setSelectedPage] = useState(0);
@@ -617,9 +623,21 @@ export default function EditorPage() {
                 if (id === null) setSelectedElementIds(new Set());
                 else toggleElementSelection(id, multi);
               }}
+              onVideoSelectChange={setVideoIsSelected}
             />
           ) : (
             <div className="text-sm text-neutral-500">selecione uma página</div>
+          )}
+
+          {/* V17: Painel flutuante de color grading — aparece quando o vídeo
+              é clicado/selecionado. Estilo Canva: floating no canto, com sliders
+              pra ajustar temperatura, brilho, contraste, saturação etc. */}
+          {videoIsSelected && page && (
+            <ColorGradingPanel
+              page={page}
+              onUpdate={(patch) => updatePage(selectedAd, selectedPage, patch)}
+              onClose={() => setVideoIsSelected(false)}
+            />
           )}
         </section>
 
@@ -692,12 +710,14 @@ function EditableCanvas({
   onUpdate,
   selectedElementIds,
   onSelectElement,
+  onVideoSelectChange,
 }: {
   page: EnrichedPage;
   draft: EnrichedDraft;
   onUpdate: (patch: Partial<EnrichedPage>) => void;
   selectedElementIds: Set<string>;
   onSelectElement: (id: string | null, multi: boolean) => void;
+  onVideoSelectChange?: (selected: boolean) => void;
 }) {
   const dims = dimsFor(draft.format);
   const previewW = dims.width >= dims.height ? 600 : 420;
@@ -711,6 +731,10 @@ function EditableCanvas({
   const [activeGuides, setActiveGuides] = useState<AlignGuide[]>([]);
   const multiDragStartRef = useRef<Map<string, { x: number; y: number }> | null>(null);
   const [videoSelected, setVideoSelected] = useState(false);
+  // V17: sincroniza videoSelected pro parent (pra mostrar painel de color grading)
+  useEffect(() => {
+    onVideoSelectChange?.(videoSelected);
+  }, [videoSelected, onVideoSelectChange]);
   // V13: hover na palavra dispara preview da animação (estilo Canva)
   const [hoverAnimKey, setHoverAnimKey] = useState<number | null>(null);
   // V11: drag pra mover o texto
@@ -848,7 +872,19 @@ function EditableCanvas({
     page.fontSize && page.fontSize > 0
       ? page.fontSize
       : computeFitFontSize(lines, isHook, dims.width);
-  const filterCss = colorFilterCss(draft.colorFilter);
+  // V17: filtro combinado = LUT global + ajustes per-page (color grading)
+  const filterCss = combinedVideoFilter(draft.colorFilter, {
+    videoBrightness: page.videoBrightness,
+    videoContrast: page.videoContrast,
+    videoSaturation: page.videoSaturation,
+    videoHue: page.videoHue,
+    videoTemperature: page.videoTemperature,
+    videoVibrance: page.videoVibrance,
+    videoHighlights: page.videoHighlights,
+    videoShadows: page.videoShadows,
+    videoWhites: page.videoWhites,
+    videoBlacks: page.videoBlacks,
+  });
   const baseShadowValue = buildTextShadow({
     shadowBlur: style.shadowBlur,
     shadowOpacity: style.shadowOpacity,
@@ -3417,6 +3453,123 @@ function Select<T extends string>({
     </label>
   );
 }
+/**
+ * V17: Painel flutuante de color grading. Aparece quando o vídeo é
+ * selecionado (clique no vídeo). Sliders estilo Canva pra ajustar
+ * temperatura, brilho, contraste, saturação etc — per-página.
+ *
+ * Posicionado fixo no canto inferior-esquerdo do viewport, sem
+ * cobrir a sidebar nem o canvas. Tem botão pra resetar tudo + fechar.
+ */
+function ColorGradingPanel({
+  page,
+  onUpdate,
+  onClose,
+}: {
+  page: EnrichedPage;
+  onUpdate: (patch: Partial<EnrichedPage>) => void;
+  onClose: () => void;
+}) {
+  const sliders: Array<{
+    key: keyof EnrichedPage;
+    label: string;
+    min: number;
+    max: number;
+    step: number;
+    defaultValue: number;
+    format: (v: number) => string;
+  }> = [
+    { key: "videoBrightness", label: "Brilho", min: 50, max: 150, step: 1, defaultValue: 100, format: (v) => `${v}%` },
+    { key: "videoContrast", label: "Contraste", min: 50, max: 150, step: 1, defaultValue: 100, format: (v) => `${v}%` },
+    { key: "videoSaturation", label: "Saturação", min: 0, max: 200, step: 1, defaultValue: 100, format: (v) => `${v}%` },
+    { key: "videoVibrance", label: "Vibração", min: -100, max: 100, step: 1, defaultValue: 0, format: (v) => `${v > 0 ? "+" : ""}${v}` },
+    { key: "videoTemperature", label: "Temperatura", min: -100, max: 100, step: 1, defaultValue: 0, format: (v) => v === 0 ? "neutra" : v > 0 ? `+${v} ☀` : `${v} ❄` },
+    { key: "videoHue", label: "Matiz", min: -180, max: 180, step: 1, defaultValue: 0, format: (v) => `${v}°` },
+    { key: "videoHighlights", label: "Destaques", min: -100, max: 100, step: 1, defaultValue: 0, format: (v) => `${v > 0 ? "+" : ""}${v}` },
+    { key: "videoShadows", label: "Sombras", min: -100, max: 100, step: 1, defaultValue: 0, format: (v) => `${v > 0 ? "+" : ""}${v}` },
+    { key: "videoWhites", label: "Brancos", min: -100, max: 100, step: 1, defaultValue: 0, format: (v) => `${v > 0 ? "+" : ""}${v}` },
+    { key: "videoBlacks", label: "Pretos", min: -100, max: 100, step: 1, defaultValue: 0, format: (v) => `${v > 0 ? "+" : ""}${v}` },
+  ];
+
+  function reset() {
+    onUpdate({
+      videoBrightness: undefined,
+      videoContrast: undefined,
+      videoSaturation: undefined,
+      videoHue: undefined,
+      videoTemperature: undefined,
+      videoVibrance: undefined,
+      videoHighlights: undefined,
+      videoShadows: undefined,
+      videoWhites: undefined,
+      videoBlacks: undefined,
+    });
+  }
+
+  return (
+    <div
+      className="fixed bottom-44 left-4 z-40 w-72 bg-neutral-900/95 backdrop-blur border border-neutral-700 rounded-lg shadow-2xl"
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800">
+        <div className="text-xs font-semibold text-neutral-200">
+          🎨 Ajustes do vídeo
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={reset}
+            className="text-[10px] text-neutral-400 hover:text-neutral-200 px-2 py-0.5 rounded border border-neutral-700"
+            title="Resetar todos os ajustes"
+          >
+            Resetar
+          </button>
+          <button
+            onClick={onClose}
+            className="text-neutral-400 hover:text-neutral-200 px-1"
+            title="Fechar"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+      <div className="px-3 py-2 space-y-2 max-h-[55vh] overflow-y-auto">
+        {sliders.map((s) => {
+          const cur = (page[s.key] as number | undefined) ?? s.defaultValue;
+          return (
+            <div key={s.key as string}>
+              <div className="flex justify-between text-[10px] text-neutral-400">
+                <span>{s.label}</span>
+                <span className={cur === s.defaultValue ? "text-neutral-500" : "text-purple-300"}>
+                  {s.format(cur)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={s.min}
+                max={s.max}
+                step={s.step}
+                value={cur}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  onUpdate({
+                    [s.key]: v === s.defaultValue ? undefined : v,
+                  } as Partial<EnrichedPage>);
+                }}
+                className="w-full"
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="px-3 py-1.5 border-t border-neutral-800 text-[9px] text-neutral-500 leading-tight">
+        Ajustes são por página. Aparecem no MP4 final. Clique fora do vídeo
+        ou em ✕ pra fechar.
+      </div>
+    </div>
+  );
+}
+
 function ColorField({
   label,
   value,

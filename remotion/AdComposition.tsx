@@ -44,6 +44,17 @@ export interface PageWithStyle extends Beat, PageStyle {
   gradientFrom?: string;
   gradientTo?: string;
   gradientAngle?: number;
+  // V17: color grading per-page
+  videoBrightness?: number;
+  videoContrast?: number;
+  videoSaturation?: number;
+  videoHue?: number;
+  videoTemperature?: number;
+  videoVibrance?: number;
+  videoHighlights?: number;
+  videoShadows?: number;
+  videoWhites?: number;
+  videoBlacks?: number;
 }
 
 export interface AdProps {

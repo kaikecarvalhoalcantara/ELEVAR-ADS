@@ -13,7 +13,7 @@ import {
   computeFitFontSize,
   normalizePageText,
 } from "../lib/text-utils";
-import { colorFilterCss } from "../lib/color-filters";
+import { colorFilterCss, combinedVideoFilter } from "../lib/color-filters";
 import { iconSvgString } from "../lib/icons";
 import {
   elementEntryStyle,
@@ -71,6 +71,17 @@ interface Props {
       gradientFrom?: string;
       gradientTo?: string;
       gradientAngle?: number;
+      // V17: color grading per-page
+      videoBrightness?: number;
+      videoContrast?: number;
+      videoSaturation?: number;
+      videoHue?: number;
+      videoTemperature?: number;
+      videoVibrance?: number;
+      videoHighlights?: number;
+      videoShadows?: number;
+      videoWhites?: number;
+      videoBlacks?: number;
     };
   videoSrc: string | null;
   animation: AnimationKind;
@@ -193,7 +204,19 @@ export const BeatScene: React.FC<Props> = ({
   };
 
   const AnimComp = animationComponent(animation);
-  const filterCss = colorFilterCss(projectStyle.colorFilter);
+  // V17: filtro combinado = LUT global do projeto + grading per-page
+  const filterCss = combinedVideoFilter(projectStyle.colorFilter, {
+    videoBrightness: beat.videoBrightness,
+    videoContrast: beat.videoContrast,
+    videoSaturation: beat.videoSaturation,
+    videoHue: beat.videoHue,
+    videoTemperature: beat.videoTemperature,
+    videoVibrance: beat.videoVibrance,
+    videoHighlights: beat.videoHighlights,
+    videoShadows: beat.videoShadows,
+    videoWhites: beat.videoWhites,
+    videoBlacks: beat.videoBlacks,
+  });
 
   // Vídeo transforms (V4 zoom/flip/trim) + posição livre (V9)
   const videoZoom = Math.max(1, beat.videoZoom ?? 1);

@@ -123,6 +123,17 @@ export async function renderAdsInBackground(
       gradientFrom: p.gradientFrom,
       gradientTo: p.gradientTo,
       gradientAngle: p.gradientAngle,
+      // V17: color grading per-page
+      videoBrightness: p.videoBrightness,
+      videoContrast: p.videoContrast,
+      videoSaturation: p.videoSaturation,
+      videoHue: p.videoHue,
+      videoTemperature: p.videoTemperature,
+      videoVibrance: p.videoVibrance,
+      videoHighlights: p.videoHighlights,
+      videoShadows: p.videoShadows,
+      videoWhites: p.videoWhites,
+      videoBlacks: p.videoBlacks,
     }));
     const videos = ad.pages.map((p) => p.videoSrc);
     const animations = ad.pages.map((p) => p.animation);
