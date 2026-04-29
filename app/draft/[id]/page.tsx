@@ -644,6 +644,16 @@ export default function EditorPage() {
               onClose={() => setVideoIsSelected(false)}
             />
           )}
+          {/* V20: Painel flutuante de controles do vídeo (DIREITA — espelho
+              do ajustes na esquerda). Remover vídeo, cor do fundo, zoom,
+              flip, trim. Mesma trigger: vídeo selecionado. */}
+          {videoIsSelected && page && (
+            <VideoControlsPanel
+              page={page}
+              onUpdate={(patch) => updatePage(selectedAd, selectedPage, patch)}
+              onClose={() => setVideoIsSelected(false)}
+            />
+          )}
         </section>
 
         {/* RIGHT: control panel */}
@@ -2947,74 +2957,9 @@ function ControlPanel({
         />
       </Group>
 
-      <Group label="Vídeo de fundo (transforms)">
-        {/* V18: Remover vídeo + cor de fundo */}
-        <div className="rounded border border-neutral-800 p-2 space-y-2 bg-neutral-950/50">
-          <div className="text-[11px] text-neutral-400 font-semibold">
-            Fundo da página
-          </div>
-          <button
-            onClick={() =>
-              onUpdatePage({ videoRemoved: !(page.videoRemoved ?? false) })
-            }
-            className={`w-full text-xs px-2 py-1.5 rounded border ${
-              page.videoRemoved
-                ? "bg-purple-900/40 border-purple-600 text-purple-200"
-                : "bg-neutral-800 border-neutral-700 text-neutral-200 hover:bg-neutral-700"
-            }`}
-          >
-            {page.videoRemoved
-              ? "🎨 Vídeo removido — clique pra restaurar"
-              : "🎬 Remover vídeo (deixar só o fundo)"}
-          </button>
-          <ColorField
-            label="Cor do fundo"
-            value={page.backgroundColor ?? "#000000"}
-            onChange={(v) => onUpdatePage({ backgroundColor: v })}
-          />
-          <p className="text-[10px] text-neutral-500 leading-tight">
-            {page.videoRemoved
-              ? "Sem vídeo — só a cor do fundo aparece. Texto fica por cima normalmente."
-              : "Cor de fundo aparece atrás do vídeo (caso ele não cubra todo o canvas) ou se você remover o vídeo."}
-          </p>
-        </div>
-        <Range
-          label="Zoom no vídeo"
-          value={page.videoZoom ?? 1}
-          min={1}
-          max={2.5}
-          step={0.05}
-          format={(v) => `${v.toFixed(2)}×`}
-          onChange={(v) => onUpdatePage({ videoZoom: v })}
-        />
-        <Row>
-          <label className="flex items-center gap-2 text-xs">
-            <input
-              type="checkbox"
-              checked={page.videoFlipH ?? false}
-              onChange={(e) => onUpdatePage({ videoFlipH: e.target.checked })}
-            />
-            <span>Espelhar (H)</span>
-          </label>
-          <label className="flex items-center gap-2 text-xs">
-            <input
-              type="checkbox"
-              checked={page.videoFlipV ?? false}
-              onChange={(e) => onUpdatePage({ videoFlipV: e.target.checked })}
-            />
-            <span>Inverter (V)</span>
-          </label>
-        </Row>
-        <Range
-          label="Cortar início (trim) — pula segundos"
-          value={page.videoTrimStart ?? 0}
-          min={0}
-          max={20}
-          step={0.5}
-          format={(v) => `${v.toFixed(1)}s`}
-          onChange={(v) => onUpdatePage({ videoTrimStart: v })}
-        />
-      </Group>
+      {/* V20: 'Vídeo de fundo (transforms)' MOVIDO pra painel flutuante
+          na DIREITA do canvas (VideoControlsPanel). Aparece quando o
+          vídeo é selecionado. UX estilo Canva. */}
 
       <Group label="Aplicar em massa">
         <div className="flex flex-col gap-1.5">
@@ -3670,6 +3615,152 @@ function ColorGradingPanel({
       <div className="px-3 py-1.5 border-t border-neutral-800 text-[9px] text-neutral-500 leading-tight">
         Ajustes são por página. Aparecem no MP4 final. Clique fora do vídeo
         ou em ✕ pra fechar.
+      </div>
+    </div>
+  );
+}
+
+/**
+ * V20: Painel flutuante na DIREITA — controles do vídeo (remover,
+ * fundo, zoom, flip, trim). Mirror do ColorGradingPanel da esquerda.
+ * Aparece quando o vídeo é clicado, estilo Canva.
+ */
+function VideoControlsPanel({
+  page,
+  onUpdate,
+  onClose,
+}: {
+  page: EnrichedPage;
+  onUpdate: (patch: Partial<EnrichedPage>) => void;
+  onClose: () => void;
+}) {
+  function resetTransforms() {
+    onUpdate({
+      videoZoom: undefined,
+      videoFlipH: undefined,
+      videoFlipV: undefined,
+      videoTrimStart: undefined,
+      videoX: undefined,
+      videoY: undefined,
+      videoW: undefined,
+      videoH: undefined,
+    });
+  }
+
+  return (
+    <div
+      className="fixed top-20 right-4 z-40 w-72 bg-neutral-900/95 backdrop-blur border border-neutral-700 rounded-lg shadow-2xl"
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800">
+        <div className="text-xs font-semibold text-neutral-200">
+          🎬 Controles do vídeo
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={resetTransforms}
+            className="text-[10px] text-neutral-400 hover:text-neutral-200 px-2 py-0.5 rounded border border-neutral-700"
+            title="Resetar zoom/flip/trim/posição"
+          >
+            Resetar
+          </button>
+          <button
+            onClick={onClose}
+            className="text-neutral-400 hover:text-neutral-200 px-1"
+            title="Fechar"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+      <div className="px-3 py-2 space-y-3 max-h-[65vh] overflow-y-auto">
+        {/* Bloco 1: Fundo da página (V18) */}
+        <div className="rounded border border-neutral-800 p-2 space-y-2 bg-neutral-950/50">
+          <div className="text-[11px] text-neutral-400 font-semibold">
+            Fundo da página
+          </div>
+          <button
+            onClick={() =>
+              onUpdate({ videoRemoved: !(page.videoRemoved ?? false) })
+            }
+            className={`w-full text-xs px-2 py-1.5 rounded border ${
+              page.videoRemoved
+                ? "bg-purple-900/40 border-purple-600 text-purple-200"
+                : "bg-neutral-800 border-neutral-700 text-neutral-200 hover:bg-neutral-700"
+            }`}
+          >
+            {page.videoRemoved
+              ? "🎨 Vídeo removido — clique pra restaurar"
+              : "🎬 Remover vídeo (deixar só o fundo)"}
+          </button>
+          <ColorField
+            label="Cor do fundo"
+            value={page.backgroundColor ?? "#000000"}
+            onChange={(v) => onUpdate({ backgroundColor: v })}
+          />
+          <p className="text-[10px] text-neutral-500 leading-tight">
+            {page.videoRemoved
+              ? "Sem vídeo — só a cor aparece."
+              : "Cor de fundo aparece atrás do vídeo (caso ele não cubra todo o canvas)."}
+          </p>
+        </div>
+
+        {/* Bloco 2: Transforms — só faz sentido se vídeo NÃO removido */}
+        {!page.videoRemoved && (
+          <div className="space-y-2">
+            <div className="text-[11px] text-neutral-400 font-semibold">
+              Transformações
+            </div>
+            <Range
+              label="Zoom"
+              value={page.videoZoom ?? 1}
+              min={1}
+              max={2.5}
+              step={0.05}
+              format={(v) => `${v.toFixed(2)}×`}
+              onChange={(v) => onUpdate({ videoZoom: v })}
+            />
+            <Row>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={page.videoFlipH ?? false}
+                  onChange={(e) =>
+                    onUpdate({ videoFlipH: e.target.checked })
+                  }
+                />
+                <span>Espelhar (H)</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={page.videoFlipV ?? false}
+                  onChange={(e) =>
+                    onUpdate({ videoFlipV: e.target.checked })
+                  }
+                />
+                <span>Inverter (V)</span>
+              </label>
+            </Row>
+            <Range
+              label="Cortar início (trim)"
+              value={page.videoTrimStart ?? 0}
+              min={0}
+              max={20}
+              step={0.5}
+              format={(v) => `${v.toFixed(1)}s`}
+              onChange={(v) => onUpdate({ videoTrimStart: v })}
+            />
+            <p className="text-[10px] text-neutral-500 leading-tight">
+              💡 Pra mover/redimensionar a área do vídeo no canvas, arraste
+              direto pelo vídeo (e use os 4 cantos roxos pra redimensionar).
+            </p>
+          </div>
+        )}
+      </div>
+      <div className="px-3 py-1.5 border-t border-neutral-800 text-[9px] text-neutral-500 leading-tight">
+        Controles per-página. Clique no ✕ ou no texto pra fechar.
       </div>
     </div>
   );
