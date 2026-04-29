@@ -432,6 +432,36 @@ export default function EditorPage() {
     scheduleSave(next);
   }
 
+  // V25: Duplicar página — clona o slide e insere logo depois
+  function duplicatePage(adIdx: number, pageIdx: number) {
+    if (!draft) return;
+    const ad = draft.ads[adIdx];
+    if (!ad) return;
+    const orig = ad.pages[pageIdx];
+    if (!orig) return;
+    const dupe: EnrichedPage = JSON.parse(JSON.stringify(orig));
+    const next: EnrichedDraft = {
+      ...draft,
+      ads: draft.ads.map((a, i) =>
+        i !== adIdx
+          ? a
+          : {
+              ...a,
+              pages: [
+                ...a.pages.slice(0, pageIdx + 1),
+                dupe,
+                ...a.pages.slice(pageIdx + 1),
+              ],
+            },
+      ),
+    };
+    // Pula pra duplicata recém-criada
+    if (adIdx === selectedAd) {
+      setSelectedPage(pageIdx + 1);
+    }
+    scheduleSave(next);
+  }
+
   function updateProject(
     patch: Partial<ProjectStyle> & { fontHook?: string; fontTransition?: string },
   ) {
@@ -708,6 +738,7 @@ export default function EditorPage() {
         onSelect={setSelectedPage}
         onSwap={(targetIdx, path, url) => updatePage(selectedAd, targetIdx, { videoSrc: path, videoUrl: url })}
         onDelete={(targetIdx) => deletePage(selectedAd, targetIdx)}
+        onDuplicate={(targetIdx) => duplicatePage(selectedAd, targetIdx)}
       />
 
       {/* MODAL: animated preview */}
@@ -1396,9 +1427,32 @@ function EditableCanvas({
       )}
 
       {page.hideText && (
-        <div className="absolute top-2 left-2 text-[10px] text-white/70 bg-black/50 px-1.5 py-0.5 rounded">
-          texto oculto (vídeo fala por si)
-        </div>
+        <>
+          <div className="absolute top-2 left-2 text-[10px] text-white/70 bg-black/50 px-1.5 py-0.5 rounded pointer-events-none">
+            texto oculto
+          </div>
+          {/* V25: Botão grande no centro pra ADICIONAR letra */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onUpdate({
+                hideText: false,
+                // Se a página estiver sem texto, coloca um placeholder
+                ...((!page.text || page.text.trim() === "")
+                  ? { text: "DIGITE AQUI" }
+                  : {}),
+              });
+              setSelected(true);
+              setEditing(true);
+            }}
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 px-4 py-2 rounded-lg bg-purple-600/90 hover:bg-purple-500 text-white text-sm font-semibold border-2 border-white/50 shadow-2xl backdrop-blur-sm flex items-center gap-2 transition-all hover:scale-105"
+            title="Adicionar letra na página"
+            style={{ pointerEvents: "auto", zIndex: 50 }}
+          >
+            <span className="text-lg">✏️</span>
+            <span>Adicionar letra</span>
+          </button>
+        </>
       )}
 
       {/* Frame indicator */}
@@ -2122,12 +2176,14 @@ function PageStrip({
   onSelect,
   onSwap,
   onDelete,
+  onDuplicate,
 }: {
   pages: EnrichedPage[];
   selectedIndex: number;
   onSelect: (i: number) => void;
   onSwap: (i: number, path: string, url: string) => void;
   onDelete: (i: number) => void;
+  onDuplicate: (i: number) => void;
 }) {
   return (
     <div className="border-t border-neutral-800 bg-neutral-950 px-3 py-2 overflow-x-auto">
@@ -2188,6 +2244,17 @@ function PageStrip({
               title="Excluir esta página"
             >
               ×
+            </button>
+            {/* V25: + de duplicar — aparece no hover, embaixo do X */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDuplicate(i);
+              }}
+              className="absolute top-1 right-7 w-5 h-5 rounded-full bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+              title="Duplicar esta página"
+            >
+              +
             </button>
           </div>
         ))}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 // ============================================================
 // CATÁLOGO DE FONTES — compartilhado entre home (brand brief)
@@ -228,11 +228,13 @@ export const HOOK_FONTS_ALL = HOOK_FONT_GROUPS.flatMap((g) => g.fonts);
 export const TRANSITION_FONTS_ALL = TRANSITION_FONT_GROUPS.flatMap((g) => g.fonts);
 
 /**
- * Select especializado pra fontes — agrupa por categoria via <optgroup>
- * e renderiza cada opção na própria fonte (preview inline).
+ * Select especializado pra fontes — dropdown CUSTOM com:
+ * - Search box no topo (filtragem em tempo real)
+ * - Grupos por categoria (Impacto, Premium, etc)
+ * - Cada opção renderizada na própria fonte (preview inline)
  *
- * Pré-carrega TODAS as fontes do dropdown na 1ª render — assim cada
- * <option> aparece na própria fonte. Único request ao Google Fonts.
+ * Substituiu o <select> nativo pra dar UX melhor (busca + categorias
+ * com fontes dela só). Pré-carrega todas as fontes na 1ª render.
  */
 export function FontSelect({
   label,
@@ -245,6 +247,11 @@ export function FontSelect({
   onChange: (v: string) => void;
   groups: { label: string; fonts: string[] }[];
 }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Pré-carrega TODAS as fontes
   useEffect(() => {
     if (typeof document === "undefined") return;
     const all = groups.flatMap((g) => g.fonts);
@@ -261,29 +268,103 @@ export function FontSelect({
     document.head.appendChild(link);
   }, [groups]);
 
+  // Click fora fecha o dropdown
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  // Filtragem
+  const filteredGroups = useMemo(() => {
+    if (!query.trim()) return groups;
+    const q = query.toLowerCase().trim();
+    return groups
+      .map((g) => ({
+        ...g,
+        fonts: g.fonts.filter((f) => f.toLowerCase().includes(q)),
+      }))
+      .filter((g) => g.fonts.length > 0);
+  }, [groups, query]);
+
+  const totalFiltered = filteredGroups.reduce((n, g) => n + g.fonts.length, 0);
+
   return (
-    <label className="block">
+    <div className="block" ref={containerRef}>
       <span className="text-sm font-medium">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded bg-neutral-900 border border-neutral-700 px-3 py-2"
+      <button
+        onClick={(e) => {
+          e.preventDefault();
+          setOpen((v) => !v);
+        }}
+        className="mt-1 w-full rounded bg-neutral-900 border border-neutral-700 px-3 py-2 text-left flex items-center justify-between"
         style={{ fontFamily: `"${value}", system-ui, sans-serif` }}
       >
-        {groups.map((g) => (
-          <optgroup key={g.label} label={g.label}>
-            {g.fonts.map((f) => (
-              <option
-                key={f}
-                value={f}
-                style={{ fontFamily: `"${f}", system-ui, sans-serif` }}
-              >
-                {f}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
-    </label>
+        <span className="truncate">{value}</span>
+        <span className="text-neutral-500 text-xs ml-2">{open ? "▴" : "▾"}</span>
+      </button>
+      {open && (
+        <div className="relative">
+          <div className="absolute z-50 left-0 right-0 mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-2xl overflow-hidden">
+            <div className="p-2 border-b border-neutral-800">
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="🔍 Buscar fonte..."
+                className="w-full rounded bg-neutral-800 border border-neutral-700 px-2 py-1.5 text-sm outline-none focus:border-purple-500"
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setOpen(false);
+                }}
+              />
+              {query && (
+                <div className="text-[10px] text-neutral-500 mt-1">
+                  {totalFiltered} fonte{totalFiltered === 1 ? "" : "s"} encontrada{totalFiltered === 1 ? "" : "s"}
+                </div>
+              )}
+            </div>
+            <div className="max-h-80 overflow-y-auto">
+              {filteredGroups.length === 0 ? (
+                <div className="px-3 py-6 text-center text-xs text-neutral-500">
+                  Nenhuma fonte com &quot;{query}&quot;
+                </div>
+              ) : (
+                filteredGroups.map((g) => (
+                  <div key={g.label}>
+                    <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-purple-300 bg-neutral-950 sticky top-0 border-b border-neutral-800">
+                      {g.label}
+                    </div>
+                    {g.fonts.map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => {
+                          onChange(f);
+                          setOpen(false);
+                          setQuery("");
+                        }}
+                        className={`w-full text-left px-3 py-1.5 text-sm hover:bg-purple-900/30 ${
+                          f === value ? "bg-purple-900/40 text-purple-200" : ""
+                        }`}
+                        style={{ fontFamily: `"${f}", system-ui, sans-serif` }}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
