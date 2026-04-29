@@ -10,6 +10,11 @@ import {
   normalizePageText,
 } from "../../../lib/text-utils";
 import { COLOR_FILTER_LABELS, colorFilterCss } from "../../../lib/color-filters";
+import {
+  HOOK_FONT_GROUPS,
+  TRANSITION_FONT_GROUPS,
+  FontSelect,
+} from "../../../lib/font-catalog";
 import { ICON_LIST, iconSvgString } from "../../../lib/icons";
 import {
   createElement,
@@ -305,7 +310,10 @@ export default function EditorPage() {
           ...ad,
           pages: ad.pages.map(({ videoUrl: _omit, ...rest }) => rest),
         }));
-        const projectFields: Partial<ProjectStyle> = {
+        const projectFields: Partial<ProjectStyle> & {
+          fontHook?: string;
+          fontTransition?: string;
+        } = {
           baseColor: next.baseColor,
           accentColor: next.accentColor,
           baseFontSize: next.baseFontSize,
@@ -315,6 +323,9 @@ export default function EditorPage() {
           baseShadowOpacity: next.baseShadowOpacity,
           baseOverlayOpacity: next.baseOverlayOpacity,
           baseAlign: next.baseAlign,
+          // V15: fontes editáveis no editor (afetam o projeto inteiro)
+          fontHook: next.fontHook,
+          fontTransition: next.fontTransition,
         };
         const res = await fetch(`/api/draft/${id}`, {
           method: "PATCH",
@@ -407,7 +418,9 @@ export default function EditorPage() {
     scheduleSave(next);
   }
 
-  function updateProject(patch: Partial<ProjectStyle>) {
+  function updateProject(
+    patch: Partial<ProjectStyle> & { fontHook?: string; fontTransition?: string },
+  ) {
     if (!draft) return;
     scheduleSave({ ...draft, ...patch });
   }
@@ -2031,7 +2044,9 @@ function ControlPanel({
   page: EnrichedPage;
   draft: EnrichedDraft;
   onUpdatePage: (patch: Partial<EnrichedPage>) => void;
-  onUpdateProject: (patch: Partial<ProjectStyle>) => void;
+  onUpdateProject: (
+    patch: Partial<ProjectStyle> & { fontHook?: string; fontTransition?: string },
+  ) => void;
   onBulkApply: (scope: "this-ad" | "all-ads") => void;
   format: ProjectDraft["format"];
   selectedElementId: string | null;
@@ -2125,6 +2140,24 @@ function ControlPanel({
             Ocultar texto (vídeo fala por si só)
           </span>
         </label>
+      </Group>
+
+      <Group label="Tipografia (do projeto)">
+        <p className="text-[10px] text-neutral-500 -mt-1 mb-1">
+          Mudar aqui afeta TODOS os anúncios e páginas do projeto.
+        </p>
+        <FontSelect
+          label="Fonte gancho (uppercase bold)"
+          value={draft.fontHook}
+          onChange={(v) => onUpdateProject({ fontHook: v })}
+          groups={HOOK_FONT_GROUPS}
+        />
+        <FontSelect
+          label="Fonte transição (sentence-case)"
+          value={draft.fontTransition}
+          onChange={(v) => onUpdateProject({ fontTransition: v })}
+          groups={TRANSITION_FONT_GROUPS}
+        />
       </Group>
 
       <Group label="Estilo do texto">
