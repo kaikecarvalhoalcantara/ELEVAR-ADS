@@ -1862,6 +1862,12 @@ function VideoLayer({
     <>
       <div
         onMouseDown={(e) => startDrag("move", e)}
+        onClick={(e) => {
+          // Impede o click de bubble pro canvas pai (que dispararia
+          // clearSelection() e desselectava o vídeo imediatamente
+          // depois do startDrag selecionar)
+          e.stopPropagation();
+        }}
         style={{
           position: "absolute",
           left: `${x * 100}%`,
@@ -3508,7 +3514,7 @@ function ColorGradingPanel({
 
   return (
     <div
-      className="fixed bottom-44 left-4 z-40 w-72 bg-neutral-900/95 backdrop-blur border border-neutral-700 rounded-lg shadow-2xl"
+      className="fixed top-20 left-4 z-40 w-72 bg-neutral-900/95 backdrop-blur border border-neutral-700 rounded-lg shadow-2xl"
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
