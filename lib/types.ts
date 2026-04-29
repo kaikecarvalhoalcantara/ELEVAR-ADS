@@ -158,6 +158,10 @@ export interface PageDraft extends PageStyle {
   videoY?: number; // 0-1 default 0
   videoW?: number; // 0-1 default 1
   videoH?: number; // 0-1 default 1
+  // V11: posição do texto — offset do centro (-0.5 a 0.5 = -50% a +50% do canvas).
+  // 0,0 = centro. textOffsetY = -0.3 = 30% acima do centro. Default 0.
+  textOffsetX?: number;
+  textOffsetY?: number;
 }
 
 export type ColorFilter =

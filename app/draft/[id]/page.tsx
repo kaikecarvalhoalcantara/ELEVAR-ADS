@@ -338,6 +338,33 @@ export default function EditorPage() {
     scheduleSave(next);
   }
 
+  function deletePage(adIdx: number, pageIdx: number) {
+    if (!draft) return;
+    const ad = draft.ads[adIdx];
+    if (!ad) return;
+    if (ad.pages.length <= 1) {
+      alert("Não dá pra excluir a única página do anúncio.");
+      return;
+    }
+    if (!confirm(`Excluir a página ${pageIdx + 1}? Não dá pra desfazer com Ctrl+Z depois de salvar.`)) return;
+    const next: EnrichedDraft = {
+      ...draft,
+      ads: draft.ads.map((a, i) =>
+        i !== adIdx ? a : { ...a, pages: a.pages.filter((_, j) => j !== pageIdx) },
+      ),
+    };
+    // Ajusta selectedPage se a página removida era a atual ou anterior
+    if (adIdx === selectedAd) {
+      if (selectedPage === pageIdx) {
+        // Vai pra anterior, ou ficar em 0
+        setSelectedPage(Math.max(0, pageIdx - 1));
+      } else if (selectedPage > pageIdx) {
+        setSelectedPage(selectedPage - 1);
+      }
+    }
+    scheduleSave(next);
+  }
+
   function updateProject(patch: Partial<ProjectStyle>) {
     if (!draft) return;
     scheduleSave({ ...draft, ...patch });
@@ -586,6 +613,7 @@ export default function EditorPage() {
         selectedIndex={selectedPage}
         onSelect={setSelectedPage}
         onSwap={(targetIdx, path, url) => updatePage(selectedAd, targetIdx, { videoSrc: path, videoUrl: url })}
+        onDelete={(targetIdx) => deletePage(selectedAd, targetIdx)}
       />
 
       {/* MODAL: animated preview */}
@@ -628,6 +656,14 @@ function EditableCanvas({
   const [activeGuides, setActiveGuides] = useState<AlignGuide[]>([]);
   const multiDragStartRef = useRef<Map<string, { x: number; y: number }> | null>(null);
   const [videoSelected, setVideoSelected] = useState(false);
+  // V11: drag pra mover o texto
+  const textDragRef = useRef<{
+    startX: number;
+    startY: number;
+    startOffsetX: number;
+    startOffsetY: number;
+    moved: boolean;
+  } | null>(null);
 
   // Click no canvas vazio: deseleciona tudo
   function clearSelection() {
@@ -669,6 +705,42 @@ function EditableCanvas({
     dragRef.current = null;
     window.removeEventListener("mousemove", onResize);
     window.removeEventListener("mouseup", endResize);
+  }
+
+  // V11: drag pra mover o texto livre pelo canvas
+  function startTextDrag(e: React.MouseEvent) {
+    if (editing) return; // não arrasta enquanto edita
+    e.stopPropagation();
+    e.preventDefault();
+    textDragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startOffsetX: page.textOffsetX ?? 0,
+      startOffsetY: page.textOffsetY ?? 0,
+      moved: false,
+    };
+    window.addEventListener("mousemove", onTextDrag);
+    window.addEventListener("mouseup", endTextDrag);
+  }
+  function onTextDrag(e: MouseEvent) {
+    if (!textDragRef.current) return;
+    const containerEl = containerRef.current;
+    if (!containerEl) return;
+    const rect = containerEl.getBoundingClientRect();
+    const dx = (e.clientX - textDragRef.current.startX) / rect.width;
+    const dy = (e.clientY - textDragRef.current.startY) / rect.height;
+    if (Math.abs(dx) > 0.005 || Math.abs(dy) > 0.005) {
+      textDragRef.current.moved = true;
+    }
+    // Limita a -0.5 / 0.5 (não deixa o texto sair do canvas)
+    const newX = Math.max(-0.45, Math.min(0.45, textDragRef.current.startOffsetX + dx));
+    const newY = Math.max(-0.45, Math.min(0.45, textDragRef.current.startOffsetY + dy));
+    onUpdate({ textOffsetX: newX, textOffsetY: newY });
+  }
+  function endTextDrag() {
+    textDragRef.current = null;
+    window.removeEventListener("mousemove", onTextDrag);
+    window.removeEventListener("mouseup", endTextDrag);
   }
 
   // resolve display style (per-page > project default)
@@ -824,11 +896,20 @@ function EditableCanvas({
           style={{
             alignItems: "center",
             justifyContent: style.align === "center" ? "center" : style.align === "left" ? "flex-start" : "flex-end",
+            transform: `translate(${(page.textOffsetX ?? 0) * 100}%, ${(page.textOffsetY ?? 0) * 100}%)`,
           }}
         >
         <div
+          onMouseDown={(e) => {
+            // Drag SÓ se já tá selecionado e não editando
+            if (selected && !editing) {
+              startTextDrag(e);
+            }
+          }}
           onClick={(e) => {
             e.stopPropagation();
+            // Se acabou de arrastar, não trata como click
+            if (textDragRef.current?.moved) return;
             setSelected(true);
           }}
           onDoubleClick={(e) => {
@@ -836,7 +917,11 @@ function EditableCanvas({
             setSelected(true);
             setEditing(true);
           }}
-          className={`relative cursor-text px-[6%] ${selected ? "outline outline-2 outline-purple-500/70 outline-offset-4" : ""}`}
+          className={`relative px-[6%] ${
+            selected
+              ? "outline outline-2 outline-purple-500/70 outline-offset-4 cursor-move"
+              : "cursor-text"
+          }`}
           style={{ width: "100%" }}
         >
           {editing ? (
@@ -924,16 +1009,29 @@ function EditableCanvas({
 
           {selected && !editing && (
             <>
-              {/* Drag handle bottom-right (pinça) */}
+              {/* Drag handle bottom-right (pinça) — resize fonte */}
               <div
                 onMouseDown={startResize}
-                className="absolute -right-3 -bottom-3 w-6 h-6 rounded-full bg-purple-600 border-2 border-white cursor-ns-resize flex items-center justify-center text-[10px] font-bold"
-                title="Arraste pra cima/baixo pra resize a fonte"
+                className="absolute -right-3 -bottom-3 w-6 h-6 rounded-full bg-purple-600 border-2 border-white cursor-ns-resize flex items-center justify-center text-[10px] font-bold z-10"
+                title="Arraste pra cima/baixo pra mudar o tamanho da fonte"
               >
                 ↕
               </div>
-              <div className="absolute -top-7 left-0 text-[10px] text-purple-300">
-                clique 2x pra editar · arraste a bolinha pra mudar tamanho
+              {/* Botão centralizar (só aparece se foi movido) */}
+              {((page.textOffsetX ?? 0) !== 0 || (page.textOffsetY ?? 0) !== 0) && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdate({ textOffsetX: 0, textOffsetY: 0 });
+                  }}
+                  className="absolute -left-3 -bottom-3 w-6 h-6 rounded-full bg-neutral-700 border-2 border-white cursor-pointer flex items-center justify-center text-[10px] font-bold hover:bg-neutral-600 z-10"
+                  title="Centralizar texto"
+                >
+                  ⊕
+                </button>
+              )}
+              <div className="absolute -top-7 left-0 text-[10px] text-purple-300 whitespace-nowrap">
+                clique 2x pra editar · arraste pra mover · bolinha ↕ resize · ⊕ centraliza
               </div>
             </>
           )}
@@ -1642,52 +1740,70 @@ function PageStrip({
   selectedIndex,
   onSelect,
   onSwap,
+  onDelete,
 }: {
   pages: EnrichedPage[];
   selectedIndex: number;
   onSelect: (i: number) => void;
   onSwap: (i: number, path: string, url: string) => void;
+  onDelete: (i: number) => void;
 }) {
   return (
     <div className="border-t border-neutral-800 bg-neutral-950 px-3 py-2 overflow-x-auto">
       <div className="flex gap-2 items-center">
         {pages.map((p, i) => (
-          <button
+          <div
             key={i}
-            onClick={() => onSelect(i)}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              const data = e.dataTransfer.getData("application/x-video");
-              if (!data) return;
-              const parsed = JSON.parse(data) as { path: string; videoUrl: string };
-              onSwap(i, parsed.path, parsed.videoUrl);
-            }}
-            className={`flex-shrink-0 w-20 h-32 rounded relative overflow-hidden border ${
+            className={`group flex-shrink-0 relative rounded overflow-hidden border ${
               i === selectedIndex
                 ? "border-purple-500"
                 : "border-neutral-700 hover:border-neutral-500"
             }`}
-            title={p.text}
+            style={{ width: 80, height: 128 }}
           >
-            {p.videoUrl ? (
-              <video
-                src={p.videoUrl}
-                muted
-                preload="metadata"
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full bg-neutral-900" />
-            )}
-            <div className="absolute inset-0 bg-black/40" />
-            <div className="absolute inset-x-0 bottom-0 text-[8px] text-white text-center px-1 py-0.5 leading-tight bg-black/60 line-clamp-2">
-              {p.text.replace(" / ", " ")}
-            </div>
-            <div className="absolute top-1 left-1 text-[9px] text-white/80 bg-black/60 rounded px-1">
-              {String(i + 1).padStart(2, "0")}
-            </div>
-          </button>
+            <button
+              onClick={() => onSelect(i)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const data = e.dataTransfer.getData("application/x-video");
+                if (!data) return;
+                const parsed = JSON.parse(data) as { path: string; videoUrl: string };
+                onSwap(i, parsed.path, parsed.videoUrl);
+              }}
+              className="block w-full h-full"
+              title={p.text}
+            >
+              {p.videoUrl ? (
+                <video
+                  src={p.videoUrl}
+                  muted
+                  preload="metadata"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-neutral-900" />
+              )}
+              <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+              <div className="absolute inset-x-0 bottom-0 text-[8px] text-white text-center px-1 py-0.5 leading-tight bg-black/60 line-clamp-2 pointer-events-none">
+                {p.text.replace(" / ", " ")}
+              </div>
+              <div className="absolute top-1 left-1 text-[9px] text-white/80 bg-black/60 rounded px-1 pointer-events-none">
+                {String(i + 1).padStart(2, "0")}
+              </div>
+            </button>
+            {/* X de excluir — aparece no hover */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(i);
+              }}
+              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+              title="Excluir esta página"
+            >
+              ×
+            </button>
+          </div>
         ))}
       </div>
     </div>
@@ -2786,22 +2902,15 @@ function PexelsLiveSearch({
   }
 
   async function pick(item: { pexelsId: number; fileUrl: string }) {
+    // INSTANTÂNEO: usa a URL do Pexels CDN direto, sem baixar pro
+    // servidor. Browser carrega da Pexels (rápido) e o render também
+    // (lib/render.ts já passa URLs HTTP direto pro Remotion).
     setDownloadingId(item.pexelsId);
     try {
-      const res = await fetch("/api/library/download", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileUrl: item.fileUrl, pexelsId: item.pexelsId, query }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        const path = data.path as string;
-        const m = /[\\/](video-cache[\\/].+)$/.exec(path);
-        const url = m ? "/api/local-video/" + m[1]!.split(/[\\/]/).map((s) => encodeURIComponent(s)).join("/") : "";
-        onPick(path, url);
-      }
+      onPick(item.fileUrl, item.fileUrl);
     } finally {
-      setDownloadingId(null);
+      // Pequeno delay visual pra usuário ver feedback
+      setTimeout(() => setDownloadingId(null), 200);
     }
   }
 

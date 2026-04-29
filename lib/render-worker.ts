@@ -104,6 +104,8 @@ export async function renderAdsInBackground(
       videoY: p.videoY,
       videoW: p.videoW,
       videoH: p.videoH,
+      textOffsetX: p.textOffsetX,
+      textOffsetY: p.textOffsetY,
     }));
     const videos = ad.pages.map((p) => p.videoSrc);
     const animations = ad.pages.map((p) => p.animation);

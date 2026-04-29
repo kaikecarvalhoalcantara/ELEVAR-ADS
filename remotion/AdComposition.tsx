@@ -25,6 +25,8 @@ export interface PageWithStyle extends Beat, PageStyle {
   videoY?: number;
   videoW?: number;
   videoH?: number;
+  textOffsetX?: number;
+  textOffsetY?: number;
 }
 
 export interface AdProps {

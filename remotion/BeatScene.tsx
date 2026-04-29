@@ -46,6 +46,8 @@ interface Props {
       videoY?: number;
       videoW?: number;
       videoH?: number;
+      textOffsetX?: number;
+      textOffsetY?: number;
     };
   videoSrc: string | null;
   animation: AnimationKind;
@@ -195,6 +197,8 @@ export const BeatScene: React.FC<Props> = ({
             display: "flex",
             flexDirection: "column",
             gap: Math.round(fontSizeBase * 0.25),
+            // V11: posição do texto — translação do centro pelo offset (0..1 = canvas inteiro)
+            transform: `translate(${(beat.textOffsetX ?? 0) * 100}%, ${(beat.textOffsetY ?? 0) * 100}%)`,
           }}
         >
           {iconAboveSvg && (
