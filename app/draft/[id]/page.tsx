@@ -1368,8 +1368,26 @@ function EditableCanvas({
                   ↔
                 </button>
               )}
+              {/* V24: Botão DELETAR LETRA (oculta o texto da página) */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (
+                    confirm(
+                      "Ocultar a letra desta página? Você pode restaurar depois pelo checkbox 'Ocultar texto' na sidebar.",
+                    )
+                  ) {
+                    onUpdate({ hideText: true });
+                    setSelected(false);
+                  }
+                }}
+                className="absolute -left-3 -top-3 w-6 h-6 rounded-full bg-red-600 border-2 border-white cursor-pointer flex items-center justify-center text-[10px] font-bold hover:bg-red-500 z-10 text-white"
+                title="Excluir/ocultar a letra desta página"
+              >
+                ✕
+              </button>
               <div className="absolute -top-7 left-0 text-[10px] text-purple-300 whitespace-nowrap">
-                2x edita · arraste move · ↕ resize · ↔ estende · ⊕ centraliza
+                2x edita · arraste move · ↕ resize · ↔ estende · ⊕ centraliza · ✕ exclui
               </div>
             </>
           )}
