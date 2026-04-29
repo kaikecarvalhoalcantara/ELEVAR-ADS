@@ -48,6 +48,9 @@ interface Props {
       videoH?: number;
       textOffsetX?: number;
       textOffsetY?: number;
+      textShadowColor?: string;
+      textStrokeColor?: string;
+      textStrokeWidth?: number;
     };
   videoSrc: string | null;
   animation: AnimationKind;
@@ -97,7 +100,13 @@ export const BeatScene: React.FC<Props> = ({
     textTransform,
     lineHeight,
     letterSpacing: `${letterSpacing}em`,
-    textShadow: buildTextShadow({ shadowBlur, shadowOpacity }),
+    textShadow: buildTextShadow({
+      shadowBlur,
+      shadowOpacity,
+      shadowColor: beat.textShadowColor ?? projectStyle.baseShadowColor,
+      strokeColor: beat.textStrokeColor ?? projectStyle.baseStrokeColor,
+      strokeWidth: beat.textStrokeWidth ?? projectStyle.baseStrokeWidth,
+    }),
     padding: "0 6%",
     fontSize: fontSizeBase,
     whiteSpace: "nowrap" as const,

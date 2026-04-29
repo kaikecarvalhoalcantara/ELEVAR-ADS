@@ -807,6 +807,9 @@ function EditableCanvas({
     shadowBlur: style.shadowBlur,
     shadowOpacity: style.shadowOpacity,
     scale,
+    shadowColor: page.textShadowColor ?? draft.baseShadowColor,
+    strokeColor: page.textStrokeColor ?? draft.baseStrokeColor,
+    strokeWidth: page.textStrokeWidth ?? draft.baseStrokeWidth,
   });
   const iconAboveSvg = iconSvgString(page.iconAbove);
   const iconBelowSvg = iconSvgString(page.iconBelow);

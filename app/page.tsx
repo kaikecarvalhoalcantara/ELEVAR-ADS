@@ -152,6 +152,153 @@ const VIBES: { value: Vibe; label: string; desc: string }[] = [
 ];
 const BEAT_TYPES: AssetBeatType[] = ["any", "hook", "transition", "punch"];
 
+// V12: Presets prontos pra clicar — aplica um pacote completo de
+// estilo (cor base, sombra, outline, overlay, font hooks) coerente
+// com o tipo de cliente. O usuário pode ajustar depois.
+interface StylePreset {
+  id: string;
+  label: string;
+  desc: string;
+  emoji: string;
+  apply: {
+    baseColor: string;
+    accentColor: string;
+    shadowBlur: number;
+    shadowOpacity: number;
+    overlayOpacity: number;
+    shadowColor: string;
+    strokeColor: string;
+    strokeWidth: number;
+    toneFilter: ToneFilter;
+    vibe: Vibe;
+    fontHook: string;
+    fontTransition: string;
+  };
+}
+
+const STYLE_PRESETS: StylePreset[] = [
+  {
+    id: "perfume-premium",
+    label: "Perfume premium",
+    desc: "Dourado / preto profundo / serif elegante. Vibe de luxo.",
+    emoji: "💎",
+    apply: {
+      baseColor: "#ffffff",
+      accentColor: "#d4af37",
+      shadowBlur: 32,
+      shadowOpacity: 0.85,
+      overlayOpacity: 0.55,
+      shadowColor: "#1a0e00",
+      strokeColor: "#000000",
+      strokeWidth: 0.8,
+      toneFilter: "premium",
+      vibe: "elegante",
+      fontHook: "Cinzel",
+      fontTransition: "Cormorant",
+    },
+  },
+  {
+    id: "carro-luxo",
+    label: "Carro luxo / Imobiliária",
+    desc: "Branco impacto sobre escuro / outline forte / sans condensada.",
+    emoji: "🏎️",
+    apply: {
+      baseColor: "#ffffff",
+      accentColor: "#cba135",
+      shadowBlur: 28,
+      shadowOpacity: 0.8,
+      overlayOpacity: 0.5,
+      shadowColor: "#000000",
+      strokeColor: "#000000",
+      strokeWidth: 1.4,
+      toneFilter: "escuro",
+      vibe: "cinematografico",
+      fontHook: "Anton",
+      fontTransition: "Inter Tight",
+    },
+  },
+  {
+    id: "curso-digital",
+    label: "Curso digital / Renda",
+    desc: "Verde-dinheiro destaque, contorno preto firme, sans bold.",
+    emoji: "💰",
+    apply: {
+      baseColor: "#ffffff",
+      accentColor: "#22c55e",
+      shadowBlur: 18,
+      shadowOpacity: 0.75,
+      overlayOpacity: 0.45,
+      shadowColor: "#000000",
+      strokeColor: "#000000",
+      strokeWidth: 1.6,
+      toneFilter: "neutro",
+      vibe: "tenso",
+      fontHook: "Bebas Neue",
+      fontTransition: "Manrope",
+    },
+  },
+  {
+    id: "suspense-thriller",
+    label: "Suspense thriller",
+    desc: "Vermelho-sangue de destaque, sombra preta densa, fonte cinema.",
+    emoji: "🎬",
+    apply: {
+      baseColor: "#ffffff",
+      accentColor: "#dc2626",
+      shadowBlur: 40,
+      shadowOpacity: 0.9,
+      overlayOpacity: 0.65,
+      shadowColor: "#000000",
+      strokeColor: "#000000",
+      strokeWidth: 1.2,
+      toneFilter: "escuro",
+      vibe: "tenso",
+      fontHook: "Black Ops One",
+      fontTransition: "Inter",
+    },
+  },
+  {
+    id: "infantil-divertido",
+    label: "Infantil / Divertido",
+    desc: "Cores vibrantes, sombra colorida, fonte arredondada.",
+    emoji: "🎉",
+    apply: {
+      baseColor: "#fff7ad",
+      accentColor: "#ff7eb6",
+      shadowBlur: 14,
+      shadowOpacity: 0.5,
+      overlayOpacity: 0.25,
+      shadowColor: "#7c3aed",
+      strokeColor: "#000000",
+      strokeWidth: 1.0,
+      toneFilter: "infantil",
+      vibe: "calmo",
+      fontHook: "Bowlby One",
+      fontTransition: "Quicksand",
+    },
+  },
+  {
+    id: "vintage-cafe",
+    label: "Vintage / Café",
+    desc: "Sépia-dourado, sombra terrosa, serif clássica.",
+    emoji: "📜",
+    apply: {
+      baseColor: "#f5e9c8",
+      accentColor: "#c08552",
+      shadowBlur: 20,
+      shadowOpacity: 0.65,
+      overlayOpacity: 0.4,
+      shadowColor: "#3d2817",
+      strokeColor: "#1a0e00",
+      strokeWidth: 0.9,
+      toneFilter: "vintage",
+      vibe: "elegante",
+      fontHook: "Yeseva One",
+      fontTransition: "Lora",
+    },
+  },
+];
+
 type Tab = "generate" | "assets";
 
 export default function Home() {
@@ -256,6 +403,10 @@ function GenerateTab() {
   const [lineHeight, setLineHeight] = useState(1.05);
   const [align, setAlign] = useState<Align>("center");
   const [colorFilter, setColorFilter] = useState<ColorFilter>("neutro");
+  // V12: cor da sombra + outline
+  const [shadowColor, setShadowColor] = useState("#000000");
+  const [strokeColor, setStrokeColor] = useState("#000000");
+  const [strokeWidth, setStrokeWidth] = useState(1);
   // V10: template visual
   const [template, setTemplate] = useState<TemplateStyle>("classico");
   // copy
@@ -303,6 +454,22 @@ function GenerateTab() {
     link.href = url;
   }, [fontHook, fontTransition]);
 
+  function applyPreset(preset: StylePreset) {
+    const a = preset.apply;
+    setBaseColor(a.baseColor);
+    setAccentColor(a.accentColor);
+    setShadowBlur(a.shadowBlur);
+    setShadowOpacity(a.shadowOpacity);
+    setOverlayOpacity(a.overlayOpacity);
+    setShadowColor(a.shadowColor);
+    setStrokeColor(a.strokeColor);
+    setStrokeWidth(a.strokeWidth);
+    setToneFilter(a.toneFilter);
+    setVibe(a.vibe);
+    setFontHook(a.fontHook);
+    setFontTransition(a.fontTransition);
+  }
+
   async function handleGenerate() {
     setBusy(true);
     setLog("Gerando draft personalizado: parsing → IA cortando batidas → IA planejando cenas (não-óbvias) → buscando vídeos. Quando pronto, abre o editor.");
@@ -330,6 +497,9 @@ function GenerateTab() {
         baseAlign: align,
         colorFilter,
         template,
+        baseShadowColor: shadowColor,
+        baseStrokeColor: strokeColor,
+        baseStrokeWidth: strokeWidth,
       };
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -397,6 +567,27 @@ function GenerateTab() {
             options={LANGS.map((l) => l.value)}
             renderLabel={(v) => LANGS.find((l) => l.value === v)?.label ?? v}
           />
+        </div>
+      </Section>
+
+      <Section
+        title="✨ Presets prontos (atalho — preenche tudo de uma vez)"
+        hint="Clique num preset pra preencher cor, sombra, outline, fontes e tom de uma vez. Você pode ajustar tudo depois nas seções abaixo."
+      >
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {STYLE_PRESETS.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => applyPreset(p)}
+              className="text-left rounded p-3 border border-neutral-700 hover:border-purple-500 hover:bg-purple-900/10 transition-colors"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-lg">{p.emoji}</span>
+                <span className="text-sm font-semibold">{p.label}</span>
+              </div>
+              <div className="text-[11px] text-neutral-500 leading-snug">{p.desc}</div>
+            </button>
+          ))}
         </div>
       </Section>
 
@@ -544,6 +735,31 @@ function GenerateTab() {
               step={0.05}
               format={(v) => `${Math.round(v * 100)}%`}
             />
+            {/* V12: Cor da sombra + Outline */}
+            <div className="border-t border-neutral-800 pt-3 space-y-3">
+              <div className="text-[10px] uppercase text-neutral-500 tracking-wider">
+                Sombra colorida & contorno
+              </div>
+              <ColorField
+                label="Cor da sombra (default preto)"
+                value={shadowColor}
+                onChange={setShadowColor}
+              />
+              <ColorField
+                label="Cor do contorno/outline"
+                value={strokeColor}
+                onChange={setStrokeColor}
+              />
+              <RangeField
+                label="Espessura do contorno (0 = sem contorno)"
+                value={strokeWidth}
+                onChange={setStrokeWidth}
+                min={0}
+                max={3}
+                step={0.1}
+                format={(v) => (v === 0 ? "sem contorno" : `${v.toFixed(1)}×`)}
+              />
+            </div>
             <div className="rounded p-3 border border-neutral-800 bg-neutral-900">
               <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
                 <div className="text-xs text-neutral-500">
@@ -584,6 +800,9 @@ function GenerateTab() {
                 lineHeight={lineHeight}
                 shadowBlur={shadowBlur}
                 shadowOpacity={shadowOpacity}
+                shadowColor={shadowColor}
+                strokeColor={strokeColor}
+                strokeWidth={strokeWidth}
               />
               <div className="text-[10px] text-neutral-500 mt-1.5 leading-relaxed">
                 <span className="text-neutral-400 font-semibold">Dica:</span>{" "}
@@ -1035,6 +1254,9 @@ function PreviewCanvas({
   lineHeight,
   shadowBlur,
   shadowOpacity,
+  shadowColor,
+  strokeColor,
+  strokeWidth,
 }: {
   bg: "escuro" | "claro" | "checker" | "video";
   colorFilter: ColorFilter;
@@ -1047,6 +1269,9 @@ function PreviewCanvas({
   lineHeight: number;
   shadowBlur: number;
   shadowOpacity: number;
+  shadowColor: string;
+  strokeColor: string;
+  strokeWidth: number;
 }) {
   const filterCss = colorFilter !== "neutro" ? colorFilterCss(colorFilter) : "none";
 
@@ -1105,7 +1330,7 @@ function PreviewCanvas({
           fontFamily: `"${fontHook}", system-ui, sans-serif`,
           letterSpacing: `${letterSpacing}em`,
           lineHeight,
-          textShadow: buildTextShadow({ shadowBlur, shadowOpacity, scale: 0.8 }),
+          textShadow: buildTextShadow({ shadowBlur, shadowOpacity, scale: 0.8, shadowColor, strokeColor, strokeWidth }),
           textTransform: "uppercase",
         }}
       >
@@ -1121,7 +1346,7 @@ function PreviewCanvas({
           fontWeight: 600,
           letterSpacing: `${letterSpacing}em`,
           lineHeight,
-          textShadow: buildTextShadow({ shadowBlur, shadowOpacity, scale: 0.7 }),
+          textShadow: buildTextShadow({ shadowBlur, shadowOpacity, scale: 0.7, shadowColor, strokeColor, strokeWidth }),
         }}
       >
         Você precisa sair do óbvio

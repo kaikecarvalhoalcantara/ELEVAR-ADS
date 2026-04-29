@@ -71,27 +71,55 @@ export function normalizePageText(raw: string): string {
  * apenas um shadow soft sobre texto branco — agora o texto fica recortado
  * sobre o vídeo igual letterring de pôster.
  */
+/**
+ * Converte hex (#rrggbb) pra "r,g,b" — usado em rgba(...).
+ * Aceita "#fff" também. Fallback "0,0,0" se hex inválido.
+ */
+function hexToRgb(hex: string | undefined | null): string {
+  if (!hex) return "0,0,0";
+  let h = hex.replace("#", "").trim();
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  if (h.length !== 6) return "0,0,0";
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return "0,0,0";
+  return `${r},${g},${b}`;
+}
+
 export function buildTextShadow(opts: {
   shadowBlur: number;
   shadowOpacity: number;
   scale?: number; // pra ajustar stroke em previews menores
+  // V12: cor da sombra + cor/largura do outline (todos com defaults
+  // iguais ao comportamento legado pra não quebrar drafts antigos).
+  shadowColor?: string;   // hex, default "#000000"
+  strokeColor?: string;   // hex, default "#000000"
+  strokeWidth?: number;   // multiplier 0..3, default 1 (= comportamento original 1.5px)
 }): string {
   const scale = opts.scale ?? 1;
   const offsetY = Math.max(2, Math.round(opts.shadowBlur / 5));
-  const sw = 1.5 * scale; // stroke width
-  const sw2 = 1 * scale;
-  const stroke = [
-    `-${sw}px 0 0 rgba(0,0,0,0.92)`,
-    `${sw}px 0 0 rgba(0,0,0,0.92)`,
-    `0 -${sw}px 0 rgba(0,0,0,0.92)`,
-    `0 ${sw}px 0 rgba(0,0,0,0.92)`,
-    `-${sw2}px -${sw2}px 0 rgba(0,0,0,0.85)`,
-    `${sw2}px -${sw2}px 0 rgba(0,0,0,0.85)`,
-    `-${sw2}px ${sw2}px 0 rgba(0,0,0,0.85)`,
-    `${sw2}px ${sw2}px 0 rgba(0,0,0,0.85)`,
-  ].join(", ");
-  const drop = `0 ${offsetY * scale}px ${opts.shadowBlur * scale}px rgba(0,0,0,${opts.shadowOpacity})`;
-  return `${stroke}, ${drop}`;
+  const widthMul = opts.strokeWidth ?? 1;
+  const sw = 1.5 * scale * widthMul;
+  const sw2 = 1 * scale * widthMul;
+  const strokeRgb = hexToRgb(opts.strokeColor ?? "#000000");
+  const shadowRgb = hexToRgb(opts.shadowColor ?? "#000000");
+
+  const strokeParts =
+    widthMul > 0
+      ? [
+          `-${sw}px 0 0 rgba(${strokeRgb},0.92)`,
+          `${sw}px 0 0 rgba(${strokeRgb},0.92)`,
+          `0 -${sw}px 0 rgba(${strokeRgb},0.92)`,
+          `0 ${sw}px 0 rgba(${strokeRgb},0.92)`,
+          `-${sw2}px -${sw2}px 0 rgba(${strokeRgb},0.85)`,
+          `${sw2}px -${sw2}px 0 rgba(${strokeRgb},0.85)`,
+          `-${sw2}px ${sw2}px 0 rgba(${strokeRgb},0.85)`,
+          `${sw2}px ${sw2}px 0 rgba(${strokeRgb},0.85)`,
+        ]
+      : [];
+  const drop = `0 ${offsetY * scale}px ${opts.shadowBlur * scale}px rgba(${shadowRgb},${opts.shadowOpacity})`;
+  return strokeParts.length > 0 ? `${strokeParts.join(", ")}, ${drop}` : drop;
 }
 
 /**

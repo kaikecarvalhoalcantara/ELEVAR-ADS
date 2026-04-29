@@ -86,6 +86,11 @@ export async function POST(request: Request) {
     if (typeof body.baseOverlayOpacity === "number") projectStyle.baseOverlayOpacity = body.baseOverlayOpacity;
     if (body.baseAlign) projectStyle.baseAlign = body.baseAlign;
     if (body.colorFilter) projectStyle.colorFilter = body.colorFilter;
+    // V12: cor da sombra + outline
+    if (body.baseShadowColor) projectStyle.baseShadowColor = body.baseShadowColor;
+    if (body.baseStrokeColor) projectStyle.baseStrokeColor = body.baseStrokeColor;
+    if (typeof body.baseStrokeWidth === "number")
+      projectStyle.baseStrokeWidth = body.baseStrokeWidth;
 
     const template = body.template;
     if (template) {

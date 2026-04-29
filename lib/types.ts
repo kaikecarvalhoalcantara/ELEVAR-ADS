@@ -57,6 +57,10 @@ export interface PageStyle {
   textShadowOpacity?: number; // 0-1
   overlayOpacity?: number;    // 0-1, darkness of overlay over video
   align?: Align;
+  // V12: per-page override de cor da sombra + outline (defaults vêm do projeto)
+  textShadowColor?: string;   // hex
+  textStrokeColor?: string;   // hex
+  textStrokeWidth?: number;   // 0..3
 }
 
 export interface TextSegment {
@@ -198,6 +202,10 @@ export interface ProjectStyle {
   baseAlign: Align;
   colorFilter: ColorFilter;
   template?: TemplateStyle;
+  // V12: cor da sombra (default preto) + cor/largura do outline
+  baseShadowColor?: string;   // hex, default "#000000"
+  baseStrokeColor?: string;   // hex, default "#000000"
+  baseStrokeWidth?: number;   // multiplier 0..3, default 1
 }
 
 export interface ProcessingState {
@@ -288,6 +296,10 @@ export interface GenerateRequest {
   baseAlign?: Align;
   colorFilter?: ColorFilter;
   template?: TemplateStyle;
+  // V12: cor da sombra + outline
+  baseShadowColor?: string;
+  baseStrokeColor?: string;
+  baseStrokeWidth?: number;
 }
 
 export interface GenerateResultAd {

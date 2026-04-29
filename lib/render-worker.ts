@@ -106,6 +106,9 @@ export async function renderAdsInBackground(
       videoH: p.videoH,
       textOffsetX: p.textOffsetX,
       textOffsetY: p.textOffsetY,
+      textShadowColor: p.textShadowColor,
+      textStrokeColor: p.textStrokeColor,
+      textStrokeWidth: p.textStrokeWidth,
     }));
     const videos = ad.pages.map((p) => p.videoSrc);
     const animations = ad.pages.map((p) => p.animation);
@@ -123,6 +126,9 @@ export async function renderAdsInBackground(
       baseAlign: cur.baseAlign,
       colorFilter: cur.colorFilter ?? "neutro",
       template: cur.template,
+      baseShadowColor: cur.baseShadowColor,
+      baseStrokeColor: cur.baseStrokeColor,
+      baseStrokeWidth: cur.baseStrokeWidth,
     };
     const outputName = `${projectName} - AD ${String(adNum).padStart(2, "0")}`;
 
