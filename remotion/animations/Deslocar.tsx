@@ -1,47 +1,98 @@
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import type { AnimationProps } from "../BeatScene";
-import { LineContent } from "./LineRenderer";
 
-export const Deslocar: React.FC<AnimationProps> = ({ lines, lineSegments, style }) => {
+/**
+ * Deslocar — palavra por palavra vinda da esquerda (estilo Canva). Cada
+ * palavra entra com slide horizontal + fade. Stagger entre palavras.
+ */
+export const Deslocar: React.FC<AnimationProps> = ({
+  lines,
+  lineSegments,
+  style,
+  entryDuration = 14,
+  exitDuration = 14,
+}) => {
   const frame = useCurrentFrame();
-  const { fps, durationInFrames, width } = useVideoConfig();
+  const { fps, durationInFrames } = useVideoConfig();
+  const exitStart = durationInFrames - exitDuration;
+  const wordDelay = 3;
+  const lineGap = 4;
+
+  let cumulativeWordIdx = 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-      {lines.map((line, idx) => {
-        const delay = idx * 5;
-        const dir = idx % 2 === 0 ? -1 : 1;
-        const progress = spring({
-          frame: frame - delay,
-          fps,
-          config: { damping: 22, mass: 0.7 },
+      {lines.map((line, lineIdx) => {
+        const words = line.split(" ").filter(Boolean);
+        const segs = lineSegments?.[lineIdx];
+        const wordColors = mapWordColors(words, segs);
+        const elements = words.map((word, wordIdx) => {
+          const totalDelay = cumulativeWordIdx + lineIdx * lineGap;
+          cumulativeWordIdx += wordDelay;
+          const progress = spring({
+            frame: frame - totalDelay,
+            fps,
+            durationInFrames: entryDuration,
+            config: { damping: 18, mass: 0.6 },
+          });
+          const exit = interpolate(frame, [exitStart, durationInFrames], [1, 0], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          });
+          const translateX = interpolate(progress, [0, 1], [-50, 0]);
+          const opacity = Math.min(progress, exit);
+          return (
+            <span
+              key={wordIdx}
+              style={{
+                display: "inline-block",
+                transform: `translateX(${translateX}px)`,
+                opacity,
+                color: wordColors[wordIdx] ?? (style.color as string | undefined),
+                marginRight: wordIdx < words.length - 1 ? "0.3em" : 0,
+              }}
+            >
+              {word}
+            </span>
+          );
         });
-        const exitStart = durationInFrames - 14;
-        const exitOpacity = interpolate(
-          frame,
-          [exitStart, durationInFrames],
-          [1, 0],
-          { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
-        );
-        const translateX = interpolate(progress, [0, 1], [dir * width * 0.35, 0]);
-        const opacity = Math.min(progress, exitOpacity);
         return (
           <div
-            key={idx}
+            key={lineIdx}
             style={{
               ...style,
-              transform: `translateX(${translateX}px)`,
-              opacity,
+              whiteSpace: "normal",
+              padding: 0,
             }}
           >
-            <LineContent
-              text={line}
-              segments={lineSegments?.[idx]}
-              defaultColor={style.color as string | undefined}
-            />
+            {elements}
           </div>
         );
       })}
     </div>
   );
 };
+
+function mapWordColors(
+  words: string[],
+  segs?: { text: string; color?: string }[],
+): Array<string | undefined> {
+  if (!segs || segs.length === 0) return words.map(() => undefined);
+  const colors: Array<string | undefined> = [];
+  let segIdx = 0;
+  let consumedInSeg = 0;
+  for (let i = 0; i < words.length; i++) {
+    if (segIdx >= segs.length) {
+      colors.push(undefined);
+      continue;
+    }
+    const seg = segs[segIdx]!;
+    colors.push(seg.color);
+    consumedInSeg += words[i]!.length + 1;
+    if (consumedInSeg >= seg.text.length) {
+      segIdx++;
+      consumedInSeg = 0;
+    }
+  }
+  return colors;
+}

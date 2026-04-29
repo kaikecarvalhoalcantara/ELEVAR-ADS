@@ -76,6 +76,9 @@ export default function EditorPage() {
   const [draft, setDraft] = useState<EnrichedDraft | null>(null);
   // V17: estado lifted pra mostrar painel de color grading quando vídeo selecionado
   const [videoIsSelected, setVideoIsSelected] = useState(false);
+  // V22: scrub preview do vídeo principal quando user mexe nos handles do trim.
+  // null = vídeo toca normal (autoplay/loop). número = pausa e seek pra esse tempo.
+  const [videoPreviewTime, setVideoPreviewTime] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedAd, setSelectedAd] = useState(0);
   const [selectedPage, setSelectedPage] = useState(0);
@@ -630,6 +633,7 @@ export default function EditorPage() {
               }}
               videoSelected={videoIsSelected}
               onSetVideoSelected={setVideoIsSelected}
+              videoPreviewTime={videoPreviewTime}
             />
           ) : (
             <div className="text-sm text-neutral-500">selecione uma página</div>
@@ -653,6 +657,7 @@ export default function EditorPage() {
               page={page}
               onUpdate={(patch) => updatePage(selectedAd, selectedPage, patch)}
               onClose={() => setVideoIsSelected(false)}
+              onPreviewTimeChange={setVideoPreviewTime}
             />
           )}
         </section>
@@ -728,6 +733,7 @@ function EditableCanvas({
   onSelectElement,
   videoSelected,
   onSetVideoSelected,
+  videoPreviewTime,
 }: {
   page: EnrichedPage;
   draft: EnrichedDraft;
@@ -736,6 +742,7 @@ function EditableCanvas({
   onSelectElement: (id: string | null, multi: boolean) => void;
   videoSelected: boolean;
   onSetVideoSelected: (selected: boolean) => void;
+  videoPreviewTime?: number | null;
 }) {
   const dims = dimsFor(draft.format);
   const previewW = dims.width >= dims.height ? 600 : 420;
@@ -995,6 +1002,7 @@ function EditableCanvas({
             onSelectElement(null, false);
           }}
           onChange={(patch) => onUpdate(patch)}
+          previewTime={videoPreviewTime}
         />
       )}
       {/* Overlay darkening */}
@@ -1843,6 +1851,7 @@ function VideoLayer({
   containerRef,
   onSelect,
   onChange,
+  previewTime,
 }: {
   src: string;
   filterCss: string;
@@ -1858,6 +1867,7 @@ function VideoLayer({
   containerRef: React.RefObject<HTMLDivElement | null>;
   onSelect: () => void;
   onChange: (patch: { videoX?: number; videoY?: number; videoW?: number; videoH?: number }) => void;
+  previewTime?: number | null; // V22: tempo pra scrub durante drag do trim
 }) {
   const ref = useRef<HTMLVideoElement | null>(null);
   type DragMode = "move" | "nw" | "ne" | "sw" | "se";
@@ -1874,6 +1884,18 @@ function VideoLayer({
       ref.current.currentTime = trimStart;
     }
   }, [trimStart, src]);
+
+  // V22: Preview scrub do trim — pausa o vídeo e seek pro tempo escolhido.
+  // Quando user solta os handles (previewTime=null), volta a tocar.
+  useEffect(() => {
+    if (!ref.current) return;
+    if (previewTime !== null && previewTime !== undefined) {
+      ref.current.pause();
+      ref.current.currentTime = previewTime;
+    } else {
+      ref.current.play().catch(() => {});
+    }
+  }, [previewTime]);
 
   function startDrag(mode: DragMode, e: React.MouseEvent) {
     e.stopPropagation();
@@ -3196,26 +3218,21 @@ function WordColorEditor({
                   {word}
                 </button>
                 {isOpen && (
-                  <div className="absolute z-10 top-full mt-1 left-0 bg-neutral-900 border border-neutral-700 rounded p-1.5 flex flex-wrap gap-1 w-48">
-                    {presets.map((c) => (
-                      <button
-                        key={c}
-                        onClick={() => setWordColor(lineIdx, wordIdx, c)}
-                        className="w-5 h-5 rounded border border-neutral-600"
-                        style={{ background: c }}
-                      />
-                    ))}
-                    <input
-                      type="color"
-                      onChange={(e) => setWordColor(lineIdx, wordIdx, e.target.value)}
-                      className="w-5 h-5 rounded border border-neutral-600"
+                  <div
+                    className="absolute z-20 top-full mt-1 left-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ColorPickerPopup
+                      value={wordColor ?? baseColor}
+                      onChange={(c) => setWordColor(lineIdx, wordIdx, c)}
+                      onClose={() => setPickerOpen(null)}
                     />
                     {wordColor && (
                       <button
                         onClick={() => setWordColor(lineIdx, wordIdx, null)}
-                        className="text-[10px] text-neutral-300 px-1 ml-1"
+                        className="mt-1 text-[10px] text-neutral-300 px-2 py-1 bg-neutral-800 rounded border border-neutral-700 w-full"
                       >
-                        limpar
+                        Remover cor desta palavra
                       </button>
                     )}
                   </div>
@@ -3695,10 +3712,12 @@ function VideoControlsPanel({
   page,
   onUpdate,
   onClose,
+  onPreviewTimeChange,
 }: {
   page: EnrichedPage;
   onUpdate: (patch: Partial<EnrichedPage>) => void;
   onClose: () => void;
+  onPreviewTimeChange?: (time: number | null) => void;
 }) {
   function resetTransforms() {
     onUpdate({
@@ -3814,6 +3833,7 @@ function VideoControlsPanel({
             <VideoTrimControl
               page={page}
               onUpdate={onUpdate}
+              onPreviewTimeChange={onPreviewTimeChange}
             />
             <p className="text-[10px] text-neutral-500 leading-tight">
               💡 Pra mover/redimensionar a área do vídeo no canvas, arraste
@@ -3836,13 +3856,14 @@ function VideoControlsPanel({
 function VideoTrimControl({
   page,
   onUpdate,
+  onPreviewTimeChange,
 }: {
   page: EnrichedPage;
   onUpdate: (patch: Partial<EnrichedPage>) => void;
+  onPreviewTimeChange?: (time: number | null) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
-  const [previewTime, setPreviewTime] = useState<number | null>(null);
 
   const trimStart = page.videoTrimStart ?? 0;
   const maxEnd = duration ?? 30;
@@ -3856,14 +3877,12 @@ function VideoTrimControl({
       : `${s.toFixed(1)}s`;
   }
 
-  // Preview frame quando user arrasta os handles
-  useEffect(() => {
-    if (videoRef.current && previewTime !== null) {
-      videoRef.current.currentTime = previewTime;
-    }
-  }, [previewTime]);
-
   const usefulDuration = Math.max(0, trimEnd - trimStart);
+
+  // V22: Quando user solta o slider OU mouse, limpa o preview pro vídeo voltar a tocar
+  function clearPreview() {
+    onPreviewTimeChange?.(null);
+  }
 
   return (
     <div className="space-y-2">
@@ -3875,7 +3894,8 @@ function VideoTrimControl({
           </span>
         )}
       </div>
-      {/* Vídeo invisível só pra detectar duração + scrub */}
+      {/* V22: Vídeo invisível só pra detectar duração — scrub agora acontece
+          NO CANVAS PRINCIPAL via onPreviewTimeChange callback. */}
       {page.videoUrl && (
         <video
           ref={videoRef}
@@ -3883,9 +3903,8 @@ function VideoTrimControl({
           muted
           playsInline
           preload="metadata"
-          className="w-full rounded bg-black aspect-video object-contain"
           onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-          style={{ maxHeight: 80 }}
+          style={{ display: "none" }}
         />
       )}
       {/* Slider duplo: início */}
@@ -3906,9 +3925,11 @@ function VideoTrimControl({
             const v = Number(e.target.value);
             const safeV = Math.min(v, trimEnd - 0.5);
             onUpdate({ videoTrimStart: safeV });
-            setPreviewTime(safeV);
+            onPreviewTimeChange?.(safeV);
           }}
-          onMouseUp={() => setPreviewTime(null)}
+          onMouseUp={clearPreview}
+          onTouchEnd={clearPreview}
+          onBlur={clearPreview}
           className="w-full"
         />
       </div>
@@ -3941,9 +3962,11 @@ function VideoTrimControl({
             onUpdate({
               videoTrimEnd: safeV >= maxEnd - 0.05 ? undefined : safeV,
             });
-            setPreviewTime(safeV);
+            onPreviewTimeChange?.(safeV);
           }}
-          onMouseUp={() => setPreviewTime(null)}
+          onMouseUp={clearPreview}
+          onTouchEnd={clearPreview}
+          onBlur={clearPreview}
           className="w-full"
         />
       </div>
@@ -4108,15 +4131,19 @@ function ColorField({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
   return (
     <label className="block">
       <span className="text-xs text-neutral-400">{label}</span>
       <div className="mt-1 flex gap-1 items-center">
-        <input
-          type="color"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-7 w-9 rounded bg-neutral-900 border border-neutral-700"
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            setOpen((v) => !v);
+          }}
+          className="h-7 w-9 rounded border border-neutral-700 cursor-pointer"
+          style={{ background: value }}
+          title="Abrir picker"
         />
         <input
           value={value}
@@ -4124,8 +4151,209 @@ function ColorField({
           className="flex-1 rounded bg-neutral-900 border border-neutral-700 px-2 py-1 font-mono text-xs"
         />
       </div>
+      {open && (
+        <div className="relative">
+          <ColorPickerPopup
+            value={value}
+            onChange={onChange}
+            onClose={() => setOpen(false)}
+          />
+        </div>
+      )}
     </label>
   );
+}
+
+/**
+ * V22: Color picker custom — arrastável (HSV), com hue strip e
+ * saturation/value box 2D. Substitui o native <input type="color">
+ * que não permite arrastar a bolinha em alguns browsers.
+ */
+function ColorPickerPopup({
+  value,
+  onChange,
+  onClose,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onClose: () => void;
+}) {
+  const initial = hexToHsv(value);
+  const [hsv, setHsv] = useState(initial);
+  const svRef = useRef<HTMLDivElement | null>(null);
+  const hueRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<"sv" | "hue" | null>(null);
+
+  // Atualiza local hsv quando value externo muda (sincroniza)
+  useEffect(() => {
+    if (hsvToHex(hsv).toLowerCase() !== value.toLowerCase()) {
+      setHsv(hexToHsv(value));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  function emit(newHsv: { h: number; s: number; v: number }) {
+    setHsv(newHsv);
+    onChange(hsvToHex(newHsv));
+  }
+
+  function startDrag(mode: "sv" | "hue", e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragRef.current = mode;
+    onMove(e.nativeEvent);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", endDrag);
+  }
+  function onMove(e: MouseEvent) {
+    if (!dragRef.current) return;
+    if (dragRef.current === "sv" && svRef.current) {
+      const rect = svRef.current.getBoundingClientRect();
+      const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+      emit({ h: hsv.h, s: x * 100, v: 100 - y * 100 });
+    } else if (dragRef.current === "hue" && hueRef.current) {
+      const rect = hueRef.current.getBoundingClientRect();
+      const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      emit({ h: x * 360, s: hsv.s, v: hsv.v });
+    }
+  }
+  function endDrag() {
+    dragRef.current = null;
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", endDrag);
+  }
+
+  const presets = [
+    "#ffffff", "#000000", "#ef4444", "#f97316", "#eab308",
+    "#22c55e", "#06b6d4", "#3b82f6", "#a855f7", "#ec4899",
+    "#d4af37", "#92400e",
+  ];
+
+  return (
+    <div
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      className="absolute z-50 mt-1 left-0 bg-neutral-900 border border-neutral-700 rounded-lg shadow-2xl p-2 w-56"
+    >
+      {/* Saturation/Value box 2D — arrasta a bolinha aqui */}
+      <div
+        ref={svRef}
+        onMouseDown={(e) => startDrag("sv", e)}
+        className="relative rounded cursor-crosshair"
+        style={{
+          width: "100%",
+          height: 130,
+          background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${hsv.h}, 100%, 50%))`,
+        }}
+      >
+        <div
+          className="absolute w-3 h-3 rounded-full border-2 border-white pointer-events-none"
+          style={{
+            left: `${hsv.s}%`,
+            top: `${100 - hsv.v}%`,
+            transform: "translate(-50%, -50%)",
+            boxShadow: "0 0 0 1px rgba(0,0,0,0.5)",
+          }}
+        />
+      </div>
+      {/* Hue strip — arrastável */}
+      <div
+        ref={hueRef}
+        onMouseDown={(e) => startDrag("hue", e)}
+        className="relative mt-2 rounded cursor-pointer"
+        style={{
+          width: "100%",
+          height: 14,
+          background:
+            "linear-gradient(to right, #ff0000 0%, #ffff00 16.6%, #00ff00 33.3%, #00ffff 50%, #0000ff 66.6%, #ff00ff 83.3%, #ff0000 100%)",
+        }}
+      >
+        <div
+          className="absolute w-3 h-full border-2 border-white pointer-events-none rounded"
+          style={{
+            left: `${(hsv.h / 360) * 100}%`,
+            transform: "translateX(-50%)",
+            boxShadow: "0 0 0 1px rgba(0,0,0,0.5)",
+          }}
+        />
+      </div>
+      {/* Presets */}
+      <div className="grid grid-cols-6 gap-1 mt-2">
+        {presets.map((c) => (
+          <button
+            key={c}
+            onClick={() => onChange(c)}
+            className="aspect-square rounded border border-neutral-700 hover:border-purple-500"
+            style={{ background: c }}
+          />
+        ))}
+      </div>
+      {/* Hex input + close */}
+      <div className="mt-2 flex gap-1 items-center">
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="flex-1 rounded bg-neutral-800 border border-neutral-700 px-2 py-1 font-mono text-xs"
+        />
+        <button
+          onClick={onClose}
+          className="text-neutral-400 hover:text-neutral-200 px-2 text-xs"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// V22: HSV ↔ HEX helpers
+// ============================================================
+
+function hexToHsv(hex: string): { h: number; s: number; v: number } {
+  let h = hex.replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  if (h.length !== 6) return { h: 0, s: 0, v: 100 };
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  let hh = 0;
+  if (d !== 0) {
+    if (max === r) hh = ((g - b) / d) % 6;
+    else if (max === g) hh = (b - r) / d + 2;
+    else hh = (r - g) / d + 4;
+    hh *= 60;
+    if (hh < 0) hh += 360;
+  }
+  const s = max === 0 ? 0 : (d / max) * 100;
+  const v = max * 100;
+  return { h: hh, s, v };
+}
+
+function hsvToHex(hsv: { h: number; s: number; v: number }): string {
+  const s = hsv.s / 100;
+  const v = hsv.v / 100;
+  const c = v * s;
+  const x = c * (1 - Math.abs(((hsv.h / 60) % 2) - 1));
+  const m = v - c;
+  let r = 0,
+    g = 0,
+    b = 0;
+  if (hsv.h < 60) { r = c; g = x; }
+  else if (hsv.h < 120) { r = x; g = c; }
+  else if (hsv.h < 180) { g = c; b = x; }
+  else if (hsv.h < 240) { g = x; b = c; }
+  else if (hsv.h < 300) { r = x; b = c; }
+  else { r = c; b = x; }
+  const hex = (n: number) =>
+    Math.round((n + m) * 255)
+      .toString(16)
+      .padStart(2, "0");
+  return `#${hex(r)}${hex(g)}${hex(b)}`;
 }
 function Range({
   label,
