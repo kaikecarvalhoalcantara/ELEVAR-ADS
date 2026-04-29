@@ -352,9 +352,9 @@ function GenerateTab() {
         hint="Aparece no nome do projeto e no contexto da IA"
       >
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Field label="Cliente" value={cliente} onChange={setCliente} placeholder="NICHE STORE" />
-          <Field label="Nicho" value={nicho} onChange={setNicho} placeholder="ALTA PERFUMARIA" />
-          <Field label="Nome do projeto/contato" value={nome} onChange={setNome} placeholder="WILLIAN" />
+          <Field label="Cliente" value={cliente} onChange={setCliente} placeholder="Cliente" />
+          <Field label="Nicho" value={nicho} onChange={setNicho} placeholder="Nicho" />
+          <Field label="Nome do projeto" value={nome} onChange={setNome} placeholder="Nome do projeto" />
         </div>
       </Section>
 
@@ -606,7 +606,7 @@ function GenerateTab() {
           onChange={(e) => setSource(e.target.value)}
           rows={14}
           className="w-full rounded bg-neutral-900 border border-neutral-700 p-3 font-mono text-sm"
-          placeholder={"NICHE STORE\nALTA PERFUMARIA\nWILLIAN\n\nAD 01 - PADRÃO HDCPY\n📌 Descrição: ...\nANÚNCIO COMPLETO\n\n[copy aqui]\n\nAD 02 - PADRÃO HDCPY\n..."}
+          placeholder={"AD 01 - PADRÃO HDCPY\n📌 Descrição: ...\nANÚNCIO COMPLETO\n\n[cole sua copy aqui]\n\nAD 02 - PADRÃO HDCPY\n..."}
         />
       </Section>
 
