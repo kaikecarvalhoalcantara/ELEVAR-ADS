@@ -817,6 +817,36 @@ function EditableCanvas({
     window.removeEventListener("mouseup", endResize);
   }
 
+  // V23: drag pra estender/encurtar a largura do texto (scaleX)
+  const stretchRef = useRef<{ startX: number; startScale: number; dir: 1 | -1 } | null>(null);
+  function startStretch(e: React.MouseEvent, dir: 1 | -1) {
+    e.stopPropagation();
+    e.preventDefault();
+    stretchRef.current = {
+      startX: e.clientX,
+      startScale: page.textScaleX ?? 1,
+      dir,
+    };
+    window.addEventListener("mousemove", onStretch);
+    window.addEventListener("mouseup", endStretch);
+  }
+  function onStretch(e: MouseEvent) {
+    if (!stretchRef.current) return;
+    const dx = (e.clientX - stretchRef.current.startX) * stretchRef.current.dir;
+    // 200px de drag = +50% de scale (calibração suave)
+    const delta = dx / 400;
+    const next = Math.max(
+      0.5,
+      Math.min(2, stretchRef.current.startScale + delta),
+    );
+    onUpdate({ textScaleX: Math.abs(next - 1) < 0.01 ? undefined : next });
+  }
+  function endStretch() {
+    stretchRef.current = null;
+    window.removeEventListener("mousemove", onStretch);
+    window.removeEventListener("mouseup", endStretch);
+  }
+
   // V11: drag pra mover o texto livre pelo canvas
   function startTextDrag(e: React.MouseEvent) {
     if (editing) return; // não arrasta enquanto edita
@@ -889,9 +919,10 @@ function EditableCanvas({
   const textDecoration = textDecorations.length > 0 ? textDecorations.join(" ") : "none";
   const rotationDeg = page.rotation ?? 0;
   const skewDeg = page.skewX ?? 0;
+  const scaleX = page.textScaleX ?? 1;
   const wrapperTransform =
-    rotationDeg !== 0 || skewDeg !== 0
-      ? `rotate(${rotationDeg}deg) skewX(${skewDeg}deg)`
+    rotationDeg !== 0 || skewDeg !== 0 || scaleX !== 1
+      ? `rotate(${rotationDeg}deg) skewX(${skewDeg}deg) scaleX(${scaleX})`
       : undefined;
 
   // Mesmas regras do BeatScene (renderizador final): normaliza + auto-split + computeFit
@@ -1300,6 +1331,17 @@ function EditableCanvas({
               >
                 ↕
               </div>
+              {/* V23: Handles laterais — estender/encurtar largura (scaleX) */}
+              <div
+                onMouseDown={(e) => startStretch(e, 1)}
+                className="absolute -right-3 top-1/2 -translate-y-1/2 w-3 h-12 rounded-full bg-purple-500 border-2 border-white cursor-ew-resize z-10 flex items-center justify-center"
+                title="Arraste horizontalmente pra estender/encurtar a largura"
+              />
+              <div
+                onMouseDown={(e) => startStretch(e, -1)}
+                className="absolute -left-3 top-1/2 -translate-y-1/2 w-3 h-12 rounded-full bg-purple-500 border-2 border-white cursor-ew-resize z-10 flex items-center justify-center"
+                title="Arraste horizontalmente pra estender/encurtar a largura"
+              />
               {/* Botão centralizar (só aparece se foi movido) */}
               {((page.textOffsetX ?? 0) !== 0 || (page.textOffsetY ?? 0) !== 0) && (
                 <button
@@ -1313,8 +1355,21 @@ function EditableCanvas({
                   ⊕
                 </button>
               )}
+              {/* V23: Botão resetar largura (aparece se scaleX != 1) */}
+              {page.textScaleX !== undefined && page.textScaleX !== 1 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdate({ textScaleX: undefined });
+                  }}
+                  className="absolute -right-3 -top-3 w-6 h-6 rounded-full bg-neutral-700 border-2 border-white cursor-pointer flex items-center justify-center text-[9px] font-bold hover:bg-neutral-600 z-10"
+                  title="Resetar largura (100%)"
+                >
+                  ↔
+                </button>
+              )}
               <div className="absolute -top-7 left-0 text-[10px] text-purple-300 whitespace-nowrap">
-                clique 2x pra editar · arraste pra mover · bolinha ↕ resize · ⊕ centraliza
+                2x edita · arraste move · ↕ resize · ↔ estende · ⊕ centraliza
               </div>
             </>
           )}
@@ -2403,6 +2458,42 @@ function ControlPanel({
             options={["left", "center", "right"]}
           />
         </Row>
+        {/* V23: Caixa (maiúsculas / minúsculas) — botões rápidos visíveis */}
+        <div>
+          <span className="text-xs text-neutral-400">Caixa do texto</span>
+          <div className="grid grid-cols-4 gap-1 mt-1">
+            {(
+              [
+                { v: undefined, label: "Padrão", title: "Hook = MAIÚSCULA, transição = normal" },
+                { v: "upper", label: "AA", title: "Tudo MAIÚSCULAS" },
+                { v: "lower", label: "aa", title: "Tudo minúsculas" },
+                { v: "capitalize", label: "Aa", title: "Primeira Letra Maiúscula" },
+              ] as const
+            ).map((opt) => {
+              const cur = page.letterCase ?? "default";
+              const isActive =
+                (opt.v === undefined && cur === "default") || cur === opt.v;
+              return (
+                <button
+                  key={opt.label}
+                  onClick={() =>
+                    onUpdatePage({
+                      letterCase: opt.v as PageDraft["letterCase"],
+                    })
+                  }
+                  title={opt.title}
+                  className={`text-xs py-1.5 rounded border transition-colors ${
+                    isActive
+                      ? "bg-purple-900/40 border-purple-500 text-purple-200"
+                      : "bg-neutral-900 border-neutral-700 text-neutral-300 hover:bg-neutral-800"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <Range
           label="Tamanho da fonte"
           value={page.fontSize ?? 0}
@@ -2530,6 +2621,18 @@ function ControlPanel({
           step={1}
           format={(v) => (v === 0 ? "0°" : `${v}°`)}
           onChange={(v) => onUpdatePage({ skewX: v === 0 ? undefined : v })}
+        />
+        {/* V23: Estender / encurtar largura do texto */}
+        <Range
+          label="Largura do texto (estender / encurtar)"
+          value={(page.textScaleX ?? 1) * 100}
+          min={50}
+          max={200}
+          step={5}
+          format={(v) => (v === 100 ? "normal" : `${v}%`)}
+          onChange={(v) =>
+            onUpdatePage({ textScaleX: v === 100 ? undefined : v / 100 })
+          }
         />
       </CollapsibleGroup>
 

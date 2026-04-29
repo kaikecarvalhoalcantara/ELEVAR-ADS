@@ -86,6 +86,7 @@ interface Props {
       letterCase?: "none" | "upper" | "lower" | "capitalize";
       rotation?: number;
       skewX?: number;
+      textScaleX?: number;
       glowColor?: string;
       glowIntensity?: number;
       gradientEnabled?: boolean;
@@ -158,9 +159,10 @@ export const BeatScene: React.FC<Props> = ({
   // V16: rotation + skew (transform aplicado no wrapper de texto)
   const beatRotation = beat.rotation ?? 0;
   const beatSkewX = beat.skewX ?? 0;
+  const beatScaleX = beat.textScaleX ?? 1;
   const beatTextTransform =
-    beatRotation !== 0 || beatSkewX !== 0
-      ? `translate(${(beat.textOffsetX ?? 0) * 100}%, ${(beat.textOffsetY ?? 0) * 100}%) rotate(${beatRotation}deg) skewX(${beatSkewX}deg)`
+    beatRotation !== 0 || beatSkewX !== 0 || beatScaleX !== 1
+      ? `translate(${(beat.textOffsetX ?? 0) * 100}%, ${(beat.textOffsetY ?? 0) * 100}%) rotate(${beatRotation}deg) skewX(${beatSkewX}deg) scaleX(${beatScaleX})`
       : `translate(${(beat.textOffsetX ?? 0) * 100}%, ${(beat.textOffsetY ?? 0) * 100}%)`;
 
   const color = beat.color ?? projectStyle.baseColor;

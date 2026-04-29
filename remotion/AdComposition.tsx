@@ -39,6 +39,7 @@ export interface PageWithStyle extends Beat, PageStyle {
   letterCase?: "none" | "upper" | "lower" | "capitalize";
   rotation?: number;
   skewX?: number;
+  textScaleX?: number;
   glowColor?: string;
   glowIntensity?: number;
   gradientEnabled?: boolean;

@@ -81,6 +81,7 @@ export interface PageStyle {
   letterCase?: "none" | "upper" | "lower" | "capitalize";
   rotation?: number;               // -30..30 graus
   skewX?: number;                  // -20..20 graus
+  textScaleX?: number;             // V23: 0.5..2 (default 1) — estica/encurta horizontalmente
   // V16: glow + gradiente per-page (override do projeto)
   glowColor?: string;
   glowIntensity?: number;          // 0..1

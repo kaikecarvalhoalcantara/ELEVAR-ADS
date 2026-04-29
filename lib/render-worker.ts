@@ -118,6 +118,7 @@ export async function renderAdsInBackground(
       letterCase: p.letterCase,
       rotation: p.rotation,
       skewX: p.skewX,
+      textScaleX: p.textScaleX,
       glowColor: p.glowColor,
       glowIntensity: p.glowIntensity,
       gradientEnabled: p.gradientEnabled,
