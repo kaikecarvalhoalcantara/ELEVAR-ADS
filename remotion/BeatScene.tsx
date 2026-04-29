@@ -57,6 +57,20 @@ interface Props {
       textShadowColor?: string;
       textStrokeColor?: string;
       textStrokeWidth?: number;
+      // V16: arsenal de edição de letra
+      italic?: boolean;
+      fontWeightOverride?: number;
+      underline?: boolean;
+      strikethrough?: boolean;
+      letterCase?: "none" | "upper" | "lower" | "capitalize";
+      rotation?: number;
+      skewX?: number;
+      glowColor?: string;
+      glowIntensity?: number;
+      gradientEnabled?: boolean;
+      gradientFrom?: string;
+      gradientTo?: string;
+      gradientAngle?: number;
     };
   videoSrc: string | null;
   animation: AnimationKind;
@@ -77,8 +91,34 @@ export const BeatScene: React.FC<Props> = ({
 
   const isHook = beat.weight === "hook" || beat.weight === "punch";
   const fontFamily = isHook ? fontHook : fontTransition;
-  const textTransform = isHook ? "uppercase" : "none";
-  const fontWeight = isHook ? 900 : 600;
+  // V16: textTransform respeita letterCase per-page; fallback no padrão (hook=uppercase)
+  const textTransform: "uppercase" | "lowercase" | "capitalize" | "none" =
+    beat.letterCase === "upper"
+      ? "uppercase"
+      : beat.letterCase === "lower"
+        ? "lowercase"
+        : beat.letterCase === "capitalize"
+          ? "capitalize"
+          : beat.letterCase === "none"
+            ? "none"
+            : isHook
+              ? "uppercase"
+              : "none";
+  // V16: fontWeight customizável
+  const fontWeight = beat.fontWeightOverride ?? (isHook ? 900 : 600);
+  // V16: italic + underline + strikethrough
+  const fontStyle: "italic" | "normal" = beat.italic ? "italic" : "normal";
+  const decorations: string[] = [];
+  if (beat.underline) decorations.push("underline");
+  if (beat.strikethrough) decorations.push("line-through");
+  const textDecoration = decorations.length > 0 ? decorations.join(" ") : "none";
+  // V16: rotation + skew (transform aplicado no wrapper de texto)
+  const beatRotation = beat.rotation ?? 0;
+  const beatSkewX = beat.skewX ?? 0;
+  const beatTextTransform =
+    beatRotation !== 0 || beatSkewX !== 0
+      ? `translate(${(beat.textOffsetX ?? 0) * 100}%, ${(beat.textOffsetY ?? 0) * 100}%) rotate(${beatRotation}deg) skewX(${beatSkewX}deg)`
+      : `translate(${(beat.textOffsetX ?? 0) * 100}%, ${(beat.textOffsetY ?? 0) * 100}%)`;
 
   const color = beat.color ?? projectStyle.baseColor;
   const letterSpacing = beat.letterSpacing ?? projectStyle.baseLetterSpacing;
@@ -98,10 +138,9 @@ export const BeatScene: React.FC<Props> = ({
       ? projectStyle.baseFontSize
       : computeFitFontSize(lines, isHook, width);
 
-  // V14: Glow combinado com a sombra base (3 camadas progressivas pra
-  // simular aura). Off por default (glowIntensity = 0).
-  const glowIntensity = projectStyle.glowIntensity ?? 0;
-  const glowColor = projectStyle.glowColor ?? "#ffd700";
+  // V14/V16: Glow per-page com fallback no projeto.
+  const glowIntensity = beat.glowIntensity ?? projectStyle.glowIntensity ?? 0;
+  const glowColor = beat.glowColor ?? projectStyle.glowColor ?? "#ffd700";
   const baseShadow = buildTextShadow({
     shadowBlur,
     shadowOpacity,
@@ -119,11 +158,16 @@ export const BeatScene: React.FC<Props> = ({
         ].join(", ")
       : baseShadow;
 
-  // V14: Gradiente de cor no texto (background-clip: text)
-  const gradientEnabled = projectStyle.gradientEnabled === true;
+  // V14/V16: Gradiente per-page com fallback no projeto.
+  const gradientEnabled =
+    beat.gradientEnabled === true ||
+    (beat.gradientEnabled === undefined && projectStyle.gradientEnabled === true);
+  const gradFrom = beat.gradientFrom ?? projectStyle.gradientFrom ?? "#ffffff";
+  const gradTo = beat.gradientTo ?? projectStyle.gradientTo ?? "#d4af37";
+  const gradAngle = beat.gradientAngle ?? projectStyle.gradientAngle ?? 180;
   const gradientStyle: React.CSSProperties = gradientEnabled
     ? {
-        background: `linear-gradient(${projectStyle.gradientAngle ?? 180}deg, ${projectStyle.gradientFrom ?? "#ffffff"}, ${projectStyle.gradientTo ?? "#d4af37"})`,
+        background: `linear-gradient(${gradAngle}deg, ${gradFrom}, ${gradTo})`,
         WebkitBackgroundClip: "text",
         backgroundClip: "text",
         WebkitTextFillColor: "transparent",
@@ -134,6 +178,8 @@ export const BeatScene: React.FC<Props> = ({
   const baseStyle: React.CSSProperties = {
     fontFamily: `"${fontFamily}", system-ui, sans-serif`,
     fontWeight,
+    fontStyle,
+    textDecoration,
     color,
     textAlign: align,
     textTransform,
@@ -271,8 +317,8 @@ export const BeatScene: React.FC<Props> = ({
             display: "flex",
             flexDirection: "column",
             gap: Math.round(fontSizeBase * 0.25),
-            // V11: posição do texto — translação do centro pelo offset (0..1 = canvas inteiro)
-            transform: `translate(${(beat.textOffsetX ?? 0) * 100}%, ${(beat.textOffsetY ?? 0) * 100}%)`,
+            // V11/V16: posição + rotação + skew aplicados no wrapper de texto
+            transform: beatTextTransform,
           }}
         >
           {iconAboveSvg && (

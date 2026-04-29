@@ -109,6 +109,20 @@ export async function renderAdsInBackground(
       textShadowColor: p.textShadowColor,
       textStrokeColor: p.textStrokeColor,
       textStrokeWidth: p.textStrokeWidth,
+      // V16: arsenal de edição de letra
+      italic: p.italic,
+      fontWeightOverride: p.fontWeightOverride,
+      underline: p.underline,
+      strikethrough: p.strikethrough,
+      letterCase: p.letterCase,
+      rotation: p.rotation,
+      skewX: p.skewX,
+      glowColor: p.glowColor,
+      glowIntensity: p.glowIntensity,
+      gradientEnabled: p.gradientEnabled,
+      gradientFrom: p.gradientFrom,
+      gradientTo: p.gradientTo,
+      gradientAngle: p.gradientAngle,
     }));
     const videos = ad.pages.map((p) => p.videoSrc);
     const animations = ad.pages.map((p) => p.animation);

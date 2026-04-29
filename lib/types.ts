@@ -61,6 +61,21 @@ export interface PageStyle {
   textShadowColor?: string;   // hex
   textStrokeColor?: string;   // hex
   textStrokeWidth?: number;   // 0..3
+  // V16: arsenal de edição de texto per-page
+  italic?: boolean;
+  fontWeightOverride?: number;     // 100..900 (sobrescreve peso natural)
+  underline?: boolean;
+  strikethrough?: boolean;
+  letterCase?: "none" | "upper" | "lower" | "capitalize";
+  rotation?: number;               // -30..30 graus
+  skewX?: number;                  // -20..20 graus
+  // V16: glow + gradiente per-page (override do projeto)
+  glowColor?: string;
+  glowIntensity?: number;          // 0..1
+  gradientEnabled?: boolean;
+  gradientFrom?: string;
+  gradientTo?: string;
+  gradientAngle?: number;          // 0..360
 }
 
 export interface TextSegment {

@@ -813,8 +813,33 @@ function EditableCanvas({
 
   const isHook = page.weight === "hook" || page.weight === "punch";
   const fontFamily = isHook ? draft.fontHook : draft.fontTransition;
-  const fontWeight = isHook ? 900 : 400;
-  const textTransform = isHook ? "uppercase" : "none";
+  // V16: peso customizável (override do natural)
+  const fontWeight = page.fontWeightOverride ?? (isHook ? 900 : 400);
+  // V16: letterCase per-page (uppercase/lowercase/capitalize/none)
+  const textTransform: "uppercase" | "lowercase" | "capitalize" | "none" =
+    page.letterCase === "upper"
+      ? "uppercase"
+      : page.letterCase === "lower"
+        ? "lowercase"
+        : page.letterCase === "capitalize"
+          ? "capitalize"
+          : page.letterCase === "none"
+            ? "none"
+            : isHook
+              ? "uppercase"
+              : "none";
+  // V16: italic, underline, strikethrough, rotation, skew
+  const fontStyle = page.italic ? "italic" : "normal";
+  const textDecorations: string[] = [];
+  if (page.underline) textDecorations.push("underline");
+  if (page.strikethrough) textDecorations.push("line-through");
+  const textDecoration = textDecorations.length > 0 ? textDecorations.join(" ") : "none";
+  const rotationDeg = page.rotation ?? 0;
+  const skewDeg = page.skewX ?? 0;
+  const wrapperTransform =
+    rotationDeg !== 0 || skewDeg !== 0
+      ? `rotate(${rotationDeg}deg) skewX(${skewDeg}deg)`
+      : undefined;
 
   // Mesmas regras do BeatScene (renderizador final): normaliza + auto-split + computeFit
   const normalizedText = useMemo(() => normalizePageText(page.text), [page.text]);
@@ -832,9 +857,9 @@ function EditableCanvas({
     strokeColor: page.textStrokeColor ?? draft.baseStrokeColor,
     strokeWidth: page.textStrokeWidth ?? draft.baseStrokeWidth,
   });
-  // V14: Glow combinado com a sombra base (canvas do editor)
-  const glowI = draft.glowIntensity ?? 0;
-  const glowC = draft.glowColor ?? "#ffd700";
+  // V14/V16: Glow per-page com fallback no projeto
+  const glowI = page.glowIntensity ?? draft.glowIntensity ?? 0;
+  const glowC = page.glowColor ?? draft.glowColor ?? "#ffd700";
   const textShadowValue =
     glowI > 0
       ? [
@@ -844,17 +869,22 @@ function EditableCanvas({
           baseShadowValue,
         ].join(", ")
       : baseShadowValue;
-  // V14: Gradiente de cor no texto
-  const gradientStyle: React.CSSProperties =
-    draft.gradientEnabled === true
-      ? {
-          background: `linear-gradient(${draft.gradientAngle ?? 180}deg, ${draft.gradientFrom ?? "#ffffff"}, ${draft.gradientTo ?? "#d4af37"})`,
-          WebkitBackgroundClip: "text",
-          backgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-          color: "transparent",
-        }
-      : {};
+  // V14/V16: Gradiente per-page com fallback no projeto
+  const gradEnabled =
+    page.gradientEnabled === true ||
+    (page.gradientEnabled === undefined && draft.gradientEnabled === true);
+  const gradFrom = page.gradientFrom ?? draft.gradientFrom ?? "#ffffff";
+  const gradTo = page.gradientTo ?? draft.gradientTo ?? "#d4af37";
+  const gradAngle = page.gradientAngle ?? draft.gradientAngle ?? 180;
+  const gradientStyle: React.CSSProperties = gradEnabled
+    ? {
+        background: `linear-gradient(${gradAngle}deg, ${gradFrom}, ${gradTo})`,
+        WebkitBackgroundClip: "text",
+        backgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+        color: "transparent",
+      }
+    : {};
   const iconAboveSvg = iconSvgString(page.iconAbove);
   const iconBelowSvg = iconSvgString(page.iconBelow);
   const shadowOffsetY = Math.max(2, Math.round(style.shadowBlur / 6));
@@ -1048,7 +1078,11 @@ function EditableCanvas({
               ? "outline outline-2 outline-purple-500/70 outline-offset-4 cursor-move"
               : "cursor-text"
           }`}
-          style={{ width: "100%" }}
+          style={{
+            width: "100%",
+            // V16: rotation + skew aplicados no wrapper externo do texto
+            transform: wrapperTransform,
+          }}
         >
           {editing ? (
             <textarea
@@ -1068,6 +1102,8 @@ function EditableCanvas({
               style={{
                 fontFamily: `"${fontFamily}", system-ui, sans-serif`,
                 fontWeight,
+                fontStyle,
+                textDecoration,
                 color: style.color,
                 textAlign: style.align,
                 textTransform,
@@ -1085,6 +1121,8 @@ function EditableCanvas({
               style={{
                 fontFamily: `"${fontFamily}", system-ui, sans-serif`,
                 fontWeight,
+                fontStyle,
+                textDecoration,
                 color: style.color,
                 ...gradientStyle,
                 textAlign: style.align,
@@ -2217,6 +2255,156 @@ function ControlPanel({
         />
       </Group>
 
+      {/* V16: Arsenal — efeitos de letra (italic / weight / underline / case / rotation / skew) */}
+      <CollapsibleGroup
+        label="✍️ Estilo da letra (avançado)"
+        hint="Itálico, peso, sublinhado, MAIÚSCULAS, rotação, skew. Tudo per-página."
+      >
+        <Row>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={page.italic ?? false}
+              onChange={(e) => onUpdatePage({ italic: e.target.checked })}
+            />
+            <span>Itálico</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={page.underline ?? false}
+              onChange={(e) => onUpdatePage({ underline: e.target.checked })}
+            />
+            <span>Sublinhado</span>
+          </label>
+        </Row>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={page.strikethrough ?? false}
+            onChange={(e) => onUpdatePage({ strikethrough: e.target.checked })}
+          />
+          <span>Riscado (strikethrough)</span>
+        </label>
+        <Select
+          label="Caixa (maiúsculas/minúsculas)"
+          value={page.letterCase ?? "default"}
+          onChange={(v) =>
+            onUpdatePage({
+              letterCase:
+                v === "default"
+                  ? undefined
+                  : (v as "none" | "upper" | "lower" | "capitalize"),
+            })
+          }
+          options={["default", "upper", "lower", "capitalize", "none"]}
+          renderLabel={(v) =>
+            v === "default"
+              ? "Padrão (hook = MAIÚSCULA)"
+              : v === "upper"
+                ? "MAIÚSCULAS"
+                : v === "lower"
+                  ? "minúsculas"
+                  : v === "capitalize"
+                    ? "Primeira Letra"
+                    : "Sem transformação"
+          }
+        />
+        <Range
+          label="Peso da fonte (override)"
+          value={page.fontWeightOverride ?? 0}
+          min={0}
+          max={900}
+          step={100}
+          format={(v) => (v === 0 ? "auto (usar peso)" : String(v))}
+          onChange={(v) =>
+            onUpdatePage({ fontWeightOverride: v === 0 ? undefined : v })
+          }
+        />
+        <Range
+          label="Rotação"
+          value={page.rotation ?? 0}
+          min={-30}
+          max={30}
+          step={1}
+          format={(v) => (v === 0 ? "0°" : `${v}°`)}
+          onChange={(v) => onUpdatePage({ rotation: v === 0 ? undefined : v })}
+        />
+        <Range
+          label="Skew (inclinação horizontal)"
+          value={page.skewX ?? 0}
+          min={-20}
+          max={20}
+          step={1}
+          format={(v) => (v === 0 ? "0°" : `${v}°`)}
+          onChange={(v) => onUpdatePage({ skewX: v === 0 ? undefined : v })}
+        />
+      </CollapsibleGroup>
+
+      {/* V16: Arsenal — Glow + Gradiente per-page */}
+      <CollapsibleGroup
+        label="✨ Efeitos avançados (glow / gradiente)"
+        hint="Aura colorida em volta da letra + gradiente de cor no texto. Per-página, com fallback no projeto."
+      >
+        <div className="text-[11px] text-purple-300 -mt-1">✨ Glow</div>
+        <ColorField
+          label="Cor do glow"
+          value={page.glowColor ?? draft.glowColor ?? "#ffd700"}
+          onChange={(v) => onUpdatePage({ glowColor: v })}
+        />
+        <Range
+          label="Intensidade do glow"
+          value={page.glowIntensity ?? draft.glowIntensity ?? 0}
+          min={0}
+          max={1}
+          step={0.05}
+          format={(v) => (v === 0 ? "desligado" : `${Math.round(v * 100)}%`)}
+          onChange={(v) => onUpdatePage({ glowIntensity: v })}
+        />
+        <div className="text-[11px] text-purple-300 mt-2">🌈 Gradiente</div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={
+              page.gradientEnabled === true ||
+              (page.gradientEnabled === undefined &&
+                draft.gradientEnabled === true)
+            }
+            onChange={(e) =>
+              onUpdatePage({ gradientEnabled: e.target.checked })
+            }
+          />
+          <span>Ativar gradiente no texto</span>
+        </label>
+        {(page.gradientEnabled === true ||
+          (page.gradientEnabled === undefined &&
+            draft.gradientEnabled === true)) && (
+          <>
+            <Row>
+              <ColorField
+                label="Cor inicial"
+                value={page.gradientFrom ?? draft.gradientFrom ?? "#ffffff"}
+                onChange={(v) => onUpdatePage({ gradientFrom: v })}
+              />
+              <ColorField
+                label="Cor final"
+                value={page.gradientTo ?? draft.gradientTo ?? "#d4af37"}
+                onChange={(v) => onUpdatePage({ gradientTo: v })}
+              />
+            </Row>
+            <Range
+              label="Ângulo do gradiente"
+              value={page.gradientAngle ?? draft.gradientAngle ?? 180}
+              min={0}
+              max={360}
+              step={15}
+              format={(v) => `${v}°`}
+              onChange={(v) => onUpdatePage({ gradientAngle: v })}
+            />
+          </>
+        )}
+      </CollapsibleGroup>
+
       <Group label="Sombra & Overlay">
         <Range
           label="Blur da sombra"
@@ -3164,6 +3352,38 @@ function Group({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
+/** V16: Group colapsável (default fechado) — pra organizar arsenal de efeitos. */
+function CollapsibleGroup({
+  label,
+  children,
+  defaultOpen = false,
+  hint,
+}: {
+  label: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  hint?: string;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="space-y-2">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between text-left"
+      >
+        <span className="text-xs uppercase tracking-wider text-neutral-500">
+          {label}
+        </span>
+        <span className="text-neutral-500 text-xs">{open ? "▾" : "▸"}</span>
+      </button>
+      {hint && open && (
+        <p className="text-[10px] text-neutral-500 leading-snug">{hint}</p>
+      )}
+      {open && <div className="space-y-2">{children}</div>}
+    </div>
+  );
+}
 function Row({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-2 gap-2">{children}</div>;
 }
@@ -3172,11 +3392,13 @@ function Select<T extends string>({
   value,
   onChange,
   options,
+  renderLabel,
 }: {
   label: string;
   value: T;
   onChange: (v: string) => void;
   options: readonly T[];
+  renderLabel?: (v: T) => string;
 }) {
   return (
     <label className="block">
@@ -3188,7 +3410,7 @@ function Select<T extends string>({
       >
         {options.map((o) => (
           <option key={o} value={o}>
-            {o}
+            {renderLabel ? renderLabel(o) : o}
           </option>
         ))}
       </select>

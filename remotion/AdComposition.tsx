@@ -30,6 +30,20 @@ export interface PageWithStyle extends Beat, PageStyle {
   textShadowColor?: string;
   textStrokeColor?: string;
   textStrokeWidth?: number;
+  // V16: arsenal de edição de letra
+  italic?: boolean;
+  fontWeightOverride?: number;
+  underline?: boolean;
+  strikethrough?: boolean;
+  letterCase?: "none" | "upper" | "lower" | "capitalize";
+  rotation?: number;
+  skewX?: number;
+  glowColor?: string;
+  glowIntensity?: number;
+  gradientEnabled?: boolean;
+  gradientFrom?: string;
+  gradientTo?: string;
+  gradientAngle?: number;
 }
 
 export interface AdProps {
