@@ -29,6 +29,12 @@ import { Bloco } from "./animations/Bloco";
 
 export type AnimationKind = "teclado" | "subir" | "deslocar" | "mesclar" | "bloco";
 
+/** Helper: 0..1 → hex alpha "00".."ff" */
+function alphaHex2(v: number): string {
+  const c = Math.max(0, Math.min(1, v));
+  return Math.round(c * 255).toString(16).padStart(2, "0");
+}
+
 interface Props {
   beat: Beat &
     PageStyle & {
@@ -92,6 +98,39 @@ export const BeatScene: React.FC<Props> = ({
       ? projectStyle.baseFontSize
       : computeFitFontSize(lines, isHook, width);
 
+  // V14: Glow combinado com a sombra base (3 camadas progressivas pra
+  // simular aura). Off por default (glowIntensity = 0).
+  const glowIntensity = projectStyle.glowIntensity ?? 0;
+  const glowColor = projectStyle.glowColor ?? "#ffd700";
+  const baseShadow = buildTextShadow({
+    shadowBlur,
+    shadowOpacity,
+    shadowColor: beat.textShadowColor ?? projectStyle.baseShadowColor,
+    strokeColor: beat.textStrokeColor ?? projectStyle.baseStrokeColor,
+    strokeWidth: beat.textStrokeWidth ?? projectStyle.baseStrokeWidth,
+  });
+  const computedShadow =
+    glowIntensity > 0
+      ? [
+          `0 0 ${8}px ${glowColor}${alphaHex2(glowIntensity * 0.9)}`,
+          `0 0 ${18}px ${glowColor}${alphaHex2(glowIntensity * 0.7)}`,
+          `0 0 ${36}px ${glowColor}${alphaHex2(glowIntensity * 0.5)}`,
+          baseShadow,
+        ].join(", ")
+      : baseShadow;
+
+  // V14: Gradiente de cor no texto (background-clip: text)
+  const gradientEnabled = projectStyle.gradientEnabled === true;
+  const gradientStyle: React.CSSProperties = gradientEnabled
+    ? {
+        background: `linear-gradient(${projectStyle.gradientAngle ?? 180}deg, ${projectStyle.gradientFrom ?? "#ffffff"}, ${projectStyle.gradientTo ?? "#d4af37"})`,
+        WebkitBackgroundClip: "text",
+        backgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+        color: "transparent",
+      }
+    : {};
+
   const baseStyle: React.CSSProperties = {
     fontFamily: `"${fontFamily}", system-ui, sans-serif`,
     fontWeight,
@@ -100,16 +139,11 @@ export const BeatScene: React.FC<Props> = ({
     textTransform,
     lineHeight,
     letterSpacing: `${letterSpacing}em`,
-    textShadow: buildTextShadow({
-      shadowBlur,
-      shadowOpacity,
-      shadowColor: beat.textShadowColor ?? projectStyle.baseShadowColor,
-      strokeColor: beat.textStrokeColor ?? projectStyle.baseStrokeColor,
-      strokeWidth: beat.textStrokeWidth ?? projectStyle.baseStrokeWidth,
-    }),
+    textShadow: computedShadow,
     padding: "0 6%",
     fontSize: fontSizeBase,
     whiteSpace: "nowrap" as const,
+    ...gradientStyle,
   };
 
   const AnimComp = animationComponent(animation);
@@ -190,6 +224,37 @@ export const BeatScene: React.FC<Props> = ({
               : `linear-gradient(180deg, rgba(0,0,0,${overlayOpacity * 0.6}) 0%, rgba(0,0,0,${overlayOpacity}) 100%)`,
         }}
       />
+      {/* V14: VINHETA — escurece os 4 cantos */}
+      {(projectStyle.vignetteIntensity ?? 0) > 0 && (
+        <AbsoluteFill
+          style={{
+            background: `radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,${projectStyle.vignetteIntensity}) 100%)`,
+            pointerEvents: "none",
+          }}
+        />
+      )}
+      {/* V14: LIGHT LEAKS — vazamentos de luz colorida nos cantos */}
+      {(projectStyle.lightLeakIntensity ?? 0) > 0 && (
+        <AbsoluteFill
+          style={{
+            background: `radial-gradient(ellipse at 85% 15%, ${projectStyle.lightLeakColor ?? "#ffd27a"}${alphaHex2((projectStyle.lightLeakIntensity ?? 0) * 0.85)} 0%, transparent 45%), radial-gradient(ellipse at 15% 85%, ${projectStyle.lightLeakColor ?? "#ffd27a"}${alphaHex2((projectStyle.lightLeakIntensity ?? 0) * 0.5)} 0%, transparent 40%)`,
+            mixBlendMode: "screen",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+      {/* V14: GRANULADO de filme — noise via SVG turbulence */}
+      {(projectStyle.grainIntensity ?? 0) > 0 && (
+        <AbsoluteFill style={{ pointerEvents: "none", mixBlendMode: "overlay", opacity: projectStyle.grainIntensity }}>
+          <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <filter id={`beat-grain-${animation}`}>
+              <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" />
+              <feColorMatrix type="saturate" values="0" />
+            </filter>
+            <rect width="100%" height="100%" filter={`url(#beat-grain-${animation})`} />
+          </svg>
+        </AbsoluteFill>
+      )}
       {beat.elements && beat.elements.length > 0 && (
         <ElementsLayer elements={beat.elements} />
       )}

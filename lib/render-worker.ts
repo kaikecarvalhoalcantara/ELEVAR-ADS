@@ -129,6 +129,17 @@ export async function renderAdsInBackground(
       baseShadowColor: cur.baseShadowColor,
       baseStrokeColor: cur.baseStrokeColor,
       baseStrokeWidth: cur.baseStrokeWidth,
+      // V14: efeitos avançados — repassa pro Remotion render
+      glowColor: cur.glowColor,
+      glowIntensity: cur.glowIntensity,
+      gradientEnabled: cur.gradientEnabled,
+      gradientFrom: cur.gradientFrom,
+      gradientTo: cur.gradientTo,
+      gradientAngle: cur.gradientAngle,
+      vignetteIntensity: cur.vignetteIntensity,
+      grainIntensity: cur.grainIntensity,
+      lightLeakColor: cur.lightLeakColor,
+      lightLeakIntensity: cur.lightLeakIntensity,
     };
     const outputName = `${projectName} - AD ${String(adNum).padStart(2, "0")}`;
 

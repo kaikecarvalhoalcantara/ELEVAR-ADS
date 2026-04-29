@@ -206,6 +206,17 @@ export interface ProjectStyle {
   baseShadowColor?: string;   // hex, default "#000000"
   baseStrokeColor?: string;   // hex, default "#000000"
   baseStrokeWidth?: number;   // multiplier 0..3, default 1
+  // V14: 5 efeitos avançados (todos opcionais, default off)
+  glowColor?: string;         // hex, default "#ffd700" — aura em volta do texto
+  glowIntensity?: number;     // 0..1, default 0 (off). Ex: 0.5 = aura média
+  gradientEnabled?: boolean;  // default false
+  gradientFrom?: string;      // hex, ex "#ffffff"
+  gradientTo?: string;        // hex, ex "#d4af37"
+  gradientAngle?: number;     // graus, default 180 (vertical)
+  vignetteIntensity?: number; // 0..1, default 0 (off). Escurece cantos
+  grainIntensity?: number;    // 0..1, default 0 (off). Noise de filme
+  lightLeakColor?: string;    // hex, default "#ffd27a"
+  lightLeakIntensity?: number; // 0..1, default 0 (off)
 }
 
 export interface ProcessingState {
@@ -300,6 +311,17 @@ export interface GenerateRequest {
   baseShadowColor?: string;
   baseStrokeColor?: string;
   baseStrokeWidth?: number;
+  // V14: efeitos avançados
+  glowColor?: string;
+  glowIntensity?: number;
+  gradientEnabled?: boolean;
+  gradientFrom?: string;
+  gradientTo?: string;
+  gradientAngle?: number;
+  vignetteIntensity?: number;
+  grainIntensity?: number;
+  lightLeakColor?: string;
+  lightLeakIntensity?: number;
 }
 
 export interface GenerateResultAd {

@@ -532,6 +532,18 @@ function GenerateTab() {
   const [shadowColor, setShadowColor] = useState("#000000");
   const [strokeColor, setStrokeColor] = useState("#000000");
   const [strokeWidth, setStrokeWidth] = useState(1);
+  // V14: 5 efeitos avançados (todos default = off pra não mudar render)
+  const [glowColor, setGlowColor] = useState("#ffd700");
+  const [glowIntensity, setGlowIntensity] = useState(0);
+  const [gradientEnabled, setGradientEnabled] = useState(false);
+  const [gradientFrom, setGradientFrom] = useState("#ffffff");
+  const [gradientTo, setGradientTo] = useState("#d4af37");
+  const [gradientAngle, setGradientAngle] = useState(180);
+  const [vignetteIntensity, setVignetteIntensity] = useState(0);
+  const [grainIntensity, setGrainIntensity] = useState(0);
+  const [lightLeakColor, setLightLeakColor] = useState("#ffd27a");
+  const [lightLeakIntensity, setLightLeakIntensity] = useState(0);
+  const [advancedFxOpen, setAdvancedFxOpen] = useState(false);
   // V10: template visual
   const [template, setTemplate] = useState<TemplateStyle>("classico");
   // copy
@@ -625,6 +637,16 @@ function GenerateTab() {
         baseShadowColor: shadowColor,
         baseStrokeColor: strokeColor,
         baseStrokeWidth: strokeWidth,
+        glowColor,
+        glowIntensity,
+        gradientEnabled,
+        gradientFrom,
+        gradientTo,
+        gradientAngle,
+        vignetteIntensity,
+        grainIntensity,
+        lightLeakColor,
+        lightLeakIntensity,
       };
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -885,6 +907,143 @@ function GenerateTab() {
                 format={(v) => (v === 0 ? "sem contorno" : `${v.toFixed(1)}×`)}
               />
             </div>
+
+            {/* V14: Efeitos avançados — accordion (fechado por padrão) */}
+            <div className="border-t border-neutral-800 pt-3">
+              <button
+                onClick={() => setAdvancedFxOpen((v) => !v)}
+                className="w-full flex items-center justify-between text-left"
+              >
+                <span className="text-[10px] uppercase text-neutral-500 tracking-wider flex items-center gap-1.5">
+                  ✨ Efeitos avançados
+                  <span className="text-purple-400 normal-case tracking-normal">
+                    (glow / gradiente / vinheta / granulado / light leak)
+                  </span>
+                </span>
+                <span className="text-neutral-500 text-xs">
+                  {advancedFxOpen ? "▾ fechar" : "▸ expandir"}
+                </span>
+              </button>
+              {advancedFxOpen && (
+                <div className="mt-3 space-y-4">
+                  {/* A1 GLOW */}
+                  <FxBlock
+                    title="✨ Glow / Aura colorida"
+                    desc="Aura suave em volta da letra. Bom pra perfume, festa, gaming."
+                  >
+                    <ColorField
+                      label="Cor do glow"
+                      value={glowColor}
+                      onChange={setGlowColor}
+                    />
+                    <RangeField
+                      label="Intensidade (0 = desligado)"
+                      value={glowIntensity}
+                      onChange={setGlowIntensity}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      format={(v) => (v === 0 ? "desligado" : `${Math.round(v * 100)}%`)}
+                    />
+                  </FxBlock>
+
+                  {/* A3 GRADIENTE */}
+                  <FxBlock
+                    title="🌈 Gradiente de cor no texto"
+                    desc="Letra com fade entre 2 cores (ex: dourado → branco)."
+                  >
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={gradientEnabled}
+                        onChange={(e) => setGradientEnabled(e.target.checked)}
+                        className="rounded"
+                      />
+                      <span>Ativar gradiente no texto</span>
+                    </label>
+                    {gradientEnabled && (
+                      <>
+                        <div className="grid grid-cols-2 gap-2">
+                          <ColorField
+                            label="Cor inicial"
+                            value={gradientFrom}
+                            onChange={setGradientFrom}
+                          />
+                          <ColorField
+                            label="Cor final"
+                            value={gradientTo}
+                            onChange={setGradientTo}
+                          />
+                        </div>
+                        <RangeField
+                          label="Ângulo do gradiente"
+                          value={gradientAngle}
+                          onChange={setGradientAngle}
+                          min={0}
+                          max={360}
+                          step={15}
+                          format={(v) => `${v}°`}
+                        />
+                      </>
+                    )}
+                  </FxBlock>
+
+                  {/* B7 VINHETA */}
+                  <FxBlock
+                    title="🎬 Vinheta cinematográfica"
+                    desc="Escurece os 4 cantos. Foca o olhar no centro, vibe de filme."
+                  >
+                    <RangeField
+                      label="Intensidade (0 = desligado)"
+                      value={vignetteIntensity}
+                      onChange={setVignetteIntensity}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      format={(v) => (v === 0 ? "desligado" : `${Math.round(v * 100)}%`)}
+                    />
+                  </FxBlock>
+
+                  {/* B8 GRANULADO */}
+                  <FxBlock
+                    title="🎞️ Granulado de filme"
+                    desc="Noise sutil sobre o vídeo. Vibe vintage / premium analógico."
+                  >
+                    <RangeField
+                      label="Intensidade (0 = desligado)"
+                      value={grainIntensity}
+                      onChange={setGrainIntensity}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      format={(v) => (v === 0 ? "desligado" : `${Math.round(v * 100)}%`)}
+                    />
+                  </FxBlock>
+
+                  {/* B10 LIGHT LEAK */}
+                  <FxBlock
+                    title="💛 Light leaks (vazamento de luz)"
+                    desc="Mancha de luz colorida no canto. Sedução, perfume, romântico."
+                  >
+                    <ColorField
+                      label="Cor do vazamento"
+                      value={lightLeakColor}
+                      onChange={setLightLeakColor}
+                    />
+                    <RangeField
+                      label="Intensidade (0 = desligado)"
+                      value={lightLeakIntensity}
+                      onChange={setLightLeakIntensity}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      format={(v) => (v === 0 ? "desligado" : `${Math.round(v * 100)}%`)}
+                    />
+                  </FxBlock>
+                </div>
+              )}
+            </div>
+
             <div className="rounded p-3 border border-neutral-800 bg-neutral-900">
               <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
                 <div className="text-xs text-neutral-500">
@@ -928,6 +1087,16 @@ function GenerateTab() {
                 shadowColor={shadowColor}
                 strokeColor={strokeColor}
                 strokeWidth={strokeWidth}
+                glowColor={glowColor}
+                glowIntensity={glowIntensity}
+                gradientEnabled={gradientEnabled}
+                gradientFrom={gradientFrom}
+                gradientTo={gradientTo}
+                gradientAngle={gradientAngle}
+                vignetteIntensity={vignetteIntensity}
+                grainIntensity={grainIntensity}
+                lightLeakColor={lightLeakColor}
+                lightLeakIntensity={lightLeakIntensity}
               />
               <div className="text-[10px] text-neutral-500 mt-1.5 leading-relaxed">
                 <span className="text-neutral-400 font-semibold">Dica:</span>{" "}
@@ -1382,6 +1551,16 @@ function PreviewCanvas({
   shadowColor,
   strokeColor,
   strokeWidth,
+  glowColor,
+  glowIntensity,
+  gradientEnabled,
+  gradientFrom,
+  gradientTo,
+  gradientAngle,
+  vignetteIntensity,
+  grainIntensity,
+  lightLeakColor,
+  lightLeakIntensity,
 }: {
   bg: "escuro" | "claro" | "checker" | "video";
   colorFilter: ColorFilter;
@@ -1397,6 +1576,16 @@ function PreviewCanvas({
   shadowColor: string;
   strokeColor: string;
   strokeWidth: number;
+  glowColor: string;
+  glowIntensity: number;
+  gradientEnabled: boolean;
+  gradientFrom: string;
+  gradientTo: string;
+  gradientAngle: number;
+  vignetteIntensity: number;
+  grainIntensity: number;
+  lightLeakColor: string;
+  lightLeakIntensity: number;
 }) {
   const filterCss = colorFilter !== "neutro" ? colorFilterCss(colorFilter) : "none";
 
@@ -1424,6 +1613,39 @@ function PreviewCanvas({
     },
   };
 
+  // Helper: combina textShadow base + glow (camadas adicionais soft)
+  const buildShadowWithGlow = (scale: number) => {
+    const base = buildTextShadow({
+      shadowBlur,
+      shadowOpacity,
+      scale,
+      shadowColor,
+      strokeColor,
+      strokeWidth,
+    });
+    if (glowIntensity <= 0) return base;
+    const g = glowColor;
+    const i = glowIntensity;
+    // 3 camadas progressivas pra simular aura
+    const glow = [
+      `0 0 ${8 * scale}px ${g}${alphaHex(i * 0.9)}`,
+      `0 0 ${18 * scale}px ${g}${alphaHex(i * 0.7)}`,
+      `0 0 ${36 * scale}px ${g}${alphaHex(i * 0.5)}`,
+    ].join(", ");
+    return `${glow}, ${base}`;
+  };
+
+  // Estilo de gradiente no texto (background-clip: text)
+  const gradientStyle: React.CSSProperties = gradientEnabled
+    ? {
+        background: `linear-gradient(${gradientAngle}deg, ${gradientFrom}, ${gradientTo})`,
+        WebkitBackgroundClip: "text",
+        backgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+        color: "transparent",
+      }
+    : {};
+
   return (
     <div
       className="h-56 rounded relative overflow-hidden flex flex-col items-center justify-center gap-3"
@@ -1435,6 +1657,38 @@ function PreviewCanvas({
           className="absolute inset-0 pointer-events-none"
           style={{ background: `rgba(0,0,0,${overlayOpacity})` }}
         />
+      )}
+      {/* B7 VINHETA — escurece os 4 cantos */}
+      {vignetteIntensity > 0 && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: `radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,${vignetteIntensity}) 100%)`,
+          }}
+        />
+      )}
+      {/* B10 LIGHT LEAK — mancha de luz colorida no canto sup-direito */}
+      {lightLeakIntensity > 0 && (
+        <div
+          className="absolute inset-0 pointer-events-none mix-blend-screen"
+          style={{
+            background: `radial-gradient(ellipse at 85% 15%, ${lightLeakColor}${alphaHex(lightLeakIntensity * 0.85)} 0%, transparent 45%), radial-gradient(ellipse at 15% 85%, ${lightLeakColor}${alphaHex(lightLeakIntensity * 0.5)} 0%, transparent 40%)`,
+          }}
+        />
+      )}
+      {/* B8 GRANULADO — noise via SVG turbulence */}
+      {grainIntensity > 0 && (
+        <svg
+          className="absolute inset-0 pointer-events-none mix-blend-overlay"
+          style={{ width: "100%", height: "100%", opacity: grainIntensity }}
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <filter id="preview-grain">
+            <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" />
+            <feColorMatrix type="saturate" values="0" />
+          </filter>
+          <rect width="100%" height="100%" filter="url(#preview-grain)" />
+        </svg>
       )}
       {/* Linha mediana sutil pra mostrar cor (paleta) — só nos fundos sólidos */}
       {bg !== "video" && (
@@ -1455,8 +1709,9 @@ function PreviewCanvas({
           fontFamily: `"${fontHook}", system-ui, sans-serif`,
           letterSpacing: `${letterSpacing}em`,
           lineHeight,
-          textShadow: buildTextShadow({ shadowBlur, shadowOpacity, scale: 0.8, shadowColor, strokeColor, strokeWidth }),
+          textShadow: buildShadowWithGlow(0.8),
           textTransform: "uppercase",
+          ...gradientStyle,
         }}
       >
         PARA DEIXAR UM
@@ -1471,11 +1726,47 @@ function PreviewCanvas({
           fontWeight: 600,
           letterSpacing: `${letterSpacing}em`,
           lineHeight,
-          textShadow: buildTextShadow({ shadowBlur, shadowOpacity, scale: 0.7, shadowColor, strokeColor, strokeWidth }),
+          textShadow: buildShadowWithGlow(0.7),
+          ...gradientStyle,
         }}
       >
         Você precisa sair do óbvio
       </div>
+    </div>
+  );
+}
+
+/**
+ * Helper: converte 0..1 em hex alpha de 2 dígitos. Ex: 0.5 → "80".
+ */
+function alphaHex(v: number): string {
+  const clamped = Math.max(0, Math.min(1, v));
+  const n = Math.round(clamped * 255);
+  return n.toString(16).padStart(2, "0");
+}
+
+/**
+ * Bloco visual pra cada efeito avançado — título + descrição + sliders.
+ * Mantém a UI limpa dentro do accordion.
+ */
+function FxBlock({
+  title,
+  desc,
+  children,
+}: {
+  title: string;
+  desc: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded border border-neutral-800 bg-neutral-950/50 p-3 space-y-2">
+      <div>
+        <div className="text-sm font-semibold">{title}</div>
+        <div className="text-[11px] text-neutral-500 leading-snug mt-0.5">
+          {desc}
+        </div>
+      </div>
+      <div className="space-y-2">{children}</div>
     </div>
   );
 }

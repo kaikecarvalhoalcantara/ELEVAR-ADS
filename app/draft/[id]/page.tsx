@@ -38,6 +38,12 @@ const ANIMATIONS: AnimationKind[] = ["teclado", "subir", "deslocar", "mesclar", 
 const FRAMES_PER_BEAT = 48;
 const FPS = 24;
 
+/** V14: 0..1 → hex alpha "00".."ff" */
+function editorAlphaHex(v: number): string {
+  const c = Math.max(0, Math.min(1, v));
+  return Math.round(c * 255).toString(16).padStart(2, "0");
+}
+
 interface EnrichedPage extends PageDraft {
   videoUrl: string;
 }
@@ -805,7 +811,7 @@ function EditableCanvas({
       ? page.fontSize
       : computeFitFontSize(lines, isHook, dims.width);
   const filterCss = colorFilterCss(draft.colorFilter);
-  const textShadowValue = buildTextShadow({
+  const baseShadowValue = buildTextShadow({
     shadowBlur: style.shadowBlur,
     shadowOpacity: style.shadowOpacity,
     scale,
@@ -813,6 +819,29 @@ function EditableCanvas({
     strokeColor: page.textStrokeColor ?? draft.baseStrokeColor,
     strokeWidth: page.textStrokeWidth ?? draft.baseStrokeWidth,
   });
+  // V14: Glow combinado com a sombra base (canvas do editor)
+  const glowI = draft.glowIntensity ?? 0;
+  const glowC = draft.glowColor ?? "#ffd700";
+  const textShadowValue =
+    glowI > 0
+      ? [
+          `0 0 ${8 * scale}px ${glowC}${editorAlphaHex(glowI * 0.9)}`,
+          `0 0 ${18 * scale}px ${glowC}${editorAlphaHex(glowI * 0.7)}`,
+          `0 0 ${36 * scale}px ${glowC}${editorAlphaHex(glowI * 0.5)}`,
+          baseShadowValue,
+        ].join(", ")
+      : baseShadowValue;
+  // V14: Gradiente de cor no texto
+  const gradientStyle: React.CSSProperties =
+    draft.gradientEnabled === true
+      ? {
+          background: `linear-gradient(${draft.gradientAngle ?? 180}deg, ${draft.gradientFrom ?? "#ffffff"}, ${draft.gradientTo ?? "#d4af37"})`,
+          WebkitBackgroundClip: "text",
+          backgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+          color: "transparent",
+        }
+      : {};
   const iconAboveSvg = iconSvgString(page.iconAbove);
   const iconBelowSvg = iconSvgString(page.iconBelow);
   const shadowOffsetY = Math.max(2, Math.round(style.shadowBlur / 6));
@@ -859,6 +888,42 @@ function EditableCanvas({
           background: `linear-gradient(180deg, rgba(0,0,0,${style.overlayOpacity * 0.6}) 0%, rgba(0,0,0,${style.overlayOpacity}) 100%)`,
         }}
       />
+
+      {/* V14: VINHETA — escurece os 4 cantos */}
+      {(draft.vignetteIntensity ?? 0) > 0 && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: `radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,${draft.vignetteIntensity}) 100%)`,
+          }}
+        />
+      )}
+
+      {/* V14: LIGHT LEAKS — vazamento de luz */}
+      {(draft.lightLeakIntensity ?? 0) > 0 && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: `radial-gradient(ellipse at 85% 15%, ${draft.lightLeakColor ?? "#ffd27a"}${editorAlphaHex((draft.lightLeakIntensity ?? 0) * 0.85)} 0%, transparent 45%), radial-gradient(ellipse at 15% 85%, ${draft.lightLeakColor ?? "#ffd27a"}${editorAlphaHex((draft.lightLeakIntensity ?? 0) * 0.5)} 0%, transparent 40%)`,
+            mixBlendMode: "screen",
+          }}
+        />
+      )}
+
+      {/* V14: GRANULADO de filme */}
+      {(draft.grainIntensity ?? 0) > 0 && (
+        <svg
+          className="absolute inset-0 pointer-events-none"
+          style={{ width: "100%", height: "100%", opacity: draft.grainIntensity, mixBlendMode: "overlay" }}
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <filter id="editor-canvas-grain">
+            <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" />
+            <feColorMatrix type="saturate" values="0" />
+          </filter>
+          <rect width="100%" height="100%" filter="url(#editor-canvas-grain)" />
+        </svg>
+      )}
 
       {/* Elements layer (entre overlay e texto) */}
       {(page.elements ?? []).map((el) => (
@@ -1008,6 +1073,7 @@ function EditableCanvas({
                 fontFamily: `"${fontFamily}", system-ui, sans-serif`,
                 fontWeight,
                 color: style.color,
+                ...gradientStyle,
                 textAlign: style.align,
                 textTransform,
                 lineHeight: style.lineHeight,

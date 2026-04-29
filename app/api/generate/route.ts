@@ -91,6 +91,23 @@ export async function POST(request: Request) {
     if (body.baseStrokeColor) projectStyle.baseStrokeColor = body.baseStrokeColor;
     if (typeof body.baseStrokeWidth === "number")
       projectStyle.baseStrokeWidth = body.baseStrokeWidth;
+    // V14: efeitos avançados
+    if (body.glowColor) projectStyle.glowColor = body.glowColor;
+    if (typeof body.glowIntensity === "number")
+      projectStyle.glowIntensity = body.glowIntensity;
+    if (typeof body.gradientEnabled === "boolean")
+      projectStyle.gradientEnabled = body.gradientEnabled;
+    if (body.gradientFrom) projectStyle.gradientFrom = body.gradientFrom;
+    if (body.gradientTo) projectStyle.gradientTo = body.gradientTo;
+    if (typeof body.gradientAngle === "number")
+      projectStyle.gradientAngle = body.gradientAngle;
+    if (typeof body.vignetteIntensity === "number")
+      projectStyle.vignetteIntensity = body.vignetteIntensity;
+    if (typeof body.grainIntensity === "number")
+      projectStyle.grainIntensity = body.grainIntensity;
+    if (body.lightLeakColor) projectStyle.lightLeakColor = body.lightLeakColor;
+    if (typeof body.lightLeakIntensity === "number")
+      projectStyle.lightLeakIntensity = body.lightLeakIntensity;
 
     const template = body.template;
     if (template) {
