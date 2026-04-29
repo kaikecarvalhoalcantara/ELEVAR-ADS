@@ -302,6 +302,95 @@ export default function EditorPage() {
     draft?.rendering?.queueAdNumbers?.length,
   ]);
 
+  // V27: Ref pra snapshot pendente — usado pelo flushPendingSave() pra
+  // dispar save IMEDIATAMENTE antes de render (evita race condition onde
+  // user mexe slider e clica render dentro de 600ms — o render lia versão
+  // ainda não persistida).
+  const pendingSaveDraftRef = useRef<EnrichedDraft | null>(null);
+
+  async function performSavePayload(next: EnrichedDraft): Promise<void> {
+    const adsForSave = next.ads.map((ad) => ({
+      ...ad,
+      pages: ad.pages.map(({ videoUrl: _omit, ...rest }) => rest),
+    }));
+    const projectFields: Partial<ProjectStyle> & {
+      fontHook?: string;
+      fontTransition?: string;
+    } = {
+      baseColor: next.baseColor,
+      accentColor: next.accentColor,
+      baseFontSize: next.baseFontSize,
+      baseLetterSpacing: next.baseLetterSpacing,
+      baseLineHeight: next.baseLineHeight,
+      baseShadowBlur: next.baseShadowBlur,
+      baseShadowOpacity: next.baseShadowOpacity,
+      baseOverlayOpacity: next.baseOverlayOpacity,
+      baseAlign: next.baseAlign,
+      fontHook: next.fontHook,
+      fontTransition: next.fontTransition,
+      template: next.template,
+      baseShadowColor: next.baseShadowColor,
+      baseStrokeColor: next.baseStrokeColor,
+      baseStrokeWidth: next.baseStrokeWidth,
+      colorFilter: next.colorFilter,
+      toneFilter: next.toneFilter,
+      vibe: next.vibe,
+      glowColor: next.glowColor,
+      glowIntensity: next.glowIntensity,
+      gradientEnabled: next.gradientEnabled,
+      gradientFrom: next.gradientFrom,
+      gradientTo: next.gradientTo,
+      gradientAngle: next.gradientAngle,
+      vignetteIntensity: next.vignetteIntensity,
+      grainIntensity: next.grainIntensity,
+      lightLeakColor: next.lightLeakColor,
+      lightLeakIntensity: next.lightLeakIntensity,
+    };
+    try {
+      const res = await fetch(`/api/draft/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ads: adsForSave, ...projectFields }),
+      });
+      if (!res.ok) {
+        if (res.status === 503 || res.status === 504 || res.status === 502) {
+          console.warn(`[save] ${res.status} transitório`);
+          setSaveStatus("idle");
+          return;
+        }
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const ct = res.headers.get("content-type") ?? "";
+      if (!ct.includes("application/json")) {
+        setSaveStatus("idle");
+        return;
+      }
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error);
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 1200);
+    } catch (e) {
+      console.warn(`[save] erro:`, e);
+      setSaveStatus("idle");
+    }
+  }
+
+  /**
+   * V27: Força flush do save pendente AGORA. Usado antes de render pra
+   * garantir que a última edição (cor, slider, etc) foi persistida no
+   * Postgres antes do render-worker ler o draft.
+   */
+  async function flushPendingSave(): Promise<void> {
+    if (savingTimer) {
+      clearTimeout(savingTimer);
+      setSavingTimer(null);
+    }
+    const pending = pendingSaveDraftRef.current;
+    if (!pending) return;
+    pendingSaveDraftRef.current = null;
+    await performSavePayload(pending);
+  }
+
   function scheduleSave(next: EnrichedDraft, fromHistory = false) {
     if (!fromHistory && draft) {
       // Snapshot no undo stack — debounced 500ms pra slider não criar 100 entries
@@ -316,64 +405,17 @@ export default function EditorPage() {
     }
     setDraft(next);
     setSaveStatus("saving");
+    pendingSaveDraftRef.current = next;
     if (savingTimer) clearTimeout(savingTimer);
     const t = setTimeout(async () => {
-      try {
-        const adsForSave = next.ads.map((ad) => ({
-          ...ad,
-          pages: ad.pages.map(({ videoUrl: _omit, ...rest }) => rest),
-        }));
-        const projectFields: Partial<ProjectStyle> & {
-          fontHook?: string;
-          fontTransition?: string;
-        } = {
-          baseColor: next.baseColor,
-          accentColor: next.accentColor,
-          baseFontSize: next.baseFontSize,
-          baseLetterSpacing: next.baseLetterSpacing,
-          baseLineHeight: next.baseLineHeight,
-          baseShadowBlur: next.baseShadowBlur,
-          baseShadowOpacity: next.baseShadowOpacity,
-          baseOverlayOpacity: next.baseOverlayOpacity,
-          baseAlign: next.baseAlign,
-          // V15: fontes editáveis no editor (afetam o projeto inteiro)
-          fontHook: next.fontHook,
-          fontTransition: next.fontTransition,
-        };
-        const res = await fetch(`/api/draft/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ads: adsForSave, ...projectFields }),
-        });
-        // Trata 503/504 silenciosamente (proxy reiniciando) — próximo
-        // edit dispara save de novo, então não perdemos nada.
-        if (!res.ok) {
-          if (res.status === 503 || res.status === 504 || res.status === 502) {
-            console.warn(`[save] ${res.status} transitório — vai retentar no próximo edit`);
-            setSaveStatus("idle");
-            return;
-          }
-          throw new Error(`HTTP ${res.status}`);
-        }
-        const ct = res.headers.get("content-type") ?? "";
-        if (!ct.includes("application/json")) {
-          console.warn(`[save] resposta não-JSON, ignorando`);
-          setSaveStatus("idle");
-          return;
-        }
-        const data = await res.json();
-        if (!data.ok) throw new Error(data.error);
-        setSaveStatus("saved");
-        setTimeout(() => setSaveStatus("idle"), 1200);
-      } catch (e) {
-        // Erro real (não 503/transient) — log mas não bloqueia o user
-        // mostrando uma tela de erro vermelha. O auto-save vai retentar.
-        console.warn(`[save] erro:`, e);
-        setSaveStatus("idle");
-      }
+      const pending = pendingSaveDraftRef.current;
+      if (!pending) return;
+      pendingSaveDraftRef.current = null;
+      await performSavePayload(pending);
     }, 600);
     setSavingTimer(t);
   }
+
 
   function undo() {
     if (undoStack.current.length === 0 || !draft) return;
@@ -590,6 +632,16 @@ export default function EditorPage() {
     if (draft?.rendering?.status === "in_progress") {
       setRenderStatus("Já tem renderização rodando, aguarde…");
       return;
+    }
+    // V27: Garante que TODA edição pendente (debounce de 600ms) foi
+    // persistida no Postgres antes do worker ler. Antes: user mexia
+    // um slider e clicava render dentro de 600ms → render usava versão
+    // antiga ainda não salva.
+    setRenderStatus("Salvando alterações…");
+    try {
+      await flushPendingSave();
+    } catch {
+      // Se falhar, ainda tenta renderizar com o que tá no Postgres
     }
     setRenderStatus("Disparando renderização…");
     try {
@@ -2350,19 +2402,14 @@ function AnimationPreview({
   const playerRef = useRef<PlayerRef | null>(null);
   const dims = dimsFor(draft.format);
   const inputProps: AdProps = {
-    beats: ad.pages.map((p) => ({
-      text: p.text,
-      weight: p.weight,
-      fontSize: p.fontSize,
-      color: p.color,
-      letterSpacing: p.letterSpacing,
-      lineHeight: p.lineHeight,
-      textShadowBlur: p.textShadowBlur,
-      textShadowOpacity: p.textShadowOpacity,
-      overlayOpacity: p.overlayOpacity,
-      align: p.align,
-      hideText: p.hideText,
-    })),
+    // V27: spread completo — antes copiava só 11 campos. Animation preview
+    // agora reflete EXATAMENTE o que o user editou (glow, gradiente, color
+    // grading, letter effects, transforms etc).
+    beats: ad.pages.map((p) => {
+      // Remove videoUrl (campo do EnrichedPage só pra editor)
+      const { videoUrl: _omit, ...rest } = p;
+      return rest;
+    }),
     videos: ad.pages.map((p) => p.videoUrl),
     animations: ad.pages.map((p) => p.animation),
     format: draft.format,
@@ -2405,6 +2452,9 @@ function AnimationPreview({
 }
 
 function extractProjectStyle(d: EnrichedDraft): ProjectStyle {
+  // V27: inclui TODOS os campos do projeto (V12-V14 efeitos avançados +
+  // sombra colorida + outline). Antes só 11 campos saíam — animation
+  // preview e bulk save perdiam visualização desses efeitos.
   return {
     toneFilter: d.toneFilter,
     vibe: d.vibe,
@@ -2419,6 +2469,21 @@ function extractProjectStyle(d: EnrichedDraft): ProjectStyle {
     baseAlign: d.baseAlign,
     colorFilter: d.colorFilter ?? "neutro",
     template: d.template,
+    // V12: cor sombra + outline (project-level)
+    baseShadowColor: d.baseShadowColor,
+    baseStrokeColor: d.baseStrokeColor,
+    baseStrokeWidth: d.baseStrokeWidth,
+    // V14: efeitos avançados
+    glowColor: d.glowColor,
+    glowIntensity: d.glowIntensity,
+    gradientEnabled: d.gradientEnabled,
+    gradientFrom: d.gradientFrom,
+    gradientTo: d.gradientTo,
+    gradientAngle: d.gradientAngle,
+    vignetteIntensity: d.vignetteIntensity,
+    grainIntensity: d.grainIntensity,
+    lightLeakColor: d.lightLeakColor,
+    lightLeakIntensity: d.lightLeakIntensity,
   };
 }
 

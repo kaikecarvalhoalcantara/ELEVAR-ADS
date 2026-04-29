@@ -20,8 +20,12 @@ function parseRange(
   const m = /bytes=(\d+)-(\d+)?/.exec(header);
   if (!m) return null;
   const start = parseInt(m[1]!, 10);
-  const end = m[2] ? parseInt(m[2]!, 10) : size - 1;
-  if (isNaN(start) || isNaN(end) || start > end || end >= size) return null;
+  // V27: range aberto (bytes=N-) → vai até o final. Antes parseInt(undefined)
+  // dava NaN e retornávamos null, fazendo o servidor mandar arquivo INTEIRO
+  // em vez de partial content. Quebrava range requests do Chromium.
+  const end = m[2] !== undefined ? parseInt(m[2], 10) : size - 1;
+  if (isNaN(start) || isNaN(end)) return null;
+  if (start > end || end >= size) return null;
   return { start, end };
 }
 

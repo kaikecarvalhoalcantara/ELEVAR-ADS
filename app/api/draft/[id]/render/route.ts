@@ -40,6 +40,25 @@ export async function POST(
     );
   }
 
+  // V27: Bloqueia se já tem render rodando — evita 2 workers paralelos
+  // escrevendo no mesmo MP4 (chunks corrompidos / arquivos meio-feitos).
+  // O cliente já bloqueia no front, mas isso protege contra:
+  // - Duas abas do navegador abertas
+  // - Double-click rápido durante delay do polling
+  // - Render fantasma após crash do navegador anterior
+  if (draft.rendering?.status === "in_progress") {
+    const queue = draft.rendering.queueAdNumbers ?? [];
+    const completed = draft.rendering.completedAdNumbers ?? [];
+    const remaining = queue.filter((n) => !completed.includes(n));
+    return NextResponse.json(
+      {
+        ok: false,
+        error: `Já tem render rodando — ${completed.length}/${queue.length} concluídos, ${remaining.length} restantes. Aguarde terminar ou marque como falho via /retry.`,
+      },
+      { status: 409 },
+    );
+  }
+
   const wantedNumbers =
     body.adNumbers && body.adNumbers.length > 0
       ? body.adNumbers

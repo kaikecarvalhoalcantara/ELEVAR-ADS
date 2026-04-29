@@ -286,6 +286,11 @@ export const BeatScene: React.FC<Props> = ({
   const flipY = beat.videoFlipV ? -1 : 1;
   const videoTransform = `scale(${videoZoom * flipX}, ${videoZoom * flipY})`;
   const startFrom = Math.max(0, Math.round((beat.videoTrimStart ?? 0) * fps));
+  // V27: trim END agora aplicado de verdade (antes ficava só no draft, sumia no MP4)
+  const endAt =
+    beat.videoTrimEnd !== undefined && beat.videoTrimEnd > (beat.videoTrimStart ?? 0)
+      ? Math.round(beat.videoTrimEnd * fps)
+      : undefined;
   const vx = beat.videoX ?? 0;
   const vy = beat.videoY ?? 0;
   const vw = beat.videoW ?? 1;
@@ -311,6 +316,7 @@ export const BeatScene: React.FC<Props> = ({
             src={videoSrc}
             muted
             startFrom={startFrom}
+            endAt={endAt}
             style={{
               width: "100%",
               height: "100%",
@@ -336,6 +342,7 @@ export const BeatScene: React.FC<Props> = ({
                 src={videoSrc}
                 muted
                 startFrom={startFrom}
+                endAt={endAt}
                 style={{
                   width: "100%",
                   height: "100%",
