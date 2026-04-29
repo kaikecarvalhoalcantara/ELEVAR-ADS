@@ -47,6 +47,12 @@ async function listDraftsPg(): Promise<ProjectDraft[]> {
   return res.rows.map((r) => r.data as ProjectDraft);
 }
 
+async function deleteDraftPg(id: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Postgres indisponível");
+  await db.query(`DELETE FROM drafts WHERE id = $1`, [id]);
+}
+
 /* ============================================================
  * MODE B: Filesystem (fallback se Postgres não disponível)
  * ============================================================ */
@@ -223,4 +229,22 @@ export async function listDrafts(): Promise<ProjectDraft[]> {
     }
   }
   return listDraftsFile();
+}
+
+export async function deleteDraft(id: string): Promise<void> {
+  if (isPostgresAvailable()) {
+    try {
+      await deleteDraftPg(id);
+    } catch (err) {
+      console.error(`[drafts] Postgres delete falhou, fallback file: ${(err as Error).message}`);
+    }
+  }
+  // Sempre tenta apagar o arquivo também (caso esteja em ambos)
+  try {
+    await fs.unlink(pathFor(id));
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      console.warn(`[drafts] file delete falhou ${id}: ${(err as Error).message}`);
+    }
+  }
 }

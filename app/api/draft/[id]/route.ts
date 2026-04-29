@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { loadDraft, saveDraft } from "../../../../lib/drafts";
+import { deleteDraft, loadDraft, saveDraft } from "../../../../lib/drafts";
 import { localPathToHttpUrl } from "../../../../lib/http-utils";
 import type { ProjectDraft } from "../../../../lib/types";
 
@@ -29,6 +29,26 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "Draft não encontrado" }, { status: 404 });
     }
     return NextResponse.json({ ok: true, draft: enrichDraft(draft) });
+  } catch (err) {
+    return NextResponse.json(
+      { ok: false, error: (err as Error).message },
+      { status: 500 },
+    );
+  }
+}
+
+/**
+ * V28: DELETE — apaga o draft (Postgres + arquivo). Usado pela aba
+ * "Projetos salvos" da home pra remover projetos antigos.
+ */
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  try {
+    await deleteDraft(id);
+    return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(
       { ok: false, error: (err as Error).message },

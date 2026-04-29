@@ -206,7 +206,7 @@ const STYLE_PRESETS: StylePreset[] = [
   },
 ];
 
-type Tab = "generate" | "assets";
+type Tab = "generate" | "assets" | "projects";
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>("generate");
@@ -224,12 +224,21 @@ export default function Home() {
         <TabBtn active={tab === "generate"} onClick={() => setTab("generate")}>
           Brand Brief & Gerar
         </TabBtn>
+        <TabBtn active={tab === "projects"} onClick={() => setTab("projects")}>
+          📁 Projetos salvos
+        </TabBtn>
         <TabBtn active={tab === "assets"} onClick={() => setTab("assets")}>
           Assets do cliente
         </TabBtn>
       </nav>
 
-      {tab === "generate" ? <GenerateTab /> : <AssetsTab />}
+      {tab === "generate" ? (
+        <GenerateTab />
+      ) : tab === "projects" ? (
+        <ProjectsTab />
+      ) : (
+        <AssetsTab />
+      )}
     </main>
   );
 }
@@ -923,6 +932,263 @@ function GenerateTab() {
           {log}
         </div>
       )}
+    </div>
+  );
+}
+
+// V28: Aba "Projetos salvos" — lista todos os drafts com miniatura,
+// permite entrar pra editar ou excluir.
+interface DraftSummary {
+  id: string;
+  cliente: string;
+  nicho: string;
+  nome: string;
+  format: string;
+  adsCount: number;
+  pagesCount: number;
+  thumbnailUrl: string | null;
+  createdAt: number;
+  updatedAt: number;
+  processingStatus: string;
+  renderingStatus: string;
+  completedAdsCount: number;
+}
+
+function ProjectsTab() {
+  const router = useRouter();
+  const [drafts, setDrafts] = useState<DraftSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+
+  const reload = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/drafts");
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error ?? "Erro");
+      setDrafts(data.drafts as DraftSummary[]);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    reload();
+  }, []);
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function deleteSelected() {
+    if (selectedIds.size === 0) return;
+    if (
+      !confirm(
+        `Excluir ${selectedIds.size} projeto${
+          selectedIds.size === 1 ? "" : "s"
+        }? Não dá pra desfazer — TODO o conteúdo (anúncios, edições) vai junto.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const results = await Promise.allSettled(
+        ids.map((id) =>
+          fetch(`/api/draft/${id}`, { method: "DELETE" }).then((r) => r.json()),
+        ),
+      );
+      const failed = results.filter(
+        (r) => r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok),
+      );
+      if (failed.length > 0) {
+        setError(`Falha em ${failed.length} de ${ids.length} exclusões`);
+      }
+      setSelectedIds(new Set());
+      setSelectMode(false);
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function fmtDate(ts: number): string {
+    const d = new Date(ts);
+    const now = Date.now();
+    const diff = now - ts;
+    const day = 24 * 60 * 60 * 1000;
+    if (diff < day) {
+      const hours = Math.floor(diff / (60 * 60 * 1000));
+      if (hours < 1) return "agora há pouco";
+      return `há ${hours}h`;
+    }
+    if (diff < 7 * day) {
+      const days = Math.floor(diff / day);
+      return `há ${days}d`;
+    }
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-xl font-semibold">📁 Projetos salvos</h2>
+          <p className="text-xs text-neutral-500 mt-0.5">
+            {loading
+              ? "Carregando…"
+              : `${drafts.length} projeto${drafts.length === 1 ? "" : "s"} salvo${drafts.length === 1 ? "" : "s"}. Clica num pra editar.`}
+          </p>
+        </div>
+        <div className="flex gap-2 items-center">
+          <button
+            onClick={reload}
+            className="px-3 py-1.5 text-xs rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-700"
+          >
+            🔄 Atualizar
+          </button>
+          {selectMode ? (
+            <>
+              {selectedIds.size > 0 && (
+                <button
+                  onClick={deleteSelected}
+                  disabled={busy}
+                  className="px-3 py-1.5 text-xs rounded bg-red-700 hover:bg-red-600 text-white disabled:opacity-50"
+                >
+                  {busy ? "Excluindo…" : `🗑️ Excluir ${selectedIds.size}`}
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setSelectMode(false);
+                  setSelectedIds(new Set());
+                }}
+                className="px-3 py-1.5 text-xs rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-700"
+              >
+                Cancelar
+              </button>
+            </>
+          ) : (
+            drafts.length > 0 && (
+              <button
+                onClick={() => setSelectMode(true)}
+                className="px-3 py-1.5 text-xs rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-700"
+              >
+                ✓ Selecionar pra excluir
+              </button>
+            )
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <div className="text-sm text-red-400 bg-red-950/30 border border-red-900 rounded p-2">
+          {error}
+        </div>
+      )}
+
+      {!loading && drafts.length === 0 && (
+        <div className="text-center py-12 border border-dashed border-neutral-800 rounded-lg">
+          <p className="text-neutral-500">Nenhum projeto salvo ainda.</p>
+          <p className="text-xs text-neutral-600 mt-1">
+            Cria seu primeiro na aba <span className="text-purple-400">Brand Brief & Gerar</span>.
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        {drafts.map((d) => {
+          const isSelected = selectedIds.has(d.id);
+          const isBeingProcessed = d.processingStatus !== "complete";
+          const isRendering = d.renderingStatus === "in_progress";
+          return (
+            <div
+              key={d.id}
+              onClick={() => {
+                if (selectMode) {
+                  toggleSelect(d.id);
+                } else {
+                  router.push(`/draft/${d.id}`);
+                }
+              }}
+              className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
+                isSelected
+                  ? "border-red-500 bg-red-950/30"
+                  : "border-neutral-800 hover:border-purple-500 bg-neutral-900"
+              }`}
+            >
+              {/* Thumbnail (vídeo da primeira página, se tiver) */}
+              <div className="relative aspect-[9/16] bg-neutral-950 flex items-center justify-center overflow-hidden">
+                {d.thumbnailUrl ? (
+                  <video
+                    src={d.thumbnailUrl}
+                    muted
+                    preload="metadata"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="text-3xl text-neutral-700">🎬</div>
+                )}
+                {/* Overlay de status */}
+                {isBeingProcessed && (
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                    <div className="text-xs text-yellow-400 text-center px-2">
+                      ⏳ Gerando…
+                    </div>
+                  </div>
+                )}
+                {isRendering && (
+                  <div className="absolute top-1 left-1 text-[9px] bg-purple-600 text-white px-1.5 py-0.5 rounded">
+                    ▶ Renderizando
+                  </div>
+                )}
+                {!isBeingProcessed && d.completedAdsCount > 0 && (
+                  <div className="absolute top-1 right-1 text-[9px] bg-green-700 text-white px-1.5 py-0.5 rounded">
+                    ✓ {d.completedAdsCount}
+                  </div>
+                )}
+                {/* Checkbox no modo de seleção */}
+                {selectMode && (
+                  <div
+                    className={`absolute top-2 left-2 w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                      isSelected
+                        ? "bg-red-500 border-red-300"
+                        : "bg-black/60 border-white/40"
+                    }`}
+                  >
+                    {isSelected && <span className="text-white text-sm">✓</span>}
+                  </div>
+                )}
+              </div>
+              {/* Info */}
+              <div className="p-2">
+                <div className="text-sm font-semibold truncate">{d.cliente}</div>
+                <div className="text-[11px] text-neutral-400 truncate">
+                  {d.nicho} · {d.nome}
+                </div>
+                <div className="flex items-center justify-between mt-1.5 text-[10px] text-neutral-500">
+                  <span>
+                    {d.adsCount} ads · {d.pagesCount}p
+                  </span>
+                  <span>{fmtDate(d.updatedAt)}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
