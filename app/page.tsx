@@ -16,7 +16,7 @@ import type {
   ToneFilter,
   Vibe,
 } from "../lib/types";
-import { COLOR_FILTER_LABELS } from "../lib/color-filters";
+import { COLOR_FILTER_LABELS, colorFilterCss } from "../lib/color-filters";
 import { buildTextShadow } from "../lib/text-utils";
 import { TEMPLATES } from "../lib/template-presets";
 
@@ -35,28 +35,105 @@ const LANGS: { value: Lang; label: string }[] = [
   { value: "en", label: "English" },
 ];
 const FORMATS: Format[] = ["9:16", "4:5", "16:9", "1:1"];
-// FONTES GROSSAS (default — usadas em ~60% do anúncio)
-const HOOK_FONTS_BOLD = [
-  "Anton",
-  "Bebas Neue",
-  "Oswald",
-  "Archivo Black",
-  "Big Shoulders Display",
-  "Bowlby One",
-  "Russo One",
+// ============================================================
+// CATÁLOGO DE FONTES — organizado por categoria com optgroup.
+// Todas carregam dinamicamente do Google Fonts ao serem selecionadas.
+// ============================================================
+
+// Fontes pra GANCHO (uppercase bold, hooks de impacto)
+const HOOK_FONT_GROUPS: { label: string; fonts: string[] }[] = [
+  {
+    label: "Impacto agressivo (recomendado)",
+    fonts: [
+      "Anton", "Bebas Neue", "Oswald", "Archivo Black", "Big Shoulders Display",
+      "Squada One", "Russo One", "Bowlby One", "Bowlby One SC", "Staatliches",
+      "Fjalla One", "Saira Condensed", "Roboto Condensed", "Yanone Kaffeesatz",
+      "Asap Condensed", "Barlow Condensed", "Teko", "Khand", "Antonio",
+      "Six Caps", "Oswald", "League Spartan", "Bungee",
+    ],
+  },
+  {
+    label: "Premium / Elegante (luxo, perfumaria)",
+    fonts: [
+      "Playfair Display", "Cormorant Garamond", "DM Serif Display", "Cinzel",
+      "Cinzel Decorative", "Italiana", "Marcellus", "Bodoni Moda", "Cormorant SC",
+      "Tenor Sans", "Forum", "Yeseva One", "Crimson Pro", "Libre Bodoni",
+      "Prata", "Rozha One", "Cardo", "Spectral", "Sahitya", "Bellefair",
+    ],
+  },
+  {
+    label: "Suspense / Cinematográfico",
+    fonts: [
+      "Black Ops One", "Major Mono Display", "Faster One", "Knewave",
+      "Stalinist One", "Bungee Inline", "Audiowide", "Orbitron", "Rajdhani",
+      "Special Elite", "UnifrakturCook", "Nosifer", "Eater", "Creepster",
+      "Metal Mania", "Pirata One", "Vampiro One",
+    ],
+  },
+  {
+    label: "Moderno / Tech",
+    fonts: [
+      "Archivo", "Sora", "Space Grotesk", "Outfit", "Plus Jakarta Sans",
+      "Inter Tight", "Manrope", "Onest", "Albert Sans", "DM Sans",
+      "Geist", "Hanken Grotesk", "Kanit",
+    ],
+  },
+  {
+    label: "Vintage / Retrô",
+    fonts: [
+      "Lobster", "Pacifico", "Sancreek", "Ultra", "Alfa Slab One", "Modak",
+      "Lilita One", "Titan One", "Frijole", "Monoton", "Chango", "Limelight",
+      "Sansita Swashed", "Press Start 2P", "VT323", "Rye",
+    ],
+  },
 ];
-// Fontes médias-grossas pra transição (peso 600)
-const TRANSITION_FONTS_BOLD = [
-  "Manrope",
-  "Work Sans",
-  "Inter Tight",
-  "Roboto Slab",
-  "Barlow",
-  "Public Sans",
+
+// Fontes pra TRANSIÇÃO (sentence-case, leitura corrida)
+const TRANSITION_FONT_GROUPS: { label: string; fonts: string[] }[] = [
+  {
+    label: "Clean / Minimal (recomendado)",
+    fonts: [
+      "Inter", "Manrope", "Work Sans", "Inter Tight", "Public Sans", "DM Sans",
+      "Plus Jakarta Sans", "Outfit", "Onest", "Sora", "Albert Sans",
+      "Geist", "Hanken Grotesk", "IBM Plex Sans",
+    ],
+  },
+  {
+    label: "Humanist / Acolhedor",
+    fonts: [
+      "Lato", "Open Sans", "Source Sans 3", "Noto Sans", "Nunito", "Mulish",
+      "Karla", "Cabin", "Quicksand", "Hind", "Heebo", "Fira Sans",
+      "Comfortaa", "Catamaran", "Asap",
+    ],
+  },
+  {
+    label: "Geometric / Tech",
+    fonts: [
+      "Roboto", "Roboto Condensed", "Saira", "Kanit", "Jost", "Poppins",
+      "Be Vietnam Pro", "Space Grotesk", "Rubik", "Barlow",
+      "Encode Sans", "Archivo Narrow",
+    ],
+  },
+  {
+    label: "Serif legível (premium)",
+    fonts: [
+      "Roboto Slab", "Lora", "Merriweather", "Source Serif 4", "PT Serif",
+      "Crimson Text", "EB Garamond", "Spectral", "Cardo", "Bitter",
+      "Vollkorn", "Libre Caslon Text", "Cormorant", "Domine",
+    ],
+  },
+  {
+    label: "Mono (script, código, técnico)",
+    fonts: [
+      "JetBrains Mono", "Fira Code", "Roboto Mono", "Space Mono",
+      "IBM Plex Mono", "Source Code Pro",
+    ],
+  },
 ];
-// Fontes finas (light/regular) — só aparecem quando toggle "incluir finas"
-const HOOK_FONTS_THIN = ["Playfair Display", "Cormorant Garamond", "DM Serif Display"];
-const TRANSITION_FONTS_THIN = ["Inter", "Lato", "Open Sans", "Roboto", "Nunito"];
+
+// Listas planas (mantidas pra compat com generate API e defaults)
+const HOOK_FONTS_ALL = HOOK_FONT_GROUPS.flatMap((g) => g.fonts);
+const TRANSITION_FONTS_ALL = TRANSITION_FONT_GROUPS.flatMap((g) => g.fonts);
 const TONE_FILTERS: { value: ToneFilter; label: string; desc: string }[] = [
   { value: "escuro", label: "Escuro", desc: "Filtro escuro, sombra forte, premium cinematográfico" },
   { value: "neutro", label: "Neutro", desc: "Equilibrado, sem filtro pesado" },
@@ -163,15 +240,12 @@ function GenerateTab() {
   const [mood, setMood] = useState<Mood>("sofisticado");
   const [audience, setAudience] = useState<Audience>("masculino");
   // tipografia
-  const [includeThinFonts, setIncludeThinFonts] = useState(false);
-  const [fontHook, setFontHook] = useState(HOOK_FONTS_BOLD[0]!);
-  const [fontTransition, setFontTransition] = useState(TRANSITION_FONTS_BOLD[0]!);
-  const hookFontList = includeThinFonts
-    ? [...HOOK_FONTS_BOLD, ...HOOK_FONTS_THIN]
-    : HOOK_FONTS_BOLD;
-  const transitionFontList = includeThinFonts
-    ? [...TRANSITION_FONTS_BOLD, ...TRANSITION_FONTS_THIN]
-    : TRANSITION_FONTS_BOLD;
+  const [fontHook, setFontHook] = useState(HOOK_FONTS_ALL[0]!);
+  const [fontTransition, setFontTransition] = useState(TRANSITION_FONTS_ALL[0]!);
+  // Preview do tom — usuário escolhe fundo pra enxergar sombra
+  const [previewBg, setPreviewBg] = useState<"escuro" | "claro" | "checker" | "video">(
+    "escuro",
+  );
   // cor & estilo visual
   const [baseColor, setBaseColor] = useState("#ffffff");
   const [accentColor, setAccentColor] = useState("#d4af37");
@@ -207,6 +281,27 @@ function GenerateTab() {
     setShadowOpacity(p.shadowOpacity);
     setOverlayOpacity(p.overlay);
   }, [toneFilter]);
+
+  // Carrega fontes do Google Fonts dinamicamente quando o usuário muda
+  // a seleção. Sem isso o dropdown e o preview renderizam só com fonte
+  // sistema, e o usuário não vê de verdade o que escolheu.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const fonts = [fontHook, fontTransition];
+    const params = fonts
+      .map((f) => `family=${encodeURIComponent(f).replace(/%20/g, "+")}:wght@400;600;700;900`)
+      .join("&");
+    const url = `https://fonts.googleapis.com/css2?${params}&display=swap`;
+    const linkId = "home-google-fonts";
+    let link = document.getElementById(linkId) as HTMLLinkElement | null;
+    if (!link) {
+      link = document.createElement("link");
+      link.id = linkId;
+      link.rel = "stylesheet";
+      document.head.appendChild(link);
+    }
+    link.href = url;
+  }, [fontHook, fontTransition]);
 
   async function handleGenerate() {
     setBusy(true);
@@ -363,29 +458,20 @@ function GenerateTab() {
 
       <Section
         title="6. Tipografia"
-        hint="Default: ~60% gancho (uppercase bold), ~5% transição (sentence-case), ~35% sem texto. Fontes carregam do Google Fonts."
+        hint={`Default: ~60% gancho (uppercase bold), ~5% transição (sentence-case), ~35% sem texto. ${HOOK_FONTS_ALL.length}+ fontes do Google Fonts categorizadas — escolha a que combina com o cliente.`}
       >
-        <label className="flex items-center gap-2 mb-3 text-sm">
-          <input
-            type="checkbox"
-            checked={includeThinFonts}
-            onChange={(e) => setIncludeThinFonts(e.target.checked)}
-            className="rounded"
-          />
-          <span>Incluir fontes finas / serifadas (Inter, Playfair, etc) na lista</span>
-        </label>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Select
+          <FontSelect
             label="Fonte gancho (uppercase bold)"
             value={fontHook}
             onChange={setFontHook}
-            options={hookFontList}
+            groups={HOOK_FONT_GROUPS}
           />
-          <Select
+          <FontSelect
             label="Fonte transição (sentence-case)"
             value={fontTransition}
             onChange={setFontTransition}
-            options={transitionFontList}
+            groups={TRANSITION_FONT_GROUPS}
           />
         </div>
       </Section>
@@ -459,61 +545,52 @@ function GenerateTab() {
               format={(v) => `${Math.round(v * 100)}%`}
             />
             <div className="rounded p-3 border border-neutral-800 bg-neutral-900">
-              <div className="text-xs text-neutral-500 mb-2">
-                Preview do tom (gancho + transição, mesma sombra do MP4 final)
-              </div>
-              <div
-                className="h-48 rounded relative overflow-hidden flex flex-col items-center justify-center gap-2"
-                style={{
-                  background:
-                    "radial-gradient(ellipse at 30% 30%, #b08560 0%, #5a3a1f 35%, #1a1009 75%, #050505 100%)",
-                }}
-              >
-                <div
-                  className="absolute inset-0"
-                  style={{ background: `rgba(0,0,0,${overlayOpacity})` }}
-                />
-                <div
-                  className="relative font-black text-3xl text-center px-4"
-                  style={{
-                    color: baseColor,
-                    fontFamily: `"${fontHook}", system-ui, sans-serif`,
-                    letterSpacing: `${letterSpacing}em`,
-                    lineHeight,
-                    textShadow: buildTextShadow({
-                      shadowBlur,
-                      shadowOpacity,
-                      scale: 0.8,
-                    }),
-                    textTransform: "uppercase",
-                  }}
-                >
-                  PARA DEIXAR UM
-                  <br />
-                  RASTRO REAL
+              <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                <div className="text-xs text-neutral-500">
+                  Preview do tom (gancho + transição, sombra real do MP4)
                 </div>
-                <div
-                  className="relative text-base text-center px-4"
-                  style={{
-                    color: baseColor,
-                    fontFamily: `"${fontTransition}", system-ui, sans-serif`,
-                    fontWeight: 600,
-                    letterSpacing: `${letterSpacing}em`,
-                    lineHeight,
-                    textShadow: buildTextShadow({
-                      shadowBlur,
-                      shadowOpacity,
-                      scale: 0.7,
-                    }),
-                  }}
-                >
-                  Você precisa sair do óbvio
+                <div className="flex gap-1">
+                  {(
+                    [
+                      { v: "escuro", l: "Escuro" },
+                      { v: "claro", l: "Claro" },
+                      { v: "checker", l: "Xadrez" },
+                      { v: "video", l: "Vídeo" },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.v}
+                      onClick={() => setPreviewBg(opt.v)}
+                      className={`px-2 py-0.5 text-[10px] rounded border ${
+                        previewBg === opt.v
+                          ? "bg-purple-600 border-purple-500 text-white"
+                          : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:text-neutral-200"
+                      }`}
+                    >
+                      {opt.l}
+                    </button>
+                  ))}
                 </div>
               </div>
-              <div className="text-[10px] text-neutral-500 mt-1.5">
-                Fundo claro/escuro de propósito pra você ver o outline preto + a
-                sombra suave que envolve a letra. Aumenta o blur pra ver a sombra
-                difusa; aumenta a opacidade pra escurecer.
+              <PreviewCanvas
+                bg={previewBg}
+                colorFilter={colorFilter}
+                overlayOpacity={overlayOpacity}
+                baseColor={baseColor}
+                accentColor={accentColor}
+                fontHook={fontHook}
+                fontTransition={fontTransition}
+                letterSpacing={letterSpacing}
+                lineHeight={lineHeight}
+                shadowBlur={shadowBlur}
+                shadowOpacity={shadowOpacity}
+              />
+              <div className="text-[10px] text-neutral-500 mt-1.5 leading-relaxed">
+                <span className="text-neutral-400 font-semibold">Dica:</span>{" "}
+                troca o fundo (Escuro/Claro/Xadrez/Vídeo) pra ver a sombra de
+                ângulos diferentes. <span className="text-neutral-400">Xadrez</span>{" "}
+                evidencia o blur exato — útil pra calibrar opacity. Filtro de cor
+                aparece em <span className="text-neutral-400">Vídeo</span>.
               </div>
             </div>
           </div>
@@ -877,6 +954,179 @@ function Select<T extends string>({
         ))}
       </select>
     </label>
+  );
+}
+
+/**
+ * Select especializado pra fontes — agrupa por categoria via <optgroup>
+ * e renderiza cada opção na própria fonte (preview inline).
+ */
+function FontSelect({
+  label,
+  value,
+  onChange,
+  groups,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  groups: { label: string; fonts: string[] }[];
+}) {
+  // Pré-carrega TODAS as fontes do dropdown na 1ª render — assim cada
+  // <option> aparece na própria fonte (preview inline). É um único request
+  // ao Google Fonts, eficiente.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const all = groups.flatMap((g) => g.fonts);
+    const params = all
+      .map((f) => `family=${encodeURIComponent(f).replace(/%20/g, "+")}:wght@400;700`)
+      .join("&");
+    const url = `https://fonts.googleapis.com/css2?${params}&display=swap`;
+    const linkId = `font-select-preload-${groups.length}-${all.length}`;
+    if (document.getElementById(linkId)) return;
+    const link = document.createElement("link");
+    link.id = linkId;
+    link.rel = "stylesheet";
+    link.href = url;
+    document.head.appendChild(link);
+  }, [groups]);
+
+  return (
+    <label className="block">
+      <span className="text-sm font-medium">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-1 w-full rounded bg-neutral-900 border border-neutral-700 px-3 py-2"
+        style={{ fontFamily: `"${value}", system-ui, sans-serif` }}
+      >
+        {groups.map((g) => (
+          <optgroup key={g.label} label={g.label}>
+            {g.fonts.map((f) => (
+              <option
+                key={f}
+                value={f}
+                style={{ fontFamily: `"${f}", system-ui, sans-serif` }}
+              >
+                {f}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/**
+ * Preview canvas — mostra hook + transição com a sombra real do MP4
+ * sobre 4 fundos diferentes (escuro/claro/xadrez/vídeo) pra usuário
+ * calibrar a sombra com clareza.
+ */
+function PreviewCanvas({
+  bg,
+  colorFilter,
+  overlayOpacity,
+  baseColor,
+  accentColor: _accentColor,
+  fontHook,
+  fontTransition,
+  letterSpacing,
+  lineHeight,
+  shadowBlur,
+  shadowOpacity,
+}: {
+  bg: "escuro" | "claro" | "checker" | "video";
+  colorFilter: ColorFilter;
+  overlayOpacity: number;
+  baseColor: string;
+  accentColor: string;
+  fontHook: string;
+  fontTransition: string;
+  letterSpacing: number;
+  lineHeight: number;
+  shadowBlur: number;
+  shadowOpacity: number;
+}) {
+  const filterCss = colorFilter !== "neutro" ? colorFilterCss(colorFilter) : "none";
+
+  // Background style por modo
+  const bgStyles: Record<typeof bg, React.CSSProperties> = {
+    escuro: {
+      background:
+        "radial-gradient(ellipse at 30% 30%, #404040 0%, #1f1f1f 45%, #050505 100%)",
+    },
+    claro: {
+      background:
+        "radial-gradient(ellipse at 30% 30%, #fafafa 0%, #d4d4d4 50%, #888 100%)",
+    },
+    checker: {
+      backgroundImage:
+        "linear-gradient(45deg, #555 25%, transparent 25%), linear-gradient(-45deg, #555 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #555 75%), linear-gradient(-45deg, transparent 75%, #555 75%)",
+      backgroundSize: "20px 20px",
+      backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0",
+      backgroundColor: "#cbcbcb",
+    },
+    video: {
+      // Simula um still de vídeo cinematográfico
+      background:
+        "linear-gradient(135deg, #4a2c1a 0%, #2a1a10 30%, #050505 70%), radial-gradient(circle at 70% 40%, rgba(255,200,150,0.15), transparent 50%)",
+    },
+  };
+
+  return (
+    <div
+      className="h-56 rounded relative overflow-hidden flex flex-col items-center justify-center gap-3"
+      style={{ ...bgStyles[bg], filter: bg === "video" ? filterCss : undefined }}
+    >
+      {/* Overlay escurecedor — só faz sentido sobre vídeo */}
+      {bg === "video" && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: `rgba(0,0,0,${overlayOpacity})` }}
+        />
+      )}
+      {/* Linha mediana sutil pra mostrar cor (paleta) — só nos fundos sólidos */}
+      {bg !== "video" && (
+        <div
+          className="absolute top-2 left-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded"
+          style={{
+            background: bg === "claro" ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.15)",
+            color: bg === "claro" ? "#fafafa" : "#aaa",
+          }}
+        >
+          fundo {bg}
+        </div>
+      )}
+      <div
+        className="relative font-black text-3xl text-center px-4"
+        style={{
+          color: baseColor,
+          fontFamily: `"${fontHook}", system-ui, sans-serif`,
+          letterSpacing: `${letterSpacing}em`,
+          lineHeight,
+          textShadow: buildTextShadow({ shadowBlur, shadowOpacity, scale: 0.8 }),
+          textTransform: "uppercase",
+        }}
+      >
+        PARA DEIXAR UM
+        <br />
+        RASTRO REAL
+      </div>
+      <div
+        className="relative text-base text-center px-4"
+        style={{
+          color: baseColor,
+          fontFamily: `"${fontTransition}", system-ui, sans-serif`,
+          fontWeight: 600,
+          letterSpacing: `${letterSpacing}em`,
+          lineHeight,
+          textShadow: buildTextShadow({ shadowBlur, shadowOpacity, scale: 0.7 }),
+        }}
+      >
+        Você precisa sair do óbvio
+      </div>
+    </div>
   );
 }
 
