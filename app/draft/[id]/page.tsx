@@ -623,7 +623,8 @@ export default function EditorPage() {
                 if (id === null) setSelectedElementIds(new Set());
                 else toggleElementSelection(id, multi);
               }}
-              onVideoSelectChange={setVideoIsSelected}
+              videoSelected={videoIsSelected}
+              onSetVideoSelected={setVideoIsSelected}
             />
           ) : (
             <div className="text-sm text-neutral-500">selecione uma página</div>
@@ -710,14 +711,16 @@ function EditableCanvas({
   onUpdate,
   selectedElementIds,
   onSelectElement,
-  onVideoSelectChange,
+  videoSelected,
+  onSetVideoSelected,
 }: {
   page: EnrichedPage;
   draft: EnrichedDraft;
   onUpdate: (patch: Partial<EnrichedPage>) => void;
   selectedElementIds: Set<string>;
   onSelectElement: (id: string | null, multi: boolean) => void;
-  onVideoSelectChange?: (selected: boolean) => void;
+  videoSelected: boolean;
+  onSetVideoSelected: (selected: boolean) => void;
 }) {
   const dims = dimsFor(draft.format);
   const previewW = dims.width >= dims.height ? 600 : 420;
@@ -730,11 +733,6 @@ function EditableCanvas({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [activeGuides, setActiveGuides] = useState<AlignGuide[]>([]);
   const multiDragStartRef = useRef<Map<string, { x: number; y: number }> | null>(null);
-  const [videoSelected, setVideoSelected] = useState(false);
-  // V17: sincroniza videoSelected pro parent (pra mostrar painel de color grading)
-  useEffect(() => {
-    onVideoSelectChange?.(videoSelected);
-  }, [videoSelected, onVideoSelectChange]);
   // V13: hover na palavra dispara preview da animação (estilo Canva)
   const [hoverAnimKey, setHoverAnimKey] = useState<number | null>(null);
   // V11: drag pra mover o texto
@@ -746,12 +744,13 @@ function EditableCanvas({
     moved: boolean;
   } | null>(null);
 
-  // Click no canvas vazio: deseleciona tudo
-  function clearSelection() {
+  // V18: Click na área vazia do canvas (fundo/vídeo) — seleciona o
+  // VÍDEO (abre painel de ajustes/remover fundo). Estilo Canva.
+  function selectVideoFromBackground() {
     setSelected(false);
     setEditing(false);
     onSelectElement(null, false);
-    setVideoSelected(false);
+    onSetVideoSelected(true);
   }
 
   useEffect(() => {
@@ -938,7 +937,7 @@ function EditableCanvas({
         height: previewW * (dims.height / dims.width),
         background: bgColor,
       }}
-      onClick={clearSelection}
+      onClick={selectVideoFromBackground}
     >
       {/* Background sólido (V18: cor escolhida pelo user, default preto) */}
       <div className="absolute inset-0" style={{ background: bgColor }} />
@@ -958,7 +957,7 @@ function EditableCanvas({
           selected={videoSelected}
           containerRef={containerRef}
           onSelect={() => {
-            setVideoSelected(true);
+            onSetVideoSelected(true);
             onSelectElement(null, false);
           }}
           onChange={(patch) => onUpdate(patch)}
@@ -1086,6 +1085,10 @@ function EditableCanvas({
             alignItems: "center",
             justifyContent: style.align === "center" ? "center" : style.align === "left" ? "flex-start" : "flex-end",
             transform: `translate(${(page.textOffsetX ?? 0) * 100}%, ${(page.textOffsetY ?? 0) * 100}%)`,
+            // V18: clicks na área vazia passam pelo wrapper pra atingir o
+            // canvas root (que seleciona o vídeo / abre painel). Apenas o
+            // div interno (com pointer-events:auto) captura clicks no texto.
+            pointerEvents: "none",
           }}
         >
         <div
@@ -1107,6 +1110,8 @@ function EditableCanvas({
             // Se acabou de arrastar, não trata como click
             if (textDragRef.current?.moved) return;
             setSelected(true);
+            // Clicar no texto FECHA o painel de vídeo (modo texto agora)
+            onSetVideoSelected(false);
           }}
           onDoubleClick={(e) => {
             e.stopPropagation();
@@ -1119,9 +1124,10 @@ function EditableCanvas({
               : "cursor-text"
           }`}
           style={{
-            width: "100%",
             // V16: rotation + skew aplicados no wrapper externo do texto
             transform: wrapperTransform,
+            // V18: só o texto captura clicks (área vazia passa pro canvas)
+            pointerEvents: "auto",
           }}
         >
           {editing ? (
@@ -1987,7 +1993,7 @@ function PageStrip({
               className="block w-full h-full"
               title={p.text}
             >
-              {p.videoUrl ? (
+              {p.videoUrl && !p.videoRemoved ? (
                 <video
                   src={p.videoUrl}
                   muted
@@ -1995,9 +2001,14 @@ function PageStrip({
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="w-full h-full bg-neutral-900" />
+                <div
+                  className="w-full h-full"
+                  style={{ background: p.backgroundColor ?? "#0a0a0a" }}
+                />
               )}
-              <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+              {p.videoUrl && !p.videoRemoved && (
+                <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+              )}
               <div className="absolute inset-x-0 bottom-0 text-[8px] text-white text-center px-1 py-0.5 leading-tight bg-black/60 line-clamp-2 pointer-events-none">
                 {p.text.replace(" / ", " ")}
               </div>
