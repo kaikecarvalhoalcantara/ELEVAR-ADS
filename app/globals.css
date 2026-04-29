@@ -51,3 +51,42 @@ body {
   100% { clip-path: inset(0 0 0 0); }
 }
 .anim-preview-bloco { animation: anim-preview-bloco 0.6s cubic-bezier(0.7, 0, 0.3, 1); }
+
+/* V19: 6 animações novas */
+@keyframes anim-preview-fade {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+.anim-preview-fade { animation: anim-preview-fade 0.7s ease-out; }
+
+@keyframes anim-preview-escala {
+  0% { transform: scale(0.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.anim-preview-escala { animation: anim-preview-escala 0.7s cubic-bezier(0.3, 1.4, 0.3, 1); }
+
+@keyframes anim-preview-girar {
+  0% { transform: rotate(-180deg) scale(0.6); opacity: 0; }
+  100% { transform: rotate(0) scale(1); opacity: 1; }
+}
+.anim-preview-girar { animation: anim-preview-girar 0.7s cubic-bezier(0.2, 0.9, 0.3, 1); }
+
+@keyframes anim-preview-explodir {
+  0% { transform: scale(1.5); opacity: 0; filter: blur(10px); }
+  100% { transform: scale(1); opacity: 1; filter: blur(0); }
+}
+.anim-preview-explodir { animation: anim-preview-explodir 0.7s ease-out; }
+
+@keyframes anim-preview-balancar {
+  0% { transform: scale(0.3); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  80% { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+.anim-preview-balancar { animation: anim-preview-balancar 0.8s ease-out; }
+
+@keyframes anim-preview-flutuar {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.anim-preview-flutuar { animation: anim-preview-flutuar 1.4s ease-in-out infinite; }

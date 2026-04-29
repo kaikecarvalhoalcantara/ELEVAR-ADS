@@ -43,7 +43,11 @@ import type {
   TextSegment,
 } from "../../../lib/types";
 
-const ANIMATIONS: AnimationKind[] = ["teclado", "subir", "deslocar", "mesclar", "bloco"];
+const ANIMATIONS: AnimationKind[] = [
+  "teclado", "subir", "deslocar", "mesclar", "bloco",
+  // V19: novas animações
+  "fade", "escala", "girar", "explodir", "balancar", "flutuar",
+];
 const FRAMES_PER_BEAT = 48;
 const FPS = 24;
 
@@ -1601,6 +1605,11 @@ function ElementOnCanvas({
     <>
       <div
         onMouseDown={(e) => startDrag("move", e)}
+        onClick={(e) => {
+          // V18: impede click de bubble pro canvas root (que selecionaria
+          // o vídeo e desselectava esse elemento)
+          e.stopPropagation();
+        }}
         style={{
           ...elementStyle(element, scale),
           pointerEvents: "auto",
@@ -2270,6 +2279,35 @@ function ControlPanel({
             options={ANIMATIONS}
           />
         </Row>
+        {/* V19: velocidade da animação */}
+        <Range
+          label="Velocidade entrada (frames)"
+          value={page.animationEntryDuration ?? 14}
+          min={4}
+          max={48}
+          step={1}
+          format={(v) => `${v}f (~${(v / 24).toFixed(2)}s)`}
+          onChange={(v) => onUpdatePage({ animationEntryDuration: v })}
+        />
+        <Range
+          label="Velocidade saída (frames)"
+          value={page.animationExitDuration ?? 14}
+          min={4}
+          max={48}
+          step={1}
+          format={(v) => `${v}f (~${(v / 24).toFixed(2)}s)`}
+          onChange={(v) => onUpdatePage({ animationExitDuration: v })}
+        />
+        <button
+          onClick={() => {
+            // V19: "ambos iguais" — copia entrada pra saída
+            const entry = page.animationEntryDuration ?? 14;
+            onUpdatePage({ animationExitDuration: entry });
+          }}
+          className="text-[10px] px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 w-full"
+        >
+          ⇄ Igualar saída à entrada
+        </button>
         <Row>
           <ColorField
             label="Cor do texto"
@@ -2599,37 +2637,53 @@ function ControlPanel({
             {(page.elements ?? []).map((el) => (
               <li
                 key={el.id}
-                onClick={(e) => {
-                  if (e.shiftKey) {
-                    // Toggle in multi-select via list
-                    if (selectedElementIds.has(el.id)) {
-                      const next = new Set(selectedElementIds);
-                      next.delete(el.id);
-                      // Hack: chama onSelectElement com null se ficou vazio,
-                      // senão precisaríamos de uma API mais rica. Pra V8
-                      // mantemos simples:
-                      onSelectElement(next.size === 0 ? null : Array.from(next)[0]!);
-                    } else {
-                      onSelectElement(el.id);
-                    }
-                  } else {
-                    onSelectElement(el.id);
-                  }
-                }}
-                className={`text-xs px-2 py-1 rounded cursor-pointer flex items-center gap-2 ${
+                className={`text-xs rounded flex items-center gap-2 ${
                   selectedElementIds.has(el.id)
                     ? "bg-purple-900/40 border border-purple-600"
                     : "bg-neutral-900 border border-neutral-800"
                 }`}
               >
-                <span
-                  className="w-3 h-3 rounded-sm border border-neutral-600"
-                  style={{ background: el.color }}
-                />
-                <span className="flex-1">{el.shape}</span>
-                <span className="text-neutral-500">
-                  {Math.round(el.w * 100)}×{Math.round(el.h * 100)}
-                </span>
+                <button
+                  onClick={(e) => {
+                    if (e.shiftKey) {
+                      if (selectedElementIds.has(el.id)) {
+                        const next = new Set(selectedElementIds);
+                        next.delete(el.id);
+                        onSelectElement(next.size === 0 ? null : Array.from(next)[0]!);
+                      } else {
+                        onSelectElement(el.id);
+                      }
+                    } else {
+                      onSelectElement(el.id);
+                    }
+                  }}
+                  className="flex-1 flex items-center gap-2 px-2 py-1 cursor-pointer text-left"
+                >
+                  <span
+                    className="w-3 h-3 rounded-sm border border-neutral-600 shrink-0"
+                    style={{ background: el.color }}
+                  />
+                  <span className="flex-1">{el.shape}</span>
+                  <span className="text-neutral-500 text-[10px]">
+                    {Math.round(el.w * 100)}×{Math.round(el.h * 100)}
+                  </span>
+                </button>
+                {/* V18: X de excluir direto da lista */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdatePage({
+                      elements: (page.elements ?? []).filter((e2) => e2.id !== el.id),
+                    });
+                    if (selectedElementIds.has(el.id)) {
+                      onSelectElement(null);
+                    }
+                  }}
+                  className="px-2 py-1 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-r"
+                  title="Excluir este elemento"
+                >
+                  ✕
+                </button>
               </li>
             ))}
           </ul>

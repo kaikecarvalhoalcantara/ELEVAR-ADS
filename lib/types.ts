@@ -40,7 +40,19 @@ export interface ScenePlan extends Beat {
   tags: string[];
 }
 
-export type AnimationKind = "teclado" | "subir" | "deslocar" | "mesclar" | "bloco";
+export type AnimationKind =
+  | "teclado"
+  | "subir"
+  | "deslocar"
+  | "mesclar"
+  | "bloco"
+  // V19: Novas animações
+  | "fade"
+  | "escala"
+  | "girar"
+  | "explodir"
+  | "balancar"
+  | "flutuar";
 
 export type ToneFilter = "neutro" | "escuro" | "suave" | "infantil" | "vintage" | "premium";
 
@@ -91,6 +103,10 @@ export interface PageStyle {
   videoShadows?: number;           // -100..100 (default 0) — clareia/escurece tons escuros
   videoWhites?: number;            // -100..100 (default 0) — extremo dos brancos
   videoBlacks?: number;            // -100..100 (default 0) — extremo dos pretos
+  // V19: velocidade da animação
+  animationSpeed?: number;          // 0.5..2 (default 1)
+  animationEntryDuration?: number;  // frames (default 14)
+  animationExitDuration?: number;   // frames (default 14)
 }
 
 export interface TextSegment {

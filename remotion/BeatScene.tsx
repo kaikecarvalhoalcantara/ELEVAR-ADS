@@ -26,8 +26,26 @@ import { Subir } from "./animations/Subir";
 import { Deslocar } from "./animations/Deslocar";
 import { Mesclar } from "./animations/Mesclar";
 import { Bloco } from "./animations/Bloco";
+// V19: novas animações
+import { Fade } from "./animations/Fade";
+import { Escala } from "./animations/Escala";
+import { Girar } from "./animations/Girar";
+import { Explodir } from "./animations/Explodir";
+import { Balancar } from "./animations/Balancar";
+import { Flutuar } from "./animations/Flutuar";
 
-export type AnimationKind = "teclado" | "subir" | "deslocar" | "mesclar" | "bloco";
+export type AnimationKind =
+  | "teclado"
+  | "subir"
+  | "deslocar"
+  | "mesclar"
+  | "bloco"
+  | "fade"
+  | "escala"
+  | "girar"
+  | "explodir"
+  | "balancar"
+  | "flutuar";
 
 /** Helper: 0..1 → hex alpha "00".."ff" */
 function alphaHex2(v: number): string {
@@ -85,6 +103,10 @@ interface Props {
       videoShadows?: number;
       videoWhites?: number;
       videoBlacks?: number;
+      // V19: velocidade da animação
+      animationSpeed?: number;
+      animationEntryDuration?: number;
+      animationExitDuration?: number;
     };
   videoSrc: string | null;
   animation: AnimationKind;
@@ -359,6 +381,8 @@ export const BeatScene: React.FC<Props> = ({
             lineSegments={lineSegments}
             style={baseStyle}
             weight={beat.weight}
+            entryDuration={beat.animationEntryDuration ?? 14}
+            exitDuration={beat.animationExitDuration ?? 14}
           />
           {iconBelowSvg && (
             <IconRenderer svg={iconBelowSvg} color={iconColor} size={iconSize} />
@@ -443,6 +467,18 @@ function animationComponent(kind: AnimationKind) {
       return Mesclar;
     case "bloco":
       return Bloco;
+    case "fade":
+      return Fade;
+    case "escala":
+      return Escala;
+    case "girar":
+      return Girar;
+    case "explodir":
+      return Explodir;
+    case "balancar":
+      return Balancar;
+    case "flutuar":
+      return Flutuar;
   }
 }
 
@@ -451,4 +487,7 @@ export interface AnimationProps {
   lineSegments?: TextSegment[][];
   style: React.CSSProperties;
   weight: BeatWeight;
+  // V19: duração customizável de entrada/saída (em frames)
+  entryDuration?: number; // default 14
+  exitDuration?: number;  // default 14
 }

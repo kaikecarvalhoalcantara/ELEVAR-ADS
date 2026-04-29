@@ -137,6 +137,10 @@ export async function renderAdsInBackground(
       videoShadows: p.videoShadows,
       videoWhites: p.videoWhites,
       videoBlacks: p.videoBlacks,
+      // V19: velocidade de animação
+      animationSpeed: p.animationSpeed,
+      animationEntryDuration: p.animationEntryDuration,
+      animationExitDuration: p.animationExitDuration,
     }));
     const videos = ad.pages.map((p) => p.videoSrc);
     const animations = ad.pages.map((p) => p.animation);

@@ -58,6 +58,10 @@ export interface PageWithStyle extends Beat, PageStyle {
   videoShadows?: number;
   videoWhites?: number;
   videoBlacks?: number;
+  // V19: velocidade de animação
+  animationSpeed?: number;
+  animationEntryDuration?: number;
+  animationExitDuration?: number;
 }
 
 export interface AdProps {
