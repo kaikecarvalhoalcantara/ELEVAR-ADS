@@ -44,6 +44,9 @@ export interface PageWithStyle extends Beat, PageStyle {
   gradientFrom?: string;
   gradientTo?: string;
   gradientAngle?: number;
+  // V18: remover vídeo + cor de fundo
+  videoRemoved?: boolean;
+  backgroundColor?: string;
   // V17: color grading per-page
   videoBrightness?: number;
   videoContrast?: number;

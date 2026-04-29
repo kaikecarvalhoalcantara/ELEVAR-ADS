@@ -925,6 +925,10 @@ function EditableCanvas({
   const iconBelowSvg = iconSvgString(page.iconBelow);
   const shadowOffsetY = Math.max(2, Math.round(style.shadowBlur / 6));
 
+  // V18: cor de fundo (quando vídeo removido) ou fallback preto
+  const bgColor = page.backgroundColor ?? "#000000";
+  const showVideo = !page.videoRemoved && page.videoUrl;
+
   return (
     <div
       ref={containerRef}
@@ -932,14 +936,14 @@ function EditableCanvas({
       style={{
         width: previewW,
         height: previewW * (dims.height / dims.width),
-        background: "#000",
+        background: bgColor,
       }}
       onClick={clearSelection}
     >
-      {/* Background — preto sólido atrás (caso o vídeo não cubra todo canvas) */}
-      <div className="absolute inset-0 bg-black" />
-      {/* Vídeo de fundo posicionável (V9) */}
-      {page.videoUrl && (
+      {/* Background sólido (V18: cor escolhida pelo user, default preto) */}
+      <div className="absolute inset-0" style={{ background: bgColor }} />
+      {/* Vídeo de fundo posicionável (V9) — esconde se videoRemoved (V18) */}
+      {showVideo && (
         <VideoLayer
           src={page.videoUrl}
           filterCss={filterCss}
@@ -2879,6 +2883,36 @@ function ControlPanel({
       </Group>
 
       <Group label="Vídeo de fundo (transforms)">
+        {/* V18: Remover vídeo + cor de fundo */}
+        <div className="rounded border border-neutral-800 p-2 space-y-2 bg-neutral-950/50">
+          <div className="text-[11px] text-neutral-400 font-semibold">
+            Fundo da página
+          </div>
+          <button
+            onClick={() =>
+              onUpdatePage({ videoRemoved: !(page.videoRemoved ?? false) })
+            }
+            className={`w-full text-xs px-2 py-1.5 rounded border ${
+              page.videoRemoved
+                ? "bg-purple-900/40 border-purple-600 text-purple-200"
+                : "bg-neutral-800 border-neutral-700 text-neutral-200 hover:bg-neutral-700"
+            }`}
+          >
+            {page.videoRemoved
+              ? "🎨 Vídeo removido — clique pra restaurar"
+              : "🎬 Remover vídeo (deixar só o fundo)"}
+          </button>
+          <ColorField
+            label="Cor do fundo"
+            value={page.backgroundColor ?? "#000000"}
+            onChange={(v) => onUpdatePage({ backgroundColor: v })}
+          />
+          <p className="text-[10px] text-neutral-500 leading-tight">
+            {page.videoRemoved
+              ? "Sem vídeo — só a cor do fundo aparece. Texto fica por cima normalmente."
+              : "Cor de fundo aparece atrás do vídeo (caso ele não cubra todo o canvas) ou se você remover o vídeo."}
+          </p>
+        </div>
         <Range
           label="Zoom no vídeo"
           value={page.videoZoom ?? 1}

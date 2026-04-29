@@ -71,6 +71,9 @@ interface Props {
       gradientFrom?: string;
       gradientTo?: string;
       gradientAngle?: number;
+      // V18: remover vídeo + cor de fundo sólida
+      videoRemoved?: boolean;
+      backgroundColor?: string;
       // V17: color grading per-page
       videoBrightness?: number;
       videoContrast?: number;
@@ -235,9 +238,15 @@ export const BeatScene: React.FC<Props> = ({
   const iconColor = beat.iconColor ?? color;
   const iconSize = Math.round(fontSizeBase * 0.6);
 
+  // V18: cor de fundo + flag pra remover o vídeo
+  const bgColor = beat.backgroundColor ?? "#0a0a0a";
+  const showVideo = !beat.videoRemoved && !!videoSrc;
+
   return (
     <AbsoluteFill>
-      {videoSrc ? (
+      {/* V18: cor sólida sempre primeiro (fica atrás do vídeo, ou aparece sozinha se removido) */}
+      <AbsoluteFill style={{ backgroundColor: bgColor }} />
+      {showVideo ? (
         isFullCanvasVideo ? (
           <OffthreadVideo
             src={videoSrc}
@@ -253,7 +262,7 @@ export const BeatScene: React.FC<Props> = ({
           />
         ) : (
           <>
-            <AbsoluteFill style={{ backgroundColor: "#000" }} />
+            <AbsoluteFill style={{ backgroundColor: bgColor }} />
             <div
               style={{
                 position: "absolute",
@@ -279,9 +288,7 @@ export const BeatScene: React.FC<Props> = ({
             </div>
           </>
         )
-      ) : (
-        <AbsoluteFill style={{ backgroundColor: "#0a0a0a" }} />
-      )}
+      ) : null}
       <AbsoluteFill
         style={{
           background:

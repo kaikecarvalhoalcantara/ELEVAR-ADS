@@ -123,6 +123,9 @@ export async function renderAdsInBackground(
       gradientFrom: p.gradientFrom,
       gradientTo: p.gradientTo,
       gradientAngle: p.gradientAngle,
+      // V18: remover vídeo + cor de fundo
+      videoRemoved: p.videoRemoved,
+      backgroundColor: p.backgroundColor,
       // V17: color grading per-page
       videoBrightness: p.videoBrightness,
       videoContrast: p.videoContrast,

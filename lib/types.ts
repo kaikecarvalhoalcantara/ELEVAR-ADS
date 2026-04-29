@@ -76,6 +76,9 @@ export interface PageStyle {
   gradientFrom?: string;
   gradientTo?: string;
   gradientAngle?: number;          // 0..360
+  // V18: Remover vídeo + cor de fundo sólida
+  videoRemoved?: boolean;          // true = sem vídeo, mostra backgroundColor
+  backgroundColor?: string;        // hex, usado quando videoRemoved=true (default "#000000")
   // V17: Color grading per-page (estilo Canva — sliders sobre o vídeo)
   // Todos os defaults = "neutro" (sem alteração) → 0 ou 100 dependendo do tipo
   videoBrightness?: number;        // 50..150 (default 100 = neutro)
