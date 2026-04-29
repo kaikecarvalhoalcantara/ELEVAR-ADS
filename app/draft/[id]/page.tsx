@@ -16,8 +16,7 @@ import {
   combinedVideoFilter,
 } from "../../../lib/color-filters";
 import {
-  HOOK_FONT_GROUPS,
-  TRANSITION_FONT_GROUPS,
+  ALL_FONT_GROUPS,
   FontSelect,
 } from "../../../lib/font-catalog";
 import { ICON_LIST, iconSvgString } from "../../../lib/icons";
@@ -2476,13 +2475,13 @@ function ControlPanel({
           label="Fonte gancho (uppercase bold)"
           value={draft.fontHook}
           onChange={(v) => onUpdateProject({ fontHook: v })}
-          groups={HOOK_FONT_GROUPS}
+          groups={ALL_FONT_GROUPS}
         />
         <FontSelect
           label="Fonte transição (sentence-case)"
           value={draft.fontTransition}
           onChange={(v) => onUpdateProject({ fontTransition: v })}
-          groups={TRANSITION_FONT_GROUPS}
+          groups={ALL_FONT_GROUPS}
         />
       </Group>
 

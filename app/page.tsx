@@ -20,8 +20,7 @@ import { COLOR_FILTER_LABELS, colorFilterCss } from "../lib/color-filters";
 import { buildTextShadow } from "../lib/text-utils";
 import { TEMPLATES } from "../lib/template-presets";
 import {
-  HOOK_FONT_GROUPS,
-  TRANSITION_FONT_GROUPS,
+  ALL_FONT_GROUPS,
   HOOK_FONTS_ALL,
   TRANSITION_FONTS_ALL,
   FontSelect,
@@ -586,13 +585,13 @@ function GenerateTab() {
             label="Fonte gancho (uppercase bold)"
             value={fontHook}
             onChange={setFontHook}
-            groups={HOOK_FONT_GROUPS}
+            groups={ALL_FONT_GROUPS}
           />
           <FontSelect
             label="Fonte transição (sentence-case)"
             value={fontTransition}
             onChange={setFontTransition}
-            groups={TRANSITION_FONT_GROUPS}
+            groups={ALL_FONT_GROUPS}
           />
         </div>
       </Section>

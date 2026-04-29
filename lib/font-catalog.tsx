@@ -228,6 +228,32 @@ export const HOOK_FONTS_ALL = HOOK_FONT_GROUPS.flatMap((g) => g.fonts);
 export const TRANSITION_FONTS_ALL = TRANSITION_FONT_GROUPS.flatMap((g) => g.fonts);
 
 /**
+ * V25: Lista UNIFICADA de fontes — combina hook + transition pra que
+ * ambos os selectors mostrem TODAS as fontes (estética agora flexível).
+ * User pode usar fonte de hook em transição e vice-versa.
+ */
+export const ALL_FONT_GROUPS: { label: string; fonts: string[] }[] = (() => {
+  const seen = new Set<string>();
+  const out: { label: string; fonts: string[] }[] = [];
+  for (const group of [...HOOK_FONT_GROUPS, ...TRANSITION_FONT_GROUPS]) {
+    const dedupedFonts = group.fonts.filter((f) => {
+      if (seen.has(f)) return false;
+      seen.add(f);
+      return true;
+    });
+    if (dedupedFonts.length === 0) continue;
+    // Verifica se já tem grupo com esse label e mescla
+    const existing = out.find((g) => g.label === group.label);
+    if (existing) {
+      existing.fonts.push(...dedupedFonts);
+    } else {
+      out.push({ label: group.label, fonts: dedupedFonts });
+    }
+  }
+  return out;
+})();
+
+/**
  * Select especializado pra fontes — dropdown CUSTOM com:
  * - Search box no topo (filtragem em tempo real)
  * - Grupos por categoria (Impacto, Premium, etc)
