@@ -11,3 +11,43 @@ body {
   color: #f5f5f5;
   font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
+
+/* ============================================================
+   V13: Animation previews — disparados ao passar o mouse no
+   texto do canvas. Aproximação CSS das 5 animações que rodam
+   no Remotion. Duração curta (0.7s) pra não atrapalhar a edição.
+   ============================================================ */
+
+@keyframes anim-preview-teclado {
+  /* Mimetiza typewriter: revela da esquerda pra direita */
+  0% { clip-path: inset(0 100% 0 0); opacity: 0.4; }
+  100% { clip-path: inset(0 0 0 0); opacity: 1; }
+}
+.anim-preview-teclado { animation: anim-preview-teclado 0.7s ease-out; }
+
+@keyframes anim-preview-subir {
+  0% { transform: translateY(40%); opacity: 0; }
+  60% { opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.anim-preview-subir { animation: anim-preview-subir 0.7s cubic-bezier(0.2, 0.8, 0.3, 1); }
+
+@keyframes anim-preview-deslocar {
+  0% { transform: translateX(-30%); opacity: 0; }
+  60% { opacity: 1; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+.anim-preview-deslocar { animation: anim-preview-deslocar 0.7s cubic-bezier(0.2, 0.8, 0.3, 1); }
+
+@keyframes anim-preview-mesclar {
+  0% { opacity: 0; filter: blur(20px); transform: scale(1.05); }
+  100% { opacity: 1; filter: blur(0); transform: scale(1); }
+}
+.anim-preview-mesclar { animation: anim-preview-mesclar 0.7s ease-out; }
+
+@keyframes anim-preview-bloco {
+  /* Reveal de baixo pra cima como faixa de bloco */
+  0% { clip-path: inset(100% 0 0 0); }
+  100% { clip-path: inset(0 0 0 0); }
+}
+.anim-preview-bloco { animation: anim-preview-bloco 0.6s cubic-bezier(0.7, 0, 0.3, 1); }

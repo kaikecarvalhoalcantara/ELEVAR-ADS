@@ -692,6 +692,8 @@ function EditableCanvas({
   const [activeGuides, setActiveGuides] = useState<AlignGuide[]>([]);
   const multiDragStartRef = useRef<Map<string, { x: number; y: number }> | null>(null);
   const [videoSelected, setVideoSelected] = useState(false);
+  // V13: hover na palavra dispara preview da animação (estilo Canva)
+  const [hoverAnimKey, setHoverAnimKey] = useState<number | null>(null);
   // V11: drag pra mover o texto
   const textDragRef = useRef<{
     startX: number;
@@ -939,6 +941,13 @@ function EditableCanvas({
           }}
         >
         <div
+          onMouseEnter={() => {
+            // Só dispara preview se não tá editando ou arrastando
+            if (!editing && !textDragRef.current) {
+              setHoverAnimKey(Date.now());
+            }
+          }}
+          onMouseLeave={() => setHoverAnimKey(null)}
           onMouseDown={(e) => {
             // Drag SÓ se já tá selecionado e não editando
             if (selected && !editing) {
@@ -993,6 +1002,8 @@ function EditableCanvas({
             />
           ) : (
             <div
+              key={hoverAnimKey ?? "idle"}
+              className={hoverAnimKey ? `anim-preview-${page.animation}` : ""}
               style={{
                 fontFamily: `"${fontFamily}", system-ui, sans-serif`,
                 fontWeight,
@@ -2134,6 +2145,26 @@ function ControlPanel({
           step={0.05}
           format={(v) => `${Math.round(v * 100)}%`}
           onChange={(v) => onUpdatePage({ overlayOpacity: v })}
+        />
+        {/* V12: Cor da sombra + Outline */}
+        <ColorField
+          label="Cor da sombra"
+          value={page.textShadowColor ?? draft.baseShadowColor ?? "#000000"}
+          onChange={(v) => onUpdatePage({ textShadowColor: v })}
+        />
+        <ColorField
+          label="Cor do contorno"
+          value={page.textStrokeColor ?? draft.baseStrokeColor ?? "#000000"}
+          onChange={(v) => onUpdatePage({ textStrokeColor: v })}
+        />
+        <Range
+          label="Espessura do contorno"
+          value={page.textStrokeWidth ?? draft.baseStrokeWidth ?? 1}
+          min={0}
+          max={3}
+          step={0.1}
+          format={(v) => (v === 0 ? "sem contorno" : `${v.toFixed(1)}×`)}
+          onChange={(v) => onUpdatePage({ textStrokeWidth: v })}
         />
       </Group>
 
