@@ -180,15 +180,33 @@ export default function EditorPage() {
   }, [draft?.fontHook, draft?.fontTransition]);
 
   const reload = useCallback(async () => {
-    setError(null);
     try {
       const res = await fetch(`/api/draft/${id}`);
+      // Trata 503/504 (Railway/Cloudflare durante restart) silenciosamente.
+      // Não JSON → não escala pro user, apenas tenta de novo no próximo ciclo.
+      if (!res.ok) {
+        if (res.status === 503 || res.status === 504 || res.status === 502) {
+          console.warn(`[reload] ${res.status} transitório, ignorando`);
+          return;
+        }
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const ct = res.headers.get("content-type") ?? "";
+      if (!ct.includes("application/json")) {
+        // Servidor respondeu HTML/text — provável proxy interceptando
+        console.warn(`[reload] resposta não-JSON (${ct}), ignorando`);
+        return;
+      }
       const data = await res.json();
       if (!data.ok) throw new Error(data.error ?? "Erro");
       setDraft(data.draft as EnrichedDraft);
+      setError(null); // limpa erro persistente se reload deu certo
     } catch (e) {
-      setError((e as Error).message);
+      // Só mostra erro se não tem draft carregado ainda (1ª carga falhou)
+      if (!draft) setError((e as Error).message);
+      else console.warn(`[reload] erro ignorado:`, e);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
@@ -297,12 +315,30 @@ export default function EditorPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ads: adsForSave, ...projectFields }),
         });
+        // Trata 503/504 silenciosamente (proxy reiniciando) — próximo
+        // edit dispara save de novo, então não perdemos nada.
+        if (!res.ok) {
+          if (res.status === 503 || res.status === 504 || res.status === 502) {
+            console.warn(`[save] ${res.status} transitório — vai retentar no próximo edit`);
+            setSaveStatus("idle");
+            return;
+          }
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const ct = res.headers.get("content-type") ?? "";
+        if (!ct.includes("application/json")) {
+          console.warn(`[save] resposta não-JSON, ignorando`);
+          setSaveStatus("idle");
+          return;
+        }
         const data = await res.json();
         if (!data.ok) throw new Error(data.error);
         setSaveStatus("saved");
         setTimeout(() => setSaveStatus("idle"), 1200);
       } catch (e) {
-        setError((e as Error).message);
+        // Erro real (não 503/transient) — log mas não bloqueia o user
+        // mostrando uma tela de erro vermelha. O auto-save vai retentar.
+        console.warn(`[save] erro:`, e);
         setSaveStatus("idle");
       }
     }, 600);
