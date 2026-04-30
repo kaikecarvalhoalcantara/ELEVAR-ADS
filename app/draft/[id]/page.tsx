@@ -887,6 +887,33 @@ export default function EditorPage() {
               textSelected={textIsSelected}
               onSetTextSelected={setTextIsSelected}
               videoPreviewTime={videoPreviewTime}
+              hasVideoClipboard={!!videoClipboard}
+              onCopyVideo={() => {
+                // V46: copia o vídeo do slide atual pro clipboard global
+                if (!page || !page.videoUrl) return;
+                setVideoClipboard({
+                  videoSrc: page.videoSrc,
+                  videoUrl: page.videoUrl,
+                  videoZoom: page.videoZoom,
+                  videoFlipH: page.videoFlipH,
+                  videoFlipV: page.videoFlipV,
+                  videoRotation: page.videoRotation,
+                  videoX: page.videoX,
+                  videoY: page.videoY,
+                  videoW: page.videoW,
+                  videoH: page.videoH,
+                  videoTrimStart: page.videoTrimStart,
+                  videoTrimEnd: page.videoTrimEnd,
+                  videoPlaybackRate: page.videoPlaybackRate,
+                });
+              }}
+              onPasteVideo={() => {
+                if (!videoClipboard) return;
+                updatePage(selectedAd, selectedPage, {
+                  ...videoClipboard,
+                  videoRemoved: false,
+                });
+              }}
             />
           ) : (
             <div className="text-sm text-neutral-500">selecione uma página</div>
@@ -990,6 +1017,9 @@ function EditableCanvas({
   textSelected,
   onSetTextSelected,
   videoPreviewTime,
+  onCopyVideo,
+  onPasteVideo,
+  hasVideoClipboard,
 }: {
   page: EnrichedPage;
   draft: EnrichedDraft;
@@ -1001,6 +1031,9 @@ function EditableCanvas({
   textSelected: boolean;
   onSetTextSelected: (selected: boolean) => void;
   videoPreviewTime?: number | null;
+  onCopyVideo: () => void; // V46
+  onPasteVideo: () => void; // V46
+  hasVideoClipboard: boolean; // V46
 }) {
   const dims = dimsFor(draft.format);
   const previewW = dims.width >= dims.height ? 600 : 420;
@@ -1287,6 +1320,20 @@ function EditableCanvas({
       }}
       onClick={selectVideoFromBackground}
     >
+      {/* V46: Banner flutuante "Colar vídeo aqui" — aparece quando há vídeo
+          no clipboard. Click cola tudo (substitui o vídeo atual). */}
+      {hasVideoClipboard && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onPasteVideo();
+          }}
+          className="absolute -top-9 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg border border-emerald-400 flex items-center gap-1.5 whitespace-nowrap z-40"
+          title="Cola o vídeo copiado neste slide (substitui o atual)"
+        >
+          📥 Colar vídeo aqui
+        </button>
+      )}
       {/* Background sólido (V18: cor escolhida pelo user, default preto) */}
       <div className="absolute inset-0" style={{ background: bgColor }} />
       {/* Vídeo de fundo posicionável (V9) — esconde se videoRemoved (V18) */}
@@ -1314,6 +1361,8 @@ function EditableCanvas({
             onUpdate({ videoRemoved: true });
             onSetVideoSelected(false);
           }}
+          onCopy={onCopyVideo}
+          hasClipboard={hasVideoClipboard}
           previewTime={videoPreviewTime}
         />
       )}
@@ -2458,6 +2507,8 @@ function VideoLayer({
   onSelect,
   onChange,
   onDelete,
+  onCopy,
+  hasClipboard,
   previewTime,
 }: {
   src: string;
@@ -2484,6 +2535,8 @@ function VideoLayer({
     videoFlipV?: boolean; // V45
   }) => void;
   onDelete: () => void; // V44
+  onCopy: () => void; // V46: botão 📋 inline pra copiar pro clipboard
+  hasClipboard: boolean; // V46: pra mostrar feedback "✓ Copiado"
   previewTime?: number | null; // V22: tempo pra scrub durante drag do trim
 }) {
   const ref = useRef<HTMLVideoElement | null>(null);
@@ -2790,34 +2843,43 @@ function VideoLayer({
           >
             ⇅
           </button>
-          {/* V44: Indicador central de drag — chama atenção pra mover */}
-          <div
-            onMouseDown={(e) => startDrag("move", e)}
-            title="Arraste pra mover o vídeo pelo slide"
+          {/* V46: Botão 📋 Copiar inline — alternativa visual ao Ctrl+C */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onCopy();
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            title="Copiar vídeo (depois cole em outro slide com Ctrl+V ou no botão 'Colar')"
             style={{
               position: "absolute",
-              left: `${(x + w / 2) * 100}%`,
-              top: `${(y + h / 2) * 100}%`,
-              width: 36,
-              height: 36,
-              marginLeft: -18,
-              marginTop: -18,
-              background: "rgba(168,85,247,0.85)",
+              left: `${x * 100}%`,
+              top: `${y * 100}%`,
+              width: 22,
+              height: 22,
+              marginLeft: -28,
+              marginTop: 26,
+              background: hasClipboard ? "#10b981" : "rgba(40,40,40,0.95)",
               border: "2px solid white",
-              borderRadius: "50%",
-              cursor: "move",
-              zIndex: 31,
+              borderRadius: 4,
+              cursor: "pointer",
+              zIndex: 32,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 16,
+              fontSize: 11,
               color: "white",
-              boxShadow: "0 4px 8px rgba(0,0,0,0.5)",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+              padding: 0,
+              lineHeight: 1,
               userSelect: "none",
             }}
           >
-            ✥
-          </div>
+            {hasClipboard ? "✓" : "⎘"}
+          </button>
+          {/* V46: Bolinha central REMOVIDA — wrapper inteiro do vídeo já é
+              arrastável (cursor: move). Estava confundindo. Agora o user
+              clica em qualquer lugar do vídeo e arrasta. */}
         </>
       )}
     </>
