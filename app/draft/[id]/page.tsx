@@ -1323,6 +1323,12 @@ function EditableCanvas({
               ),
             })
           }
+          onDelete={() => {
+            onUpdate({
+              elements: (page.elements ?? []).filter((e) => e.id !== el.id),
+            });
+            onSelectElement(null, false);
+          }}
           onMultiMove={(dx, dy) => {
             // Aplica delta a TODOS os selecionados
             onUpdate({
@@ -1896,6 +1902,7 @@ function ElementOnCanvas({
   otherElements,
   onSelect,
   onChange,
+  onDelete,
   onMultiMove,
   onMultiDragStart,
   onGuides,
@@ -1909,6 +1916,7 @@ function ElementOnCanvas({
   otherElements: PageElement[];
   onSelect: (multi: boolean) => void;
   onChange: (patch: Partial<PageElement>) => void;
+  onDelete: () => void;
   onMultiMove: (dx: number, dy: number) => void;
   onMultiDragStart: (startMap: Map<string, { x: number; y: number }>) => void;
   onGuides: (g: AlignGuide[]) => void;
@@ -2054,9 +2062,204 @@ function ElementOnCanvas({
           <ResizeHandle dir="ne" onMouseDown={(e) => startDrag("ne", e)} element={element} />
           <ResizeHandle dir="sw" onMouseDown={(e) => startDrag("sw", e)} element={element} />
           <ResizeHandle dir="se" onMouseDown={(e) => startDrag("se", e)} element={element} />
+          {/* V43: Bolinha de rotação acima do elemento */}
+          <RotationHandle
+            element={element}
+            containerRef={containerRef}
+            onChange={onChange}
+          />
+          {/* V43: Botão X pra excluir rapidamente — canto sup-direito do elemento */}
+          <DeleteButton element={element} onDelete={onDelete} />
         </>
       )}
     </>
+  );
+}
+
+/**
+ * V43: Handle de rotação estilo Canva — bolinha verde acima do elemento.
+ * Drag = calcula o ângulo entre o centro do elemento e a posição do mouse,
+ * atualiza element.rotation. Snap a cada 15° quando Shift pressionado.
+ */
+function RotationHandle({
+  element,
+  containerRef,
+  onChange,
+}: {
+  element: PageElement;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  onChange: (patch: Partial<PageElement>) => void;
+}) {
+  const dragRef = useRef<{
+    centerX: number;
+    centerY: number;
+    startAngle: number;
+    startRotation: number;
+  } | null>(null);
+
+  function startRotate(e: React.MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const centerX = rect.left + (element.x + element.w / 2) * rect.width;
+    const centerY = rect.top + (element.y + element.h / 2) * rect.height;
+    const startAngle =
+      (Math.atan2(e.clientY - centerY, e.clientX - centerX) * 180) / Math.PI;
+    dragRef.current = {
+      centerX,
+      centerY,
+      startAngle,
+      startRotation: element.rotation,
+    };
+    window.addEventListener("mousemove", onRotate);
+    window.addEventListener("mouseup", endRotate);
+  }
+  function onRotate(e: MouseEvent) {
+    if (!dragRef.current) return;
+    const cur =
+      (Math.atan2(
+        e.clientY - dragRef.current.centerY,
+        e.clientX - dragRef.current.centerX,
+      ) *
+        180) /
+      Math.PI;
+    const delta = cur - dragRef.current.startAngle;
+    let nextRot = dragRef.current.startRotation + delta;
+    // Snap a cada 15° quando Shift
+    if (e.shiftKey) {
+      nextRot = Math.round(nextRot / 15) * 15;
+    }
+    // Mantém em [-180, 180]
+    nextRot = ((nextRot + 540) % 360) - 180;
+    onChange({ rotation: Math.round(nextRot) });
+  }
+  function endRotate() {
+    dragRef.current = null;
+    window.removeEventListener("mousemove", onRotate);
+    window.removeEventListener("mouseup", endRotate);
+  }
+
+  // Posição da bolinha: 24px acima do topo central do elemento (em CSS abs)
+  const left = element.x + element.w / 2;
+  const top = element.y;
+  return (
+    <>
+      {/* Linha conectando o topo do elemento à bolinha */}
+      <div
+        style={{
+          position: "absolute",
+          left: `${left * 100}%`,
+          top: `${top * 100}%`,
+          width: 1,
+          height: 24,
+          marginLeft: -0.5,
+          marginTop: -24,
+          background: "#a855f7",
+          pointerEvents: "none",
+          zIndex: 31,
+        }}
+      />
+      <div
+        onMouseDown={startRotate}
+        title="Arraste pra girar (Shift = snap 15°)"
+        style={{
+          position: "absolute",
+          left: `${left * 100}%`,
+          top: `${top * 100}%`,
+          width: 16,
+          height: 16,
+          marginLeft: -8,
+          marginTop: -36,
+          background: "#22c55e",
+          border: "2px solid white",
+          borderRadius: "50%",
+          cursor: "grab",
+          zIndex: 32,
+          boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 9,
+          color: "white",
+          userSelect: "none",
+        }}
+      >
+        ↻
+      </div>
+      {/* Indicador de ângulo (aparece só quando rotacionado) */}
+      {element.rotation !== 0 && (
+        <div
+          style={{
+            position: "absolute",
+            left: `${left * 100}%`,
+            top: `${top * 100}%`,
+            marginLeft: 12,
+            marginTop: -42,
+            fontSize: 9,
+            color: "#22c55e",
+            background: "rgba(0,0,0,0.7)",
+            padding: "1px 4px",
+            borderRadius: 3,
+            pointerEvents: "none",
+            zIndex: 32,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {element.rotation}°
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * V43: Botão X vermelho no canto superior-direito do elemento selecionado.
+ * Click = deleta imediatamente. Atalho rápido em vez de Delete no teclado.
+ */
+function DeleteButton({
+  element,
+  onDelete,
+}: {
+  element: PageElement;
+  onDelete: () => void;
+}) {
+  const left = element.x + element.w;
+  const top = element.y;
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onDelete();
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+      title="Excluir (ou aperte Delete)"
+      style={{
+        position: "absolute",
+        left: `${left * 100}%`,
+        top: `${top * 100}%`,
+        width: 18,
+        height: 18,
+        marginLeft: 4,
+        marginTop: -22,
+        background: "#dc2626",
+        border: "2px solid white",
+        borderRadius: "50%",
+        cursor: "pointer",
+        zIndex: 32,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 11,
+        fontWeight: 700,
+        color: "white",
+        boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+        padding: 0,
+        lineHeight: 1,
+      }}
+    >
+      ✕
+    </button>
   );
 }
 
