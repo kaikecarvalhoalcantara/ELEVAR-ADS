@@ -1272,13 +1272,28 @@ function AssetsTab() {
 
   async function handleUpload(files: FileList | null) {
     if (!files || files.length === 0) return;
+    const total = files.length;
+    // V37: Aviso pra batches gigantes — 150 vídeos podem demorar
+    // 5-15 min dependendo do tamanho. Usuário confirma antes.
+    if (total > 30) {
+      const ok = confirm(
+        `Você selecionou ${total} arquivos.\n\n` +
+          `Vídeos grandes podem levar de 5 a 20 minutos pra subir todos. ` +
+          `Não feche essa aba durante o processo. Continuar?`,
+      );
+      if (!ok) return;
+    }
     setBusy(true);
     setError(null);
-    setProgress({ done: 0, total: files.length, ok: 0, failed: [] });
+    setProgress({ done: 0, total, ok: 0, failed: [] });
     const list = Array.from(files);
-    // V31: Upload PARALELO em batches de 4. Pra 150 vídeos isso dá
-    // ~4x mais rápido. Falhas individuais não param os outros.
-    const PARALLEL = 4;
+    // V37: Concorrência ADAPTATIVA — antes era sempre 4 paralelos, o que
+    // estourava memória do servidor pra batches grandes (150 vídeos
+    // × 4 paralelos × 50MB cada = 200MB pico). Agora:
+    //   ≤30 arquivos → 4 paralelos (rápido)
+    //   31-100      → 2 paralelos (equilíbrio)
+    //   >100        → 1 sequencial (seguro, sem OOM)
+    const PARALLEL = total <= 30 ? 4 : total <= 100 ? 2 : 1;
     const failed: { name: string; error: string }[] = [];
     let okCount = 0;
     async function uploadOne(file: File): Promise<void> {

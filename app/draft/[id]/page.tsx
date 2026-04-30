@@ -4554,6 +4554,11 @@ function ClientAssetPicker({
   >([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  // V37: paginação no client — pra batches gigantes (150 vídeos), renderizar
+  // todos de uma vez trava o browser. Mostra 30, botão "carregar mais".
+  const [visibleCount, setVisibleCount] = useState(30);
+  // V37: filtro por nome — fundamental quando tem 150 arquivos
+  const [filter, setFilter] = useState("");
 
   async function load() {
     setLoading(true);
@@ -4618,68 +4623,112 @@ function ClientAssetPicker({
                 {assets.length} arquivo{assets.length === 1 ? "" : "s"}.
                 Click pra usar nesta página.
               </div>
-              <div className="grid grid-cols-3 gap-1 max-h-72 overflow-y-auto">
-                {assets.map((a) => {
-                  const url = pathToUrl(a.filepath);
-                  return (
-                    <div
-                      key={a.id}
-                      className="relative rounded overflow-hidden border border-neutral-800 hover:border-purple-500 group"
-                      title={a.filename}
-                    >
-                      <button
-                        onClick={() => onPick(a.filepath, url)}
-                        className="block w-full"
-                      >
-                        {a.type === "video" ? (
-                          <video
-                            src={url}
-                            muted
-                            preload="metadata"
-                            className="w-full aspect-[9/16] object-cover bg-black"
-                          />
-                        ) : (
-                          <img
-                            src={url}
-                            alt={a.filename}
-                            className="w-full aspect-[9/16] object-cover bg-black"
-                          />
-                        )}
-                        <div className="absolute inset-x-0 bottom-0 bg-black/70 text-[8px] text-white px-1 py-0.5 truncate">
-                          {a.filename}
-                        </div>
-                      </button>
-                      {/* V35: X pra excluir — aparece só no hover do card */}
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          if (
-                            !confirm(
-                              `Excluir "${a.filename}" da pastinha?\n\nIsso remove o arquivo permanentemente. Slides que já estão usando ele continuam funcionando até você trocar.`,
-                            )
-                          )
-                            return;
-                          try {
-                            const res = await fetch(`/api/client-assets/${a.id}`, {
-                              method: "DELETE",
-                            });
-                            const data = await res.json();
-                            if (!data.ok)
-                              throw new Error(data.error ?? "Falha ao excluir");
-                            await load();
-                          } catch (err) {
-                            alert(`Erro: ${(err as Error).message}`);
-                          }
-                        }}
-                        title="Excluir da pastinha"
-                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-600/90 hover:bg-red-500 text-white text-[11px] font-bold flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow"
-                      >
-                        ✕
-                      </button>
+              {/* V37: filtro por nome — pra batches grandes (150 arquivos) é
+                  inviável rolar pra achar. Filter local em memória. */}
+              {assets.length > 12 && (
+                <input
+                  type="text"
+                  placeholder="🔍 Filtrar por nome…"
+                  value={filter}
+                  onChange={(e) => {
+                    setFilter(e.target.value);
+                    setVisibleCount(30); // resetar paginação ao filtrar
+                  }}
+                  className="w-full px-2 py-1 rounded bg-neutral-900 border border-neutral-700 text-[11px] placeholder:text-neutral-600"
+                />
+              )}
+              {(() => {
+                // V37: filtra + pagina pra renderizar só visibleCount items.
+                const filtered = filter
+                  ? assets.filter((a) =>
+                      a.filename.toLowerCase().includes(filter.toLowerCase()),
+                    )
+                  : assets;
+                const visible = filtered.slice(0, visibleCount);
+                const remaining = filtered.length - visible.length;
+                return (
+                  <>
+                    <div className="grid grid-cols-3 gap-1 max-h-72 overflow-y-auto">
+                      {visible.map((a) => {
+                        const url = pathToUrl(a.filepath);
+                        return (
+                          <div
+                            key={a.id}
+                            className="relative rounded overflow-hidden border border-neutral-800 hover:border-purple-500 group"
+                            title={a.filename}
+                          >
+                            <button
+                              onClick={() => onPick(a.filepath, url)}
+                              className="block w-full"
+                            >
+                              {a.type === "video" ? (
+                                <video
+                                  src={url}
+                                  muted
+                                  preload="metadata"
+                                  className="w-full aspect-[9/16] object-cover bg-black"
+                                />
+                              ) : (
+                                <img
+                                  src={url}
+                                  alt={a.filename}
+                                  loading="lazy"
+                                  className="w-full aspect-[9/16] object-cover bg-black"
+                                />
+                              )}
+                              <div className="absolute inset-x-0 bottom-0 bg-black/70 text-[8px] text-white px-1 py-0.5 truncate">
+                                {a.filename}
+                              </div>
+                            </button>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (
+                                  !confirm(
+                                    `Excluir "${a.filename}" da pastinha?\n\nIsso remove o arquivo permanentemente. Slides que já estão usando ele continuam funcionando até você trocar.`,
+                                  )
+                                )
+                                  return;
+                                try {
+                                  const res = await fetch(
+                                    `/api/client-assets/${a.id}`,
+                                    { method: "DELETE" },
+                                  );
+                                  const data = await res.json();
+                                  if (!data.ok)
+                                    throw new Error(
+                                      data.error ?? "Falha ao excluir",
+                                    );
+                                  await load();
+                                } catch (err) {
+                                  alert(`Erro: ${(err as Error).message}`);
+                                }
+                              }}
+                              title="Excluir da pastinha"
+                              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-600/90 hover:bg-red-500 text-white text-[11px] font-bold flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-              </div>
+                    {remaining > 0 && (
+                      <button
+                        onClick={() => setVisibleCount((v) => v + 30)}
+                        className="w-full py-1.5 text-[11px] rounded bg-purple-900/30 hover:bg-purple-900/50 border border-purple-700 text-purple-200"
+                      >
+                        ⬇ Carregar mais ({remaining} restantes)
+                      </button>
+                    )}
+                    {filtered.length === 0 && filter && (
+                      <p className="text-[10px] text-neutral-500 text-center">
+                        Nenhum arquivo bate com "{filter}"
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
               <button
                 onClick={load}
                 className="text-[10px] text-neutral-400 hover:text-neutral-200 underline w-full text-center"

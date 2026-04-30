@@ -1,4 +1,6 @@
-import { promises as fs } from "node:fs";
+import { promises as fs, createWriteStream } from "node:fs";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { createHash } from "node:crypto";
 import { extname, join } from "node:path";
 import type {
@@ -92,6 +94,49 @@ export async function saveUploadedFile(args: {
   const filepath = join(RAW_DIR, stored);
   const buf = Buffer.from(args.bytes as ArrayBuffer);
   await fs.writeFile(filepath, buf);
+  const asset: ClientAsset = {
+    id,
+    filename: args.originalName,
+    filepath,
+    type,
+    ad: null,
+    beatType: "any",
+    tags: autoTag(args.originalName),
+    uploadedAt: Date.now(),
+  };
+  const map = await loadMetaMap();
+  map[id] = asset;
+  await saveMetaMap(map);
+  return asset;
+}
+
+/**
+ * V37: Streaming upload — escreve o body direto no disco em chunks
+ * via pipeline. Mantém memória constante independente do tamanho do
+ * arquivo. CRÍTICO pra batches grandes (150 vídeos) — antes,
+ * arrayBuffer() carregava cada arquivo inteiro em RAM, OOM no Railway.
+ */
+export async function saveStreamedUpload(args: {
+  originalName: string;
+  body: ReadableStream<Uint8Array>;
+}): Promise<ClientAsset> {
+  const type = inferType(args.originalName);
+  if (!type) {
+    throw new Error(`Tipo de arquivo não suportado: ${args.originalName}`);
+  }
+  await ensureDirs();
+  const id = sha1(`${args.originalName}-${Date.now()}-${Math.random()}`);
+  const safeName = args.originalName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const stored = `${id}-${safeName}`;
+  const filepath = join(RAW_DIR, stored);
+  const nodeReadable = Readable.fromWeb(args.body as never);
+  const writeStream = createWriteStream(filepath);
+  await pipeline(nodeReadable, writeStream);
+  const stat = await fs.stat(filepath);
+  if (stat.size === 0) {
+    await fs.unlink(filepath).catch(() => {});
+    throw new Error("Arquivo vazio");
+  }
   const asset: ClientAsset = {
     id,
     filename: args.originalName,

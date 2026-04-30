@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { saveUploadedFile } from "../../../lib/client-assets";
+import {
+  saveStreamedUpload,
+  saveUploadedFile,
+} from "../../../lib/client-assets";
 import { localPathToHttpUrl } from "../../../lib/http-utils";
 
 export const runtime = "nodejs";
@@ -38,7 +41,11 @@ async function handleUpload(request: Request) {
       originalName = file.name;
       bytes = await file.arrayBuffer();
     } else {
-      // Modo raw body — Cliente manda o file direto, filename via header
+      // V37: Modo raw body — STREAMING direto pro disco. Antes lia o
+      // arquivo INTEIRO em memória (arrayBuffer), o que estourava RAM
+      // em batches grandes (150 vídeos × paralelos = OOM no Railway).
+      // Agora memória usada é constante (~64KB de buffer) independente
+      // do tamanho do arquivo.
       const filename = request.headers.get("x-filename");
       if (!filename) {
         return NextResponse.json(
@@ -50,17 +57,22 @@ async function handleUpload(request: Request) {
           { status: 400 },
         );
       }
-      originalName = decodeURIComponent(filename);
-      // Lê o body inteiro como ArrayBuffer (Next.js já streama internamente)
-      bytes = await request.arrayBuffer();
-      if (bytes.byteLength === 0) {
+      const originalName = decodeURIComponent(filename);
+      if (!request.body) {
         return NextResponse.json(
-          { ok: false, error: "Arquivo vazio" },
+          { ok: false, error: "Body vazio" },
           { status: 400 },
         );
       }
+      const asset = await saveStreamedUpload({
+        originalName,
+        body: request.body,
+      });
+      const url = localPathToHttpUrl(asset.filepath);
+      return NextResponse.json({ ok: true, asset, url });
     }
 
+    // Caminho do FormData (legado): mantém arrayBuffer pq formdata já parse
     const asset = await saveUploadedFile({ originalName, bytes });
     const url = localPathToHttpUrl(asset.filepath);
     return NextResponse.json({ ok: true, asset, url });
