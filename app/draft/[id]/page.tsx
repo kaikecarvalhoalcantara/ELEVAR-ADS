@@ -4240,11 +4240,14 @@ function ImportVideoButton({
     setBusy(true);
     setError(null);
     try {
-      const form = new FormData();
-      form.append("file", file);
+      // V30: raw body — funciona com arquivos grandes (WhatsApp/Pinterest)
       const res = await fetch("/api/upload-asset", {
         method: "POST",
-        body: form,
+        headers: {
+          "Content-Type": file.type || "application/octet-stream",
+          "X-Filename": encodeURIComponent(file.name),
+        },
+        body: file,
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error ?? "Falha no upload");

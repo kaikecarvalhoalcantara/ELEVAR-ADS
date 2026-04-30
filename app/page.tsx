@@ -1223,9 +1223,16 @@ function AssetsTab() {
     setError(null);
     try {
       for (const file of Array.from(files)) {
-        const form = new FormData();
-        form.append("file", file);
-        const res = await fetch("/api/upload-asset", { method: "POST", body: form });
+        // V30: usa raw body em vez de FormData — funciona com arquivos
+        // grandes (WhatsApp 20-50MB que falhavam no parsing antes).
+        const res = await fetch("/api/upload-asset", {
+          method: "POST",
+          headers: {
+            "Content-Type": file.type || "application/octet-stream",
+            "X-Filename": encodeURIComponent(file.name),
+          },
+          body: file,
+        });
         const data = await res.json();
         if (!data.ok) throw new Error(`${file.name}: ${data.error}`);
       }
