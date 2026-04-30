@@ -2698,6 +2698,7 @@ function ControlPanel({
       <CollapsibleGroup
         label="🔤 Tipografia (fontes do projeto)"
         hint="Mudar aqui afeta TODOS os anúncios e páginas do projeto."
+        defaultOpen
       >
         <FontSelect
           label="Fonte gancho (uppercase bold)"
@@ -2716,6 +2717,7 @@ function ControlPanel({
       <CollapsibleGroup
         label="⏱️ Velocidade da animação"
         hint="Controla quão rápido o texto entra e sai. Hover no texto pra ver preview."
+        defaultOpen
       >
         <Range
           label="Velocidade entrada (frames)"
@@ -2750,6 +2752,7 @@ function ControlPanel({
       <CollapsibleGroup
         label="🎨 Efeitos de letra (presets)"
         hint="9 presets prontos: glow, neon, contorno, vazado, gradiente, etc."
+        defaultOpen
       >
         <LetterEffectGrid
           value={page.letterEffect ?? "none"}
@@ -2863,6 +2866,7 @@ function ControlPanel({
       <CollapsibleGroup
         label="✨ Glow & Gradiente"
         hint="Aura colorida ao redor + gradiente de cor no texto."
+        defaultOpen
       >
         <div className="text-[11px] text-purple-300 -mt-1">✨ Glow</div>
         <ColorField
@@ -2926,6 +2930,7 @@ function ControlPanel({
       <CollapsibleGroup
         label="🌑 Sombra & Contorno"
         hint="Sombra do texto, contorno (outline) e overlay escuro do vídeo."
+        defaultOpen
       >
         <div className="text-[11px] text-purple-300 -mt-1">Sombra</div>
         <Range
