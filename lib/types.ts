@@ -82,6 +82,10 @@ export interface PageStyle {
   rotation?: number;               // -30..30 graus
   skewX?: number;                  // -20..20 graus
   textScaleX?: number;             // V23: 0.5..2 (default 1) — estica/encurta horizontalmente
+  // V40: largura ATIVA da caixa de texto em % do canvas (ex: 1.4 = mais larga que 100%).
+  // Quando definido, o texto faz reflow natural CSS (white-space: normal) em vez do
+  // split manual em " / ". Estica → texto cabe em 1 linha; aperta → quebra em mais.
+  textBoxWidth?: number;           // 0.3..2.0 — em fração do width do canvas
   // V16: glow + gradiente per-page (override do projeto)
   glowColor?: string;
   glowIntensity?: number;          // 0..1

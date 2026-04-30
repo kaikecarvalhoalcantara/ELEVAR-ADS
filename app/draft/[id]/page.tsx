@@ -983,14 +983,18 @@ function EditableCanvas({
     window.removeEventListener("mouseup", endResize);
   }
 
-  // V23: drag pra estender/encurtar a largura do texto (scaleX)
-  const stretchRef = useRef<{ startX: number; startScale: number; dir: 1 | -1 } | null>(null);
+  // V40: drag pra estender/encurtar a LARGURA da caixa de texto (estilo Canva).
+  // Antes (V23) aplicava `transform: scaleX()` puro — só esticava as letras
+  // visualmente. Agora muda `textBoxWidth` (% da largura do canvas) que deixa
+  // o texto fazer REFLOW: estica → cabe em 1 linha; aperta → quebra em mais.
+  const stretchRef = useRef<{ startX: number; startWidth: number; dir: 1 | -1 } | null>(null);
   function startStretch(e: React.MouseEvent, dir: 1 | -1) {
     e.stopPropagation();
     e.preventDefault();
+    // Default 1.0 (= 100% da largura útil) quando ainda não foi definido
     stretchRef.current = {
       startX: e.clientX,
-      startScale: page.textScaleX ?? 1,
+      startWidth: page.textBoxWidth ?? 1.0,
       dir,
     };
     window.addEventListener("mousemove", onStretch);
@@ -998,14 +1002,18 @@ function EditableCanvas({
   }
   function onStretch(e: MouseEvent) {
     if (!stretchRef.current) return;
-    const dx = (e.clientX - stretchRef.current.startX) * stretchRef.current.dir;
-    // 200px de drag = +50% de scale (calibração suave)
-    const delta = dx / 400;
+    const containerEl = containerRef.current;
+    if (!containerEl) return;
+    const rect = containerEl.getBoundingClientRect();
+    // Drag em px convertido pra % do canvas (×2 porque drag um lado afeta os 2)
+    const dx =
+      ((e.clientX - stretchRef.current.startX) / rect.width) * 2 *
+      stretchRef.current.dir;
     const next = Math.max(
-      0.5,
-      Math.min(2, stretchRef.current.startScale + delta),
+      0.3,
+      Math.min(2.0, stretchRef.current.startWidth + dx),
     );
-    onUpdate({ textScaleX: Math.abs(next - 1) < 0.01 ? undefined : next });
+    onUpdate({ textBoxWidth: Math.abs(next - 1.0) < 0.02 ? undefined : next });
   }
   function endStretch() {
     stretchRef.current = null;
@@ -1095,7 +1103,12 @@ function EditableCanvas({
 
   // Mesmas regras do BeatScene (renderizador final): normaliza + auto-split + computeFit
   const normalizedText = useMemo(() => normalizePageText(page.text), [page.text]);
-  const lines = normalizedText.split(" / ").map((s) => s.trim()).filter(Boolean);
+  // V40: quando textBoxWidth ativo, MERGE em 1 string (CSS faz reflow natural)
+  const useFlexibleWidth =
+    page.textBoxWidth !== undefined && page.textBoxWidth > 0;
+  const lines = useFlexibleWidth
+    ? [normalizedText.replace(/ \/ /g, " ")]
+    : normalizedText.split(" / ").map((s) => s.trim()).filter(Boolean);
   const fontSize =
     page.fontSize && page.fontSize > 0
       ? page.fontSize
@@ -1459,9 +1472,25 @@ function EditableCanvas({
                   dangerouslySetInnerHTML={{ __html: iconAboveSvg }}
                 />
               )}
+              {/* V40: quando textBoxWidth ativo, render UM div com maxWidth
+                  e whiteSpace:normal pra reflow natural igual Canva. */}
               {lines.map((l, i) => (
-                <div key={i} style={{ whiteSpace: "nowrap" }}>
-                  {page.segments?.[i] && page.segments[i]!.length > 0 ? (
+                <div
+                  key={i}
+                  style={
+                    useFlexibleWidth
+                      ? {
+                          whiteSpace: "normal",
+                          maxWidth: `${(page.textBoxWidth ?? 1) * 100}%`,
+                          marginLeft: "auto",
+                          marginRight: "auto",
+                        }
+                      : { whiteSpace: "nowrap" }
+                  }
+                >
+                  {!useFlexibleWidth &&
+                  page.segments?.[i] &&
+                  page.segments[i]!.length > 0 ? (
                     page.segments[i]!.map((seg, j) => (
                       <span
                         key={j}
@@ -1523,15 +1552,15 @@ function EditableCanvas({
                   ⊕
                 </button>
               )}
-              {/* V23: Botão resetar largura (aparece se scaleX != 1) */}
-              {page.textScaleX !== undefined && page.textScaleX !== 1 && (
+              {/* V40: Botão resetar largura — agora reseta textBoxWidth + textScaleX juntos */}
+              {(page.textBoxWidth !== undefined || page.textScaleX !== undefined) && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onUpdate({ textScaleX: undefined });
+                    onUpdate({ textBoxWidth: undefined, textScaleX: undefined });
                   }}
                   className="absolute -right-3 -top-3 w-6 h-6 rounded-full bg-neutral-700 border-2 border-white cursor-pointer flex items-center justify-center text-[9px] font-bold hover:bg-neutral-600 z-10"
-                  title="Resetar largura (100%)"
+                  title="Resetar largura (100% — volta pra split em 2 linhas)"
                 >
                   ↔
                 </button>
@@ -1556,6 +1585,11 @@ function EditableCanvas({
               </button>
               <div className="absolute -top-7 left-0 text-[10px] text-purple-300 whitespace-nowrap">
                 2x edita · arraste move · ↕ resize · ↔ estende · ⊕ centraliza · ✕ exclui
+              </div>
+              {/* V40: label "hook · teclado · 92px" agora acompanha o texto.
+                  Antes estava fixo no rodapé do canvas (não seguia a posição). */}
+              <div className="absolute -bottom-7 left-0 text-[10px] text-white/70 bg-black/50 px-1.5 py-0.5 rounded whitespace-nowrap">
+                {page.weight} · {page.animation} · {Math.round(fontSize)}px
               </div>
             </>
           )}
@@ -1592,10 +1626,14 @@ function EditableCanvas({
         </>
       )}
 
-      {/* Frame indicator */}
-      <div className="absolute bottom-2 left-2 text-[10px] text-white/60 bg-black/40 px-1.5 py-0.5 rounded">
-        {page.weight} · {page.animation} · {Math.round(fontSize)}px
-      </div>
+      {/* Frame indicator — V40: só aparece quando texto NÃO está selecionado.
+          Quando selecionado, o label vai junto com a caixa do texto pra acompanhar
+          a posição (ver wrapper interno acima). */}
+      {!selected && (
+        <div className="absolute bottom-2 left-2 text-[10px] text-white/60 bg-black/40 px-1.5 py-0.5 rounded">
+          {page.weight} · {page.animation} · {Math.round(fontSize)}px
+        </div>
+      )}
     </div>
   );
 }

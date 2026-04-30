@@ -41,6 +41,7 @@ export interface PageWithStyle extends Beat, PageStyle {
   rotation?: number;
   skewX?: number;
   textScaleX?: number;
+  textBoxWidth?: number; // V40
   glowColor?: string;
   glowIntensity?: number;
   gradientEnabled?: boolean;

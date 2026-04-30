@@ -189,8 +189,14 @@ export const BeatScene: React.FC<Props> = ({
   const align = beat.align ?? projectStyle.baseAlign;
 
   const normalized = normalizePageText(beat.text);
-  const lines = normalized.split(" / ").map((s) => s.trim()).filter(Boolean);
-  const lineSegments = beat.segments;
+  // V40: quando textBoxWidth é definido, MERGE as linhas e deixa CSS quebrar
+  // naturalmente baseado na largura da caixa. É o comportamento "estilo Canva".
+  // Quando undefined, mantém o split manual em " / " (legado).
+  const useFlexibleWidth = beat.textBoxWidth !== undefined && beat.textBoxWidth > 0;
+  const lines = useFlexibleWidth
+    ? [normalized.replace(/ \/ /g, " ")]
+    : normalized.split(" / ").map((s) => s.trim()).filter(Boolean);
+  const lineSegments = useFlexibleWidth ? undefined : beat.segments;
 
   const fontSizeBase = beat.fontSize && beat.fontSize > 0
     ? beat.fontSize
@@ -257,7 +263,17 @@ export const BeatScene: React.FC<Props> = ({
     textShadow: finalShadow,
     padding: "0 6%",
     fontSize: fontSizeBase,
-    whiteSpace: "nowrap" as const,
+    // V40: quando textBoxWidth está ativo, deixa CSS quebrar naturalmente
+    // dentro da maxWidth → reflow estilo Canva. Caso contrário, mantém
+    // nowrap (cada linha é controlada manualmente via " / ").
+    ...(useFlexibleWidth
+      ? {
+          whiteSpace: "normal" as const,
+          maxWidth: `${(beat.textBoxWidth ?? 1) * 100}%`,
+          marginLeft: "auto",
+          marginRight: "auto",
+        }
+      : { whiteSpace: "nowrap" as const }),
     ...gradientStyle,
     // V21: letter effect override quando ativo
     ...(letterFx.overrideShadow
