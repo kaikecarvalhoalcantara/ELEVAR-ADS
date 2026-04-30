@@ -21,6 +21,7 @@ export interface PageWithStyle extends Beat, PageStyle {
   videoFlipV?: boolean;
   videoTrimStart?: number;
   videoTrimEnd?: number;
+  videoPlaybackRate?: number;
   elements?: import("../lib/types").PageElement[];
   videoX?: number;
   videoY?: number;

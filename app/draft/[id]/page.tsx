@@ -3407,9 +3407,17 @@ function ControlPanel({
       </CollapsibleGroup>
 
       <CollapsibleGroup
-        label="🎬 Vídeo de fundo (Pexels)"
-        hint="Pesquisa vídeos do Pexels pra trocar o fundo. Pra importar do PC, clica no vídeo do canvas."
+        label="🎬 Vídeo de fundo"
+        hint="Importe do PC OU pesquise no Pexels. Vídeos do cliente direto na página."
       >
+        {/* V32: Botão de importar SEMPRE visível — não precisa mais clicar
+            no vídeo do canvas pra achar */}
+        <ImportVideoButton
+          onUpdate={(patch) => onUpdatePage(patch)}
+        />
+        <div className="text-[10px] uppercase text-neutral-500 mt-3 mb-1">
+          Buscar no Pexels
+        </div>
         <CacheSwap
           query={page.query}
           currentPath={page.videoSrc}
@@ -4202,6 +4210,24 @@ function VideoControlsPanel({
                 <span>Inverter (V)</span>
               </label>
             </Row>
+            {/* V32: Velocidade do vídeo (playback rate) — slow-mo / fast */}
+            <Range
+              label="Velocidade do vídeo"
+              value={page.videoPlaybackRate ?? 1}
+              min={0.25}
+              max={3}
+              step={0.05}
+              format={(v) =>
+                v === 1
+                  ? "normal (1×)"
+                  : v < 1
+                    ? `slow ${v.toFixed(2)}×`
+                    : `fast ${v.toFixed(2)}×`
+              }
+              onChange={(v) =>
+                onUpdate({ videoPlaybackRate: v === 1 ? undefined : v })
+              }
+            />
             {/* V21: Trim mais bem feito — input visual com start + end +
                 preview de duração do trecho escolhido */}
             <VideoTrimControl

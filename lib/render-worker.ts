@@ -105,6 +105,7 @@ export async function renderAdsInBackground(
       videoW: p.videoW,
       videoH: p.videoH,
       videoTrimEnd: p.videoTrimEnd,
+      videoPlaybackRate: p.videoPlaybackRate,
       textOffsetX: p.textOffsetX,
       textOffsetY: p.textOffsetY,
       textShadowColor: p.textShadowColor,

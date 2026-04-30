@@ -217,6 +217,7 @@ export interface PageDraft extends PageStyle {
   videoFlipV?: boolean;
   videoTrimStart?: number; // segundos pra pular do início do clip
   videoTrimEnd?: number;   // V21: segundos onde o clip deve PARAR (corta o final)
+  videoPlaybackRate?: number; // V32: velocidade do vídeo (0.25 a 3, default 1)
   // V5: shapes/elementos sobre o vídeo (sombra, retângulo de destaque, etc)
   elements?: PageElement[];
   // V9: posição/tamanho do vídeo de fundo (default = preenche canvas)

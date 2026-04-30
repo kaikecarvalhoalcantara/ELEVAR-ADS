@@ -1,4 +1,10 @@
-import { AbsoluteFill, OffthreadVideo, useCurrentFrame, useVideoConfig } from "remotion";
+import {
+  AbsoluteFill,
+  OffthreadVideo,
+  Video,
+  useCurrentFrame,
+  useVideoConfig,
+} from "remotion";
 import type {
   Beat,
   BeatWeight,
@@ -68,6 +74,7 @@ interface Props {
       videoFlipV?: boolean;
       videoTrimStart?: number;
       videoTrimEnd?: number;
+      videoPlaybackRate?: number;
       elements?: PageElement[];
       videoX?: number;
       videoY?: number;
@@ -291,6 +298,8 @@ export const BeatScene: React.FC<Props> = ({
     beat.videoTrimEnd !== undefined && beat.videoTrimEnd > (beat.videoTrimStart ?? 0)
       ? Math.round(beat.videoTrimEnd * fps)
       : undefined;
+  // V32: velocidade do vídeo (slow-mo / fast-forward) — default 1.0
+  const playbackRate = beat.videoPlaybackRate ?? 1;
   const vx = beat.videoX ?? 0;
   const vy = beat.videoY ?? 0;
   const vw = beat.videoW ?? 1;
@@ -312,11 +321,12 @@ export const BeatScene: React.FC<Props> = ({
       <AbsoluteFill style={{ backgroundColor: bgColor }} />
       {showVideo ? (
         isFullCanvasVideo ? (
-          <OffthreadVideo
+          <Video
             src={videoSrc}
             muted
             startFrom={startFrom}
             endAt={endAt}
+            playbackRate={playbackRate}
             style={{
               width: "100%",
               height: "100%",
@@ -338,11 +348,12 @@ export const BeatScene: React.FC<Props> = ({
                 overflow: "hidden",
               }}
             >
-              <OffthreadVideo
+              <Video
                 src={videoSrc}
                 muted
                 startFrom={startFrom}
                 endAt={endAt}
+                playbackRate={playbackRate}
                 style={{
                   width: "100%",
                   height: "100%",
