@@ -57,6 +57,14 @@ function editorAlphaHex(v: number): string {
   return Math.round(c * 255).toString(16).padStart(2, "0");
 }
 
+/** V33: detecta se a URL é de imagem (renderiza com <img>) ou vídeo */
+function isImageUrl(url: string): boolean {
+  if (!url) return false;
+  // Remove query string pra detectar extensão real
+  const cleaned = url.split("?")[0]!.split("#")[0]!.toLowerCase();
+  return /\.(png|jpe?g|webp|gif|avif|bmp|heic|svg)$/.test(cleaned);
+}
+
 interface EnrichedPage extends PageDraft {
   videoUrl: string;
 }
@@ -2236,30 +2244,44 @@ function VideoLayer({
           outlineOffset: 1,
         }}
       >
-        <video
-          ref={ref}
-          // V32: key={src} força remount quando troca de vídeo. Sem isso,
-          // o HTML <video> às vezes não recarrega ao mudar src (cache do
-          // browser segura o frame do vídeo anterior).
-          key={src}
-          src={src}
-          muted
-          loop
-          autoPlay
-          playsInline
-          className="w-full h-full object-cover"
-          style={{
-            filter: filterCss || undefined,
-            transform: transform !== "scale(1, 1)" ? transform : undefined,
-            pointerEvents: "none",
-          }}
-          onTimeUpdate={(e) => {
-            const v = e.currentTarget;
-            if (trimStart > 0 && v.currentTime < trimStart) {
-              v.currentTime = trimStart;
-            }
-          }}
-        />
+        {/* V33: Detecta se é IMAGEM (png/jpg/etc) ou vídeo. Imagens
+            não tocam em <video> — antes ficava preto silenciosamente. */}
+        {isImageUrl(src) ? (
+          <img
+            key={src}
+            src={src}
+            alt=""
+            className="w-full h-full object-cover"
+            style={{
+              filter: filterCss || undefined,
+              transform: transform !== "scale(1, 1)" ? transform : undefined,
+              pointerEvents: "none",
+            }}
+          />
+        ) : (
+          <video
+            ref={ref}
+            // V32: key={src} força remount quando troca de vídeo
+            key={src}
+            src={src}
+            muted
+            loop
+            autoPlay
+            playsInline
+            className="w-full h-full object-cover"
+            style={{
+              filter: filterCss || undefined,
+              transform: transform !== "scale(1, 1)" ? transform : undefined,
+              pointerEvents: "none",
+            }}
+            onTimeUpdate={(e) => {
+              const v = e.currentTarget;
+              if (trimStart > 0 && v.currentTime < trimStart) {
+                v.currentTime = trimStart;
+              }
+            }}
+          />
+        )}
       </div>
       {selected && (
         <>
@@ -2346,14 +2368,23 @@ function PageStrip({
               title={p.text}
             >
               {p.videoUrl && !p.videoRemoved ? (
-                <video
-                  // V32: key força remount ao trocar vídeo (browser cache fix)
-                  key={p.videoUrl}
-                  src={p.videoUrl}
-                  muted
-                  preload="metadata"
-                  className="w-full h-full object-cover"
-                />
+                isImageUrl(p.videoUrl) ? (
+                  <img
+                    key={p.videoUrl}
+                    src={p.videoUrl}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <video
+                    // V32: key força remount ao trocar vídeo (browser cache fix)
+                    key={p.videoUrl}
+                    src={p.videoUrl}
+                    muted
+                    preload="metadata"
+                    className="w-full h-full object-cover"
+                  />
+                )
               ) : (
                 <div
                   className="w-full h-full"
@@ -4440,11 +4471,10 @@ function ClientAssetPicker({
     }
   }
 
+  // Carrega sempre (no mount) pra mostrar o counter no header
   useEffect(() => {
-    if (open && assets.length === 0) {
-      load();
-    }
-  }, [open, assets.length]);
+    load();
+  }, []);
 
   function pathToUrl(filepath: string): string {
     // V32: extrai subpath conhecido (mesma lógica do localPathToHttpUrl)
@@ -4467,12 +4497,15 @@ function ClientAssetPicker({
   }
 
   return (
-    <div className="mt-2">
+    <div className="mt-3 rounded-lg border border-purple-700 bg-purple-900/10 p-2">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="text-xs text-purple-400 hover:text-purple-300"
+        className="w-full flex items-center justify-between text-left"
       >
-        {open ? "fechar" : "📁 Meus arquivos importados"}
+        <span className="text-xs font-semibold text-purple-300">
+          📁 Meus vídeos/imagens importados ({assets.length})
+        </span>
+        <span className="text-purple-400 text-xs">{open ? "▾" : "▸"}</span>
       </button>
       {open && (
         <div className="mt-2 space-y-2">

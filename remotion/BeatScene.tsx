@@ -1,5 +1,6 @@
 import {
   AbsoluteFill,
+  Img,
   OffthreadVideo,
   Video,
   useCurrentFrame,
@@ -59,6 +60,13 @@ export type AnimationKind =
 function alphaHex2(v: number): string {
   const c = Math.max(0, Math.min(1, v));
   return Math.round(c * 255).toString(16).padStart(2, "0");
+}
+
+/** V33: detecta se a URL aponta pra IMAGEM ou vídeo */
+function isImageMedia(url: string): boolean {
+  if (!url) return false;
+  const cleaned = url.split("?")[0]!.split("#")[0]!.toLowerCase();
+  return /\.(png|jpe?g|webp|gif|avif|bmp|heic|svg)$/.test(cleaned);
 }
 
 interface Props {
@@ -314,6 +322,8 @@ export const BeatScene: React.FC<Props> = ({
   // V18: cor de fundo + flag pra remover o vídeo
   const bgColor = beat.backgroundColor ?? "#0a0a0a";
   const showVideo = !beat.videoRemoved && !!videoSrc;
+  // V33: detecta se é IMAGEM (png/jpg/etc) — renderiza com <Img/> em vez de <Video>
+  const isImage = videoSrc ? isImageMedia(videoSrc) : false;
 
   return (
     <AbsoluteFill>
@@ -321,20 +331,33 @@ export const BeatScene: React.FC<Props> = ({
       <AbsoluteFill style={{ backgroundColor: bgColor }} />
       {showVideo ? (
         isFullCanvasVideo ? (
-          <Video
-            src={videoSrc}
-            muted
-            startFrom={startFrom}
-            endAt={endAt}
-            playbackRate={playbackRate}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              filter: filterCss || undefined,
-              transform: videoTransform !== "scale(1, 1)" ? videoTransform : undefined,
-            }}
-          />
+          isImage ? (
+            <Img
+              src={videoSrc}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                filter: filterCss || undefined,
+                transform: videoTransform !== "scale(1, 1)" ? videoTransform : undefined,
+              }}
+            />
+          ) : (
+            <Video
+              src={videoSrc}
+              muted
+              startFrom={startFrom}
+              endAt={endAt}
+              playbackRate={playbackRate}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                filter: filterCss || undefined,
+                transform: videoTransform !== "scale(1, 1)" ? videoTransform : undefined,
+              }}
+            />
+          )
         ) : (
           <>
             <AbsoluteFill style={{ backgroundColor: bgColor }} />
@@ -348,20 +371,33 @@ export const BeatScene: React.FC<Props> = ({
                 overflow: "hidden",
               }}
             >
-              <Video
-                src={videoSrc}
-                muted
-                startFrom={startFrom}
-                endAt={endAt}
-                playbackRate={playbackRate}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  filter: filterCss || undefined,
-                  transform: videoTransform !== "scale(1, 1)" ? videoTransform : undefined,
-                }}
-              />
+              {isImage ? (
+                <Img
+                  src={videoSrc}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    filter: filterCss || undefined,
+                    transform: videoTransform !== "scale(1, 1)" ? videoTransform : undefined,
+                  }}
+                />
+              ) : (
+                <Video
+                  src={videoSrc}
+                  muted
+                  startFrom={startFrom}
+                  endAt={endAt}
+                  playbackRate={playbackRate}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    filter: filterCss || undefined,
+                    transform: videoTransform !== "scale(1, 1)" ? videoTransform : undefined,
+                  }}
+                />
+              )}
             </div>
           </>
         )
