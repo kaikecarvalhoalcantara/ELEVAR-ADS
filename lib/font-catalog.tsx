@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 // ============================================================
 // CATÁLOGO DE FONTES — compartilhado entre home (brand brief)
@@ -275,7 +276,12 @@ export function FontSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const scrollListRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState<{ top: number; left: number; width: number }>(
+    { top: 0, left: 0, width: 0 },
+  );
 
   // Pré-carrega TODAS as fontes
   useEffect(() => {
@@ -294,19 +300,62 @@ export function FontSelect({
     document.head.appendChild(link);
   }, [groups]);
 
-  // Click fora fecha o dropdown
+  // V30: Calcula posição do dropdown (Portal usa position fixed)
+  // baseado no botão. Recalcula em scroll/resize.
+  useLayoutEffect(() => {
+    if (!open) return;
+    function updatePosition() {
+      const btn = buttonRef.current;
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      setPosition({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+      });
+    }
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [open]);
+
+  // Click fora fecha o dropdown (verifica button + dropdown)
   useEffect(() => {
     if (!open) return;
     function onDocClick(e: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      if (buttonRef.current?.contains(target)) return;
+      if (dropdownRef.current?.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  // V30: Native wheel listener no dropdown — funciona ESCAPANDO do
+  // sidebar via Portal + capture nativo (synthetic React não impede
+  // bubble nativo, então tem que ser nativo).
+  useEffect(() => {
+    if (!open) return;
+    const el = scrollListRef.current;
+    if (!el) return;
+    function onWheel(e: WheelEvent) {
+      const target = e.currentTarget as HTMLDivElement;
+      const { scrollTop, scrollHeight, clientHeight } = target;
+      const atTop = scrollTop === 0 && e.deltaY < 0;
+      const atBottom = scrollTop + clientHeight >= scrollHeight && e.deltaY > 0;
+      // Permite scroll interno; se chegou ao limite, bloqueia o leak
+      if (atTop || atBottom) {
+        e.preventDefault();
+      }
+      e.stopPropagation();
+    }
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
   }, [open]);
 
   // Filtragem
@@ -324,9 +373,10 @@ export function FontSelect({
   const totalFiltered = filteredGroups.reduce((n, g) => n + g.fonts.length, 0);
 
   return (
-    <div className="block" ref={containerRef}>
+    <div className="block">
       <span className="text-sm font-medium">{label}</span>
       <button
+        ref={buttonRef}
         onClick={(e) => {
           e.preventDefault();
           setOpen((v) => !v);
@@ -337,9 +387,22 @@ export function FontSelect({
         <span className="truncate">{value}</span>
         <span className="text-neutral-500 text-xs ml-2">{open ? "▴" : "▾"}</span>
       </button>
-      {open && (
-        <div className="relative">
-          <div className="absolute z-50 left-0 right-0 mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-2xl overflow-hidden">
+      {/* V30: Render via Portal — escapa do sidebar com overflow:auto.
+          Wheel events não vazam mais pra sidebar/página. */}
+      {open &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            className="bg-neutral-900 border border-neutral-700 rounded-lg shadow-2xl overflow-hidden"
+            style={{
+              position: "fixed",
+              top: position.top,
+              left: position.left,
+              width: position.width,
+              zIndex: 9999,
+            }}
+          >
             <div className="p-2 border-b border-neutral-800">
               <input
                 autoFocus
@@ -358,14 +421,11 @@ export function FontSelect({
               )}
             </div>
             <div
-              className="max-h-80 overflow-y-auto"
-              style={{ overscrollBehavior: "contain" }}
-              onWheel={(e) => {
-                // V30: trap scroll wheel pra não vazar pra página/sidebar.
-                // overscroll-behavior CSS já cuida do bounce/refresh, mas
-                // alguns browsers ainda propagam o wheel. stopPropagation
-                // garante que só o dropdown consome.
-                e.stopPropagation();
+              ref={scrollListRef}
+              className="overflow-y-auto"
+              style={{
+                maxHeight: "min(60vh, 500px)",
+                overscrollBehavior: "contain",
               }}
             >
               {filteredGroups.length === 0 ? (
@@ -398,9 +458,9 @@ export function FontSelect({
                 ))
               )}
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
