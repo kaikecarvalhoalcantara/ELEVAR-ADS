@@ -336,23 +336,18 @@ export function FontSelect({
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
 
-  // V30: Native wheel listener no dropdown — funciona ESCAPANDO do
-  // sidebar via Portal + capture nativo (synthetic React não impede
-  // bubble nativo, então tem que ser nativo).
+  // V31: Wheel handler MANUAL — sempre preventDefault + stopPropagation
+  // e movimenta o scroll do dropdown via scrollTop += deltaY. Garante
+  // que NUNCA o evento vaza pra sidebar/página. A controle total.
   useEffect(() => {
     if (!open) return;
     const el = scrollListRef.current;
     if (!el) return;
     function onWheel(e: WheelEvent) {
-      const target = e.currentTarget as HTMLDivElement;
-      const { scrollTop, scrollHeight, clientHeight } = target;
-      const atTop = scrollTop === 0 && e.deltaY < 0;
-      const atBottom = scrollTop + clientHeight >= scrollHeight && e.deltaY > 0;
-      // Permite scroll interno; se chegou ao limite, bloqueia o leak
-      if (atTop || atBottom) {
-        e.preventDefault();
-      }
+      e.preventDefault();
       e.stopPropagation();
+      const target = e.currentTarget as HTMLDivElement;
+      target.scrollTop += e.deltaY;
     }
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
@@ -422,9 +417,9 @@ export function FontSelect({
             </div>
             <div
               ref={scrollListRef}
-              className="overflow-y-auto"
               style={{
-                maxHeight: "min(60vh, 500px)",
+                maxHeight: 400,
+                overflowY: "auto",
                 overscrollBehavior: "contain",
               }}
             >
