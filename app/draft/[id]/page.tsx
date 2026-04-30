@@ -2590,7 +2590,9 @@ function ControlPanel({
   }
   return (
     <div className="p-4 space-y-5">
-      <Group label="Página">
+      {/* V29: Reorganização — 2 seções essenciais ABERTAS no topo, resto colapsado */}
+
+      <Group label="🎬 Página">
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -2598,31 +2600,8 @@ function ControlPanel({
             onChange={(e) => onUpdatePage({ hideText: e.target.checked })}
             className="rounded"
           />
-          <span>
-            Ocultar texto (vídeo fala por si só)
-          </span>
+          <span>Ocultar texto (vídeo fala por si só)</span>
         </label>
-      </Group>
-
-      <Group label="Tipografia (do projeto)">
-        <p className="text-[10px] text-neutral-500 -mt-1 mb-1">
-          Mudar aqui afeta TODOS os anúncios e páginas do projeto.
-        </p>
-        <FontSelect
-          label="Fonte gancho (uppercase bold)"
-          value={draft.fontHook}
-          onChange={(v) => onUpdateProject({ fontHook: v })}
-          groups={ALL_FONT_GROUPS}
-        />
-        <FontSelect
-          label="Fonte transição (sentence-case)"
-          value={draft.fontTransition}
-          onChange={(v) => onUpdateProject({ fontTransition: v })}
-          groups={ALL_FONT_GROUPS}
-        />
-      </Group>
-
-      <Group label="Estilo do texto">
         <Row>
           <Select
             label="Peso"
@@ -2637,35 +2616,9 @@ function ControlPanel({
             options={ANIMATIONS}
           />
         </Row>
-        {/* V19: velocidade da animação */}
-        <Range
-          label="Velocidade entrada (frames)"
-          value={page.animationEntryDuration ?? 14}
-          min={4}
-          max={48}
-          step={1}
-          format={(v) => `${v}f (~${(v / 24).toFixed(2)}s)`}
-          onChange={(v) => onUpdatePage({ animationEntryDuration: v })}
-        />
-        <Range
-          label="Velocidade saída (frames)"
-          value={page.animationExitDuration ?? 14}
-          min={4}
-          max={48}
-          step={1}
-          format={(v) => `${v}f (~${(v / 24).toFixed(2)}s)`}
-          onChange={(v) => onUpdatePage({ animationExitDuration: v })}
-        />
-        <button
-          onClick={() => {
-            // V19: "ambos iguais" — copia entrada pra saída
-            const entry = page.animationEntryDuration ?? 14;
-            onUpdatePage({ animationExitDuration: entry });
-          }}
-          className="text-[10px] px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 w-full"
-        >
-          ⇄ Igualar saída à entrada
-        </button>
+      </Group>
+
+      <Group label="📝 Texto">
         <Row>
           <ColorField
             label="Cor do texto"
@@ -2698,9 +2651,7 @@ function ControlPanel({
                 <button
                   key={opt.label}
                   onClick={() =>
-                    onUpdatePage({
-                      letterCase: opt.v as PageDraft["letterCase"],
-                    })
+                    onUpdatePage({ letterCase: opt.v as PageDraft["letterCase"] })
                   }
                   title={opt.title}
                   className={`text-xs py-1.5 rounded border transition-colors ${
@@ -2744,10 +2695,61 @@ function ControlPanel({
         />
       </Group>
 
+      <CollapsibleGroup
+        label="🔤 Tipografia (fontes do projeto)"
+        hint="Mudar aqui afeta TODOS os anúncios e páginas do projeto."
+      >
+        <FontSelect
+          label="Fonte gancho (uppercase bold)"
+          value={draft.fontHook}
+          onChange={(v) => onUpdateProject({ fontHook: v })}
+          groups={ALL_FONT_GROUPS}
+        />
+        <FontSelect
+          label="Fonte transição (sentence-case)"
+          value={draft.fontTransition}
+          onChange={(v) => onUpdateProject({ fontTransition: v })}
+          groups={ALL_FONT_GROUPS}
+        />
+      </CollapsibleGroup>
+
+      <CollapsibleGroup
+        label="⏱️ Velocidade da animação"
+        hint="Controla quão rápido o texto entra e sai. Hover no texto pra ver preview."
+      >
+        <Range
+          label="Velocidade entrada (frames)"
+          value={page.animationEntryDuration ?? 14}
+          min={4}
+          max={48}
+          step={1}
+          format={(v) => `${v}f (~${(v / 24).toFixed(2)}s)`}
+          onChange={(v) => onUpdatePage({ animationEntryDuration: v })}
+        />
+        <Range
+          label="Velocidade saída (frames)"
+          value={page.animationExitDuration ?? 14}
+          min={4}
+          max={48}
+          step={1}
+          format={(v) => `${v}f (~${(v / 24).toFixed(2)}s)`}
+          onChange={(v) => onUpdatePage({ animationExitDuration: v })}
+        />
+        <button
+          onClick={() => {
+            const entry = page.animationEntryDuration ?? 14;
+            onUpdatePage({ animationExitDuration: entry });
+          }}
+          className="text-[10px] px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 w-full"
+        >
+          ⇄ Igualar saída à entrada
+        </button>
+      </CollapsibleGroup>
+
       {/* V21: Efeitos de letra — grid 3x3 estilo Canva */}
       <CollapsibleGroup
-        label="🎨 Efeitos de letra (estilo Canva)"
-        hint="Aplica preset visual no texto. Intensidade controla a força do efeito."
+        label="🎨 Efeitos de letra (presets)"
+        hint="9 presets prontos: glow, neon, contorno, vazado, gradiente, etc."
       >
         <LetterEffectGrid
           value={page.letterEffect ?? "none"}
@@ -2761,8 +2763,8 @@ function ControlPanel({
 
       {/* V16: Arsenal — efeitos de letra (italic / weight / underline / case / rotation / skew) */}
       <CollapsibleGroup
-        label="✍️ Estilo da letra (avançado)"
-        hint="Itálico, peso, sublinhado, MAIÚSCULAS, rotação, skew. Tudo per-página."
+        label="🎯 Estilo avançado da letra"
+        hint="Itálico, sublinhado, peso, rotação, skew, esticar largura."
       >
         <Row>
           <label className="flex items-center gap-2 text-sm">
@@ -2859,8 +2861,8 @@ function ControlPanel({
 
       {/* V16: Arsenal — Glow + Gradiente per-page */}
       <CollapsibleGroup
-        label="✨ Efeitos avançados (glow / gradiente)"
-        hint="Aura colorida em volta da letra + gradiente de cor no texto. Per-página, com fallback no projeto."
+        label="✨ Glow & Gradiente"
+        hint="Aura colorida ao redor + gradiente de cor no texto."
       >
         <div className="text-[11px] text-purple-300 -mt-1">✨ Glow</div>
         <ColorField
@@ -2921,7 +2923,11 @@ function ControlPanel({
         )}
       </CollapsibleGroup>
 
-      <Group label="Sombra & Overlay">
+      <CollapsibleGroup
+        label="🌑 Sombra & Contorno"
+        hint="Sombra do texto, contorno (outline) e overlay escuro do vídeo."
+      >
+        <div className="text-[11px] text-purple-300 -mt-1">Sombra</div>
         <Range
           label="Blur da sombra"
           value={page.textShadowBlur ?? draft.baseShadowBlur}
@@ -2940,21 +2946,12 @@ function ControlPanel({
           format={(v) => `${Math.round(v * 100)}%`}
           onChange={(v) => onUpdatePage({ textShadowOpacity: v })}
         />
-        <Range
-          label="Overlay sobre vídeo"
-          value={page.overlayOpacity ?? draft.baseOverlayOpacity}
-          min={0}
-          max={1}
-          step={0.05}
-          format={(v) => `${Math.round(v * 100)}%`}
-          onChange={(v) => onUpdatePage({ overlayOpacity: v })}
-        />
-        {/* V12: Cor da sombra + Outline */}
         <ColorField
           label="Cor da sombra"
           value={page.textShadowColor ?? draft.baseShadowColor ?? "#000000"}
           onChange={(v) => onUpdatePage({ textShadowColor: v })}
         />
+        <div className="text-[11px] text-purple-300 mt-3">Contorno (outline)</div>
         <ColorField
           label="Cor do contorno"
           value={page.textStrokeColor ?? draft.baseStrokeColor ?? "#000000"}
@@ -2969,9 +2966,19 @@ function ControlPanel({
           format={(v) => (v === 0 ? "sem contorno" : `${v.toFixed(1)}×`)}
           onChange={(v) => onUpdatePage({ textStrokeWidth: v })}
         />
-      </Group>
+        <div className="text-[11px] text-purple-300 mt-3">Overlay sobre vídeo</div>
+        <Range
+          label="Escurecer fundo"
+          value={page.overlayOpacity ?? draft.baseOverlayOpacity}
+          min={0}
+          max={1}
+          step={0.05}
+          format={(v) => `${Math.round(v * 100)}%`}
+          onChange={(v) => onUpdatePage({ overlayOpacity: v })}
+        />
+      </CollapsibleGroup>
 
-      <Group label="Elementos (shapes)">
+      <CollapsibleGroup label="🔷 Shapes & Elementos">
         <div className="flex gap-1.5 flex-wrap">
           {(
             [
@@ -3336,9 +3343,12 @@ function ControlPanel({
             </p>
           </div>
         )}
-      </Group>
+      </CollapsibleGroup>
 
-      <Group label="Cor por palavra">
+      <CollapsibleGroup
+        label="🌈 Cor por palavra"
+        hint="Click numa palavra → escolhe cor pro destaque (palavra-chave)."
+      >
         <WordColorEditor
           text={page.text}
           segments={page.segments}
@@ -3346,9 +3356,12 @@ function ControlPanel({
           accentColor={draft.accentColor}
           onChange={(segments) => onUpdatePage({ segments })}
         />
-      </Group>
+      </CollapsibleGroup>
 
-      <Group label="Ícones decorativos">
+      <CollapsibleGroup
+        label="🎭 Ícones decorativos"
+        hint="Adiciona ícone acima/abaixo do texto (setas, estrelas, etc)."
+      >
         <Row>
           <IconPicker
             label="Acima"
@@ -3366,13 +3379,12 @@ function ControlPanel({
           value={page.iconColor ?? page.color ?? draft.baseColor}
           onChange={(v) => onUpdatePage({ iconColor: v })}
         />
-      </Group>
+      </CollapsibleGroup>
 
-      {/* V20: 'Vídeo de fundo (transforms)' MOVIDO pra painel flutuante
-          na DIREITA do canvas (VideoControlsPanel). Aparece quando o
-          vídeo é selecionado. UX estilo Canva. */}
-
-      <Group label="Aplicar em massa">
+      <CollapsibleGroup
+        label="📋 Aplicar em massa"
+        hint="Copia o estilo desta página pra outras (cor, sombra, efeitos, animação, etc)."
+      >
         <div className="flex flex-col gap-1.5">
           <button
             onClick={() => onBulkApply("this-ad")}
@@ -3387,9 +3399,12 @@ function ControlPanel({
             Em TODOS os anúncios do projeto
           </button>
         </div>
-      </Group>
+      </CollapsibleGroup>
 
-      <Group label="Vídeo de fundo">
+      <CollapsibleGroup
+        label="🎬 Vídeo de fundo (Pexels)"
+        hint="Pesquisa vídeos do Pexels pra trocar o fundo. Pra importar do PC, clica no vídeo do canvas."
+      >
         <CacheSwap
           query={page.query}
           currentPath={page.videoSrc}
@@ -3400,9 +3415,12 @@ function ControlPanel({
           format={format}
           onPick={(path, url) => onUpdatePage({ videoSrc: path, videoUrl: url })}
         />
-      </Group>
+      </CollapsibleGroup>
 
-      <Group label="Estilo do projeto (afeta tudo)">
+      <CollapsibleGroup
+        label="🌐 Estilo global do projeto"
+        hint="Afeta TODOS os anúncios — cor base, destaque, filtro LUT global."
+      >
         <Row>
           <ColorField
             label="Cor base"
@@ -3433,11 +3451,11 @@ function ControlPanel({
             ))}
           </select>
           <span className="text-[11px] text-neutral-500 mt-1 block">
-            Aplica um efeito de cor (saturate/sepia/hue) em todos os vídeos
-            do anúncio. Igual filtro de Instagram, mas pra coerência visual.
+            Igual filtro do Instagram — coerência visual entre todos os
+            anúncios do projeto.
           </span>
         </label>
-      </Group>
+      </CollapsibleGroup>
     </div>
   );
 }
@@ -3838,14 +3856,16 @@ function dimsFor(format: ProjectDraft["format"]): { width: number; height: numbe
 
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-2">
-      <div className="text-xs uppercase tracking-wider text-neutral-500">{label}</div>
-      <div className="space-y-2">{children}</div>
+    <div className="rounded-lg bg-neutral-900/40 border border-neutral-800 p-3 space-y-2.5">
+      <div className="text-[11px] uppercase tracking-wider text-purple-300 font-semibold">
+        {label}
+      </div>
+      <div className="space-y-2.5">{children}</div>
     </div>
   );
 }
 
-/** V16: Group colapsável (default fechado) — pra organizar arsenal de efeitos. */
+/** V29: Group colapsável com visual de card profissional. */
 function CollapsibleGroup({
   label,
   children,
@@ -3859,20 +3879,42 @@ function CollapsibleGroup({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="space-y-2">
+    <div
+      className={`rounded-lg border transition-colors ${
+        open
+          ? "border-purple-700 bg-neutral-900/40"
+          : "border-neutral-800 bg-neutral-900/20 hover:border-neutral-700"
+      }`}
+    >
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between text-left"
+        className="w-full flex items-center justify-between text-left px-3 py-2.5"
       >
-        <span className="text-xs uppercase tracking-wider text-neutral-500">
+        <span
+          className={`text-[11px] uppercase tracking-wider font-semibold ${
+            open ? "text-purple-300" : "text-neutral-400"
+          }`}
+        >
           {label}
         </span>
-        <span className="text-neutral-500 text-xs">{open ? "▾" : "▸"}</span>
+        <span
+          className={`text-xs transition-transform ${
+            open ? "text-purple-400 rotate-90" : "text-neutral-500"
+          }`}
+        >
+          ▸
+        </span>
       </button>
-      {hint && open && (
-        <p className="text-[10px] text-neutral-500 leading-snug">{hint}</p>
+      {open && (
+        <div className="px-3 pb-3 space-y-2.5">
+          {hint && (
+            <p className="text-[10px] text-neutral-500 leading-snug -mt-1">
+              {hint}
+            </p>
+          )}
+          {children}
+        </div>
       )}
-      {open && <div className="space-y-2">{children}</div>}
     </div>
   );
 }
