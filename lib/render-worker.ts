@@ -189,7 +189,10 @@ export async function renderAdsInBackground(
         animations,
         format: cur.format,
         fontHook: cur.fontHook,
-        fontTransition: cur.fontTransition,
+        // V34: se transitionFontDisabled, usa fontHook em todos beats no render
+        fontTransition: cur.transitionFontDisabled
+          ? cur.fontHook
+          : cur.fontTransition,
         projectStyle,
         outputName,
       });

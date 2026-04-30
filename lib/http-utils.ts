@@ -23,7 +23,18 @@ const KNOWN_SUBDIRS = ["client-assets", "video-cache", "generated", "drafts", "m
  * o subpath conhecido (X em /api/local-video/X). Útil pra drafts
  * criados antes de configurar volume persistente.
  */
-export function localPathToHttpUrl(absPath: string): string {
+/**
+ * V34: por padrão devolve URL RELATIVA (`/api/local-video/...`).
+ * Browser/Player resolve contra o origin atual — bulletproof contra
+ * PUBLIC_BASE_URL configurado errado no Railway.
+ *
+ * Pra render headless (Remotion SSR / Chromium headless), o consumer
+ * deve passar `{ absolute: true }` — aí concatena PUBLIC_BASE_URL.
+ */
+export function localPathToHttpUrl(
+  absPath: string,
+  opts?: { absolute?: boolean },
+): string {
   if (!absPath) return "";
   // Já é URL HTTP — passa direto (Pexels CDN)
   if (absPath.startsWith("http://") || absPath.startsWith("https://")) {
@@ -33,7 +44,7 @@ export function localPathToHttpUrl(absPath: string): string {
   // Tentativa 1: caminho relativo ao STORAGE_DIR atual
   const rel = relative(getStorageRoot(), absPath);
   if (!rel.startsWith("..")) {
-    return buildUrl(rel);
+    return buildUrl(rel, opts?.absolute);
   }
 
   // Tentativa 2 (V32 fallback): extrai subpath conhecido (client-assets/...,
@@ -43,18 +54,19 @@ export function localPathToHttpUrl(absPath: string): string {
     const idx = normalizedPath.lastIndexOf(`/${subdir}/`);
     if (idx >= 0) {
       const relativePath = normalizedPath.substring(idx + 1); // remove leading "/"
-      return buildUrl(relativePath);
+      return buildUrl(relativePath, opts?.absolute);
     }
   }
 
   return "";
 }
 
-function buildUrl(relativePath: string): string {
+function buildUrl(relativePath: string, absolute = false): string {
   const segments = relativePath
     .replace(/\\/g, "/")
     .split("/")
     .filter(Boolean)
     .map((s) => encodeURIComponent(s));
-  return `${PUBLIC_BASE_URL}/api/local-video/${segments.join("/")}`;
+  const path = `/api/local-video/${segments.join("/")}`;
+  return absolute ? `${PUBLIC_BASE_URL}${path}` : path;
 }

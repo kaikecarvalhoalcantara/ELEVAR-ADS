@@ -512,7 +512,11 @@ export default function EditorPage() {
   }
 
   function updateProject(
-    patch: Partial<ProjectStyle> & { fontHook?: string; fontTransition?: string },
+    patch: Partial<ProjectStyle> & {
+      fontHook?: string;
+      fontTransition?: string;
+      transitionFontDisabled?: boolean;
+    },
   ) {
     if (!draft) return;
     scheduleSave({ ...draft, ...patch });
@@ -1057,7 +1061,9 @@ function EditableCanvas({
   }), [page, draft]);
 
   const isHook = page.weight === "hook" || page.weight === "punch";
-  const fontFamily = isHook ? draft.fontHook : draft.fontTransition;
+  // V34: se user desabilitou fonte de transição, usa fontHook em todos beats
+  const fontFamily =
+    isHook || draft.transitionFontDisabled ? draft.fontHook : draft.fontTransition;
   // V16: peso customizável (override do natural)
   const fontWeight = page.fontWeightOverride ?? (isHook ? 900 : 400);
   // V16: letterCase per-page (uppercase/lowercase/capitalize/none)
@@ -2458,7 +2464,10 @@ function AnimationPreview({
     animations: ad.pages.map((p) => p.animation),
     format: draft.format,
     fontHook: draft.fontHook,
-    fontTransition: draft.fontTransition,
+    // V34: se desabilitada, AnimationPreview também usa fontHook em todo lugar
+    fontTransition: draft.transitionFontDisabled
+      ? draft.fontHook
+      : draft.fontTransition,
     projectStyle: extractProjectStyle(draft),
   };
   useEffect(() => {
@@ -2549,7 +2558,11 @@ function ControlPanel({
   draft: EnrichedDraft;
   onUpdatePage: (patch: Partial<EnrichedPage>) => void;
   onUpdateProject: (
-    patch: Partial<ProjectStyle> & { fontHook?: string; fontTransition?: string },
+    patch: Partial<ProjectStyle> & {
+      fontHook?: string;
+      fontTransition?: string;
+      transitionFontDisabled?: boolean;
+    },
   ) => void;
   onBulkApply: (scope: "this-ad" | "all-ads") => void;
   format: ProjectDraft["format"];
@@ -2710,20 +2723,21 @@ function ControlPanel({
             })}
           </div>
         </div>
+        {/* V34: ranges MUITO maiores — usuário pediu controle bem mais amplo */}
         <Range
           label="Tamanho da fonte"
           value={page.fontSize ?? 0}
           min={0}
-          max={280}
-          step={2}
+          max={500}
+          step={1}
           format={(v) => (v === 0 ? "auto" : `${v}px`)}
           onChange={(v) => onUpdatePage({ fontSize: v })}
         />
         <Range
           label="Espaçamento entre letras"
           value={page.letterSpacing ?? draft.baseLetterSpacing}
-          min={-0.05}
-          max={0.15}
+          min={-0.1}
+          max={0.5}
           step={0.005}
           format={(v) => `${v.toFixed(3)} em`}
           onChange={(v) => onUpdatePage({ letterSpacing: v })}
@@ -2731,8 +2745,8 @@ function ControlPanel({
         <Range
           label="Altura da linha"
           value={page.lineHeight ?? draft.baseLineHeight}
-          min={0.85}
-          max={1.6}
+          min={0.6}
+          max={3.0}
           step={0.05}
           format={(v) => `${v.toFixed(2)}×`}
           onChange={(v) => onUpdatePage({ lineHeight: v })}
@@ -2750,12 +2764,50 @@ function ControlPanel({
           onChange={(v) => onUpdateProject({ fontHook: v })}
           groups={ALL_FONT_GROUPS}
         />
-        <FontSelect
-          label="Fonte transição (sentence-case)"
-          value={draft.fontTransition}
-          onChange={(v) => onUpdateProject({ fontTransition: v })}
-          groups={ALL_FONT_GROUPS}
-        />
+        {/* V34: toggle pra desativar fonte de transição (usa fontHook em todos beats) */}
+        <div className="flex items-center justify-between gap-2 mt-2 mb-1">
+          <span className="text-[11px] text-neutral-300">
+            Fonte transição (sentence-case)
+          </span>
+          <button
+            onClick={() =>
+              onUpdateProject({
+                transitionFontDisabled: !draft.transitionFontDisabled,
+              })
+            }
+            title={
+              draft.transitionFontDisabled
+                ? "Ativar fonte de transição"
+                : "Desativar — usa só a fonte gancho em todos os beats"
+            }
+            className={`text-[10px] px-2 py-0.5 rounded border ${
+              draft.transitionFontDisabled
+                ? "bg-red-900/30 border-red-700 text-red-300 hover:bg-red-900/50"
+                : "bg-green-900/20 border-green-700 text-green-300 hover:bg-green-900/40"
+            }`}
+          >
+            {draft.transitionFontDisabled ? "✕ desativada" : "✓ ativa"}
+          </button>
+        </div>
+        <div
+          style={{
+            opacity: draft.transitionFontDisabled ? 0.4 : 1,
+            pointerEvents: draft.transitionFontDisabled ? "none" : "auto",
+          }}
+        >
+          <FontSelect
+            label=""
+            value={draft.fontTransition}
+            onChange={(v) => onUpdateProject({ fontTransition: v })}
+            groups={ALL_FONT_GROUPS}
+          />
+        </div>
+        {draft.transitionFontDisabled && (
+          <p className="text-[10px] text-amber-400 mt-1">
+            ℹ️ Fonte de transição desativada — todos os beats vão usar a fonte
+            gancho ({draft.fontHook}).
+          </p>
+        )}
       </CollapsibleGroup>
 
       <CollapsibleGroup
@@ -2803,7 +2855,11 @@ function ControlPanel({
           intensity={page.letterEffectIntensity ?? 50}
           color={page.letterEffectColor ?? "#ffd700"}
           baseColor={page.color ?? draft.baseColor}
-          fontFamily={isHook ? draft.fontHook : draft.fontTransition}
+          fontFamily={
+            isHook || draft.transitionFontDisabled
+              ? draft.fontHook
+              : draft.fontTransition
+          }
           onChange={(patch) => onUpdatePage(patch)}
         />
       </CollapsibleGroup>
@@ -2977,11 +3033,12 @@ function ControlPanel({
         defaultOpen
       >
         <div className="text-[11px] text-purple-300 -mt-1">Sombra</div>
+        {/* V34: ranges expandidos — sombra bem mais forte se quiser */}
         <Range
           label="Blur da sombra"
           value={page.textShadowBlur ?? draft.baseShadowBlur}
           min={0}
-          max={50}
+          max={150}
           step={1}
           format={(v) => `${v}px`}
           onChange={(v) => onUpdatePage({ textShadowBlur: v })}
@@ -2991,7 +3048,7 @@ function ControlPanel({
           value={page.textShadowOpacity ?? draft.baseShadowOpacity}
           min={0}
           max={1}
-          step={0.05}
+          step={0.02}
           format={(v) => `${Math.round(v * 100)}%`}
           onChange={(v) => onUpdatePage({ textShadowOpacity: v })}
         />
@@ -3450,36 +3507,11 @@ function ControlPanel({
         </div>
       </CollapsibleGroup>
 
-      <CollapsibleGroup
-        label="🎬 Vídeo de fundo"
-        hint="Importe do PC, escolha dos seus arquivos, ou pesquise no Pexels."
-      >
-        {/* V32: Botão de importar SEMPRE visível */}
-        <ImportVideoButton
-          onUpdate={(patch) => onUpdatePage(patch)}
-        />
-
-        {/* V33: Picker de assets já importados — aparece se tem arquivos */}
-        <ClientAssetPicker
-          onPick={(path, url) =>
-            onUpdatePage({ videoSrc: path, videoUrl: url, videoRemoved: false })
-          }
-        />
-
-        <div className="text-[10px] uppercase text-neutral-500 mt-3 mb-1">
-          Buscar no Pexels
-        </div>
-        <CacheSwap
-          query={page.query}
-          currentPath={page.videoSrc}
-          onPick={(path, url) => onUpdatePage({ videoSrc: path, videoUrl: url })}
-        />
-        <PexelsLiveSearch
-          initialQuery={page.query}
-          format={format}
-          onPick={(path, url) => onUpdatePage({ videoSrc: path, videoUrl: url })}
-        />
-      </CollapsibleGroup>
+      <VideoSourcesGroup
+        format={format}
+        page={page}
+        onUpdatePage={onUpdatePage}
+      />
 
       <CollapsibleGroup
         label="🌐 Estilo global do projeto"
@@ -4371,10 +4403,59 @@ function VideoControlsPanel({
  * V25: Botão de importar vídeo/imagem do PC direto pra página atual.
  * Faz upload via /api/upload-asset e seta videoSrc + videoUrl da página.
  */
+/**
+ * V34: Wrapper que junta Importar + Picker + Pexels com state compartilhado.
+ * Quando user importa um arquivo, o picker (lista) atualiza automaticamente
+ * pra mostrar o novo arquivo na pastinha.
+ */
+function VideoSourcesGroup({
+  format,
+  page,
+  onUpdatePage,
+}: {
+  format: ProjectDraft["format"];
+  page: EnrichedPage;
+  onUpdatePage: (patch: Partial<EnrichedPage>) => void;
+}) {
+  const [refreshKey, setRefreshKey] = useState(0);
+  return (
+    <CollapsibleGroup
+      label="🎬 Vídeo de fundo"
+      hint="Importe do PC, escolha dos seus arquivos, ou pesquise no Pexels."
+    >
+      <ImportVideoButton
+        onUpdate={(patch) => onUpdatePage(patch)}
+        onUploaded={() => setRefreshKey((k) => k + 1)}
+      />
+      <ClientAssetPicker
+        refreshKey={refreshKey}
+        onPick={(path, url) =>
+          onUpdatePage({ videoSrc: path, videoUrl: url, videoRemoved: false })
+        }
+      />
+      <div className="text-[10px] uppercase text-neutral-500 mt-3 mb-1">
+        Buscar no Pexels
+      </div>
+      <CacheSwap
+        query={page.query}
+        currentPath={page.videoSrc}
+        onPick={(path, url) => onUpdatePage({ videoSrc: path, videoUrl: url })}
+      />
+      <PexelsLiveSearch
+        initialQuery={page.query}
+        format={format}
+        onPick={(path, url) => onUpdatePage({ videoSrc: path, videoUrl: url })}
+      />
+    </CollapsibleGroup>
+  );
+}
+
 function ImportVideoButton({
   onUpdate,
+  onUploaded,
 }: {
   onUpdate: (patch: Partial<EnrichedPage>) => void;
+  onUploaded?: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
@@ -4401,6 +4482,8 @@ function ImportVideoButton({
         videoUrl: data.url,
         videoRemoved: false,
       });
+      // V34: notifica o picker pra atualizar a lista
+      onUploaded?.();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -4445,8 +4528,10 @@ function ImportVideoButton({
  * vídeo na aba 'Assets do cliente' mas não tinha como usar.
  */
 function ClientAssetPicker({
+  refreshKey,
   onPick,
 }: {
+  refreshKey?: number;
   onPick: (path: string, url: string) => void;
 }) {
   const [assets, setAssets] = useState<
@@ -4471,10 +4556,10 @@ function ClientAssetPicker({
     }
   }
 
-  // Carrega sempre (no mount) pra mostrar o counter no header
+  // V34: Carrega no mount + sempre que refreshKey mudar (após import)
   useEffect(() => {
     load();
-  }, []);
+  }, [refreshKey]);
 
   function pathToUrl(filepath: string): string {
     // V32: extrai subpath conhecido (mesma lógica do localPathToHttpUrl)

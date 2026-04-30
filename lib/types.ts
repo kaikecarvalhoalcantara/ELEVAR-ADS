@@ -317,6 +317,8 @@ export interface ProjectDraft extends ProjectStyle {
   audience: Audience;
   fontHook: string;
   fontTransition: string;
+  // V34: usuário pode desativar a fonte de transição (usa fontHook em todos beats)
+  transitionFontDisabled?: boolean;
   template?: TemplateStyle;
   ads: AdDraft[];
   createdAt: number;
