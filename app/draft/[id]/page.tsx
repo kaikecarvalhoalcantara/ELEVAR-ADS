@@ -2460,7 +2460,17 @@ function AnimationPreview({
       const { videoUrl: _omit, ...rest } = p;
       return rest;
     }),
-    videos: ad.pages.map((p) => p.videoUrl),
+    // V35: Remotion Player precisa de URL ABSOLUTA. Como agora videoUrl
+    // vem relativa do servidor (/api/local-video/...), prefixamos com
+    // window.location.origin no client. Pra Pexels CDN (já absoluta),
+    // passa direto.
+    videos: ad.pages.map((p) => {
+      const u = p.videoUrl ?? "";
+      if (!u) return "";
+      if (u.startsWith("http://") || u.startsWith("https://")) return u;
+      if (typeof window !== "undefined") return window.location.origin + u;
+      return u;
+    }),
     animations: ad.pages.map((p) => p.animation),
     format: draft.format,
     fontHook: draft.fontHook,
@@ -4612,30 +4622,61 @@ function ClientAssetPicker({
                 {assets.map((a) => {
                   const url = pathToUrl(a.filepath);
                   return (
-                    <button
+                    <div
                       key={a.id}
-                      onClick={() => onPick(a.filepath, url)}
                       className="relative rounded overflow-hidden border border-neutral-800 hover:border-purple-500 group"
                       title={a.filename}
                     >
-                      {a.type === "video" ? (
-                        <video
-                          src={url}
-                          muted
-                          preload="metadata"
-                          className="w-full aspect-[9/16] object-cover bg-black"
-                        />
-                      ) : (
-                        <img
-                          src={url}
-                          alt={a.filename}
-                          className="w-full aspect-[9/16] object-cover bg-black"
-                        />
-                      )}
-                      <div className="absolute inset-x-0 bottom-0 bg-black/70 text-[8px] text-white px-1 py-0.5 truncate">
-                        {a.filename}
-                      </div>
-                    </button>
+                      <button
+                        onClick={() => onPick(a.filepath, url)}
+                        className="block w-full"
+                      >
+                        {a.type === "video" ? (
+                          <video
+                            src={url}
+                            muted
+                            preload="metadata"
+                            className="w-full aspect-[9/16] object-cover bg-black"
+                          />
+                        ) : (
+                          <img
+                            src={url}
+                            alt={a.filename}
+                            className="w-full aspect-[9/16] object-cover bg-black"
+                          />
+                        )}
+                        <div className="absolute inset-x-0 bottom-0 bg-black/70 text-[8px] text-white px-1 py-0.5 truncate">
+                          {a.filename}
+                        </div>
+                      </button>
+                      {/* V35: X pra excluir — aparece só no hover do card */}
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (
+                            !confirm(
+                              `Excluir "${a.filename}" da pastinha?\n\nIsso remove o arquivo permanentemente. Slides que já estão usando ele continuam funcionando até você trocar.`,
+                            )
+                          )
+                            return;
+                          try {
+                            const res = await fetch(`/api/client-assets/${a.id}`, {
+                              method: "DELETE",
+                            });
+                            const data = await res.json();
+                            if (!data.ok)
+                              throw new Error(data.error ?? "Falha ao excluir");
+                            await load();
+                          } catch (err) {
+                            alert(`Erro: ${(err as Error).message}`);
+                          }
+                        }}
+                        title="Excluir da pastinha"
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-600/90 hover:bg-red-500 text-white text-[11px] font-bold flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   );
                 })}
               </div>

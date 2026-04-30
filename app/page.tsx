@@ -317,6 +317,8 @@ function GenerateTab() {
   const [overlayOpacity, setOverlayOpacity] = useState(0.5);
   const [letterSpacing, setLetterSpacing] = useState(0);
   const [lineHeight, setLineHeight] = useState(1.05);
+  // V35: tamanho da fonte global (0 = auto fit baseado no comprimento do texto)
+  const [baseFontSize, setBaseFontSize] = useState(0);
   const [align, setAlign] = useState<Align>("center");
   const [colorFilter, setColorFilter] = useState<ColorFilter>("neutro");
   // V12: cor da sombra + outline
@@ -419,6 +421,7 @@ function GenerateTab() {
         accentColor,
         baseLetterSpacing: letterSpacing,
         baseLineHeight: lineHeight,
+        baseFontSize, // V35
         baseShadowBlur: shadowBlur,
         baseShadowOpacity: shadowOpacity,
         baseOverlayOpacity: overlayOpacity,
@@ -620,12 +623,22 @@ function GenerateTab() {
               options={Object.keys(COLOR_FILTER_LABELS) as ColorFilter[]}
               renderLabel={(v) => COLOR_FILTER_LABELS[v as ColorFilter]}
             />
+            {/* V35: Tamanho global da fonte. 0 = auto (calcula baseado no comprimento). */}
+            <RangeField
+              label="Tamanho da fonte (0 = automático)"
+              value={baseFontSize}
+              onChange={setBaseFontSize}
+              min={0}
+              max={500}
+              step={1}
+              format={(v) => (v === 0 ? "auto" : `${v}px`)}
+            />
             <RangeField
               label="Espaçamento entre letras"
               value={letterSpacing}
               onChange={setLetterSpacing}
-              min={-0.05}
-              max={0.1}
+              min={-0.1}
+              max={0.5}
               step={0.005}
               format={(v) => `${v.toFixed(3)} em`}
             />
@@ -633,8 +646,8 @@ function GenerateTab() {
               label="Altura da linha"
               value={lineHeight}
               onChange={setLineHeight}
-              min={0.85}
-              max={1.5}
+              min={0.6}
+              max={3.0}
               step={0.05}
               format={(v) => `${v.toFixed(2)}×`}
             />
@@ -651,8 +664,8 @@ function GenerateTab() {
               value={shadowBlur}
               onChange={setShadowBlur}
               min={0}
-              max={80}
-              step={2}
+              max={150}
+              step={1}
               format={(v) => `${v}px`}
             />
             <RangeField
