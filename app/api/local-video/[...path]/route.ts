@@ -83,7 +83,11 @@ export async function GET(
           "Content-Length": String(sliced.length),
           "Content-Range": `bytes ${range.start}-${range.end}/${stat.size}`,
           "Accept-Ranges": "bytes",
-          "Cache-Control": "public, max-age=3600",
+          // V32: cache CURTO (60s). Path único por arquivo, mas se o usuário
+// substituir o arquivo no mesmo path, queremos que o browser pegue
+// rapidamente a versão nova. 60s é suficiente pra cobrir
+// loops/seeks no canvas sem refetch desnecessário.
+"Cache-Control": "public, max-age=60",
         },
       });
     }
@@ -92,7 +96,11 @@ export async function GET(
         "Content-Type": ct,
         "Content-Length": String(buffer.length),
         "Accept-Ranges": "bytes",
-        "Cache-Control": "public, max-age=3600",
+        // V32: cache CURTO (60s). Path único por arquivo, mas se o usuário
+// substituir o arquivo no mesmo path, queremos que o browser pegue
+// rapidamente a versão nova. 60s é suficiente pra cobrir
+// loops/seeks no canvas sem refetch desnecessário.
+"Cache-Control": "public, max-age=60",
       },
     });
   } catch (err) {

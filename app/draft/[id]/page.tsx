@@ -2135,6 +2135,13 @@ function VideoLayer({
     }
   }, [trimStart, src]);
 
+  // V32: Força reload quando src muda. Sem isso, browser às vezes
+  // segura o frame do vídeo anterior (mesmo com key={src} React).
+  useEffect(() => {
+    if (!ref.current || !src) return;
+    ref.current.load();
+  }, [src]);
+
   // V22: Preview scrub do trim — pausa o vídeo e seek pro tempo escolhido.
   // Quando user solta os handles (previewTime=null), volta a tocar.
   useEffect(() => {
@@ -2231,6 +2238,10 @@ function VideoLayer({
       >
         <video
           ref={ref}
+          // V32: key={src} força remount quando troca de vídeo. Sem isso,
+          // o HTML <video> às vezes não recarrega ao mudar src (cache do
+          // browser segura o frame do vídeo anterior).
+          key={src}
           src={src}
           muted
           loop
@@ -2336,6 +2347,8 @@ function PageStrip({
             >
               {p.videoUrl && !p.videoRemoved ? (
                 <video
+                  // V32: key força remount ao trocar vídeo (browser cache fix)
+                  key={p.videoUrl}
                   src={p.videoUrl}
                   muted
                   preload="metadata"
