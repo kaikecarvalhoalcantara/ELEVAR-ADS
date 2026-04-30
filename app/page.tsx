@@ -876,38 +876,71 @@ function GenerateTab() {
                   ))}
                 </div>
               </div>
-              <PreviewCanvas
-                bg={previewBg}
-                colorFilter={colorFilter}
-                overlayOpacity={overlayOpacity}
-                baseColor={baseColor}
-                accentColor={accentColor}
-                fontHook={fontHook}
-                fontTransition={fontTransition}
-                letterSpacing={letterSpacing}
-                lineHeight={lineHeight}
-                shadowBlur={shadowBlur}
-                shadowOpacity={shadowOpacity}
-                shadowColor={shadowColor}
-                strokeColor={strokeColor}
-                strokeWidth={strokeWidth}
-                glowColor={glowColor}
-                glowIntensity={glowIntensity}
-                gradientEnabled={gradientEnabled}
-                gradientFrom={gradientFrom}
-                gradientTo={gradientTo}
-                gradientAngle={gradientAngle}
-                vignetteIntensity={vignetteIntensity}
-                grainIntensity={grainIntensity}
-                lightLeakColor={lightLeakColor}
-                lightLeakIntensity={lightLeakIntensity}
-              />
+              {/* V35: Layout lado-a-lado — preview landscape (existente) +
+                  preview Reels 9:16 com imagem real de fundo */}
+              <div className="flex gap-3 items-stretch">
+                <div className="flex-1 min-w-0">
+                  <PreviewCanvas
+                    bg={previewBg}
+                    colorFilter={colorFilter}
+                    overlayOpacity={overlayOpacity}
+                    baseColor={baseColor}
+                    accentColor={accentColor}
+                    fontHook={fontHook}
+                    fontTransition={fontTransition}
+                    letterSpacing={letterSpacing}
+                    lineHeight={lineHeight}
+                    baseFontSize={baseFontSize}
+                    shadowBlur={shadowBlur}
+                    shadowOpacity={shadowOpacity}
+                    shadowColor={shadowColor}
+                    strokeColor={strokeColor}
+                    strokeWidth={strokeWidth}
+                    glowColor={glowColor}
+                    glowIntensity={glowIntensity}
+                    gradientEnabled={gradientEnabled}
+                    gradientFrom={gradientFrom}
+                    gradientTo={gradientTo}
+                    gradientAngle={gradientAngle}
+                    vignetteIntensity={vignetteIntensity}
+                    grainIntensity={grainIntensity}
+                    lightLeakColor={lightLeakColor}
+                    lightLeakIntensity={lightLeakIntensity}
+                  />
+                </div>
+                <div className="shrink-0">
+                  <ReelsPreview
+                    colorFilter={colorFilter}
+                    overlayOpacity={overlayOpacity}
+                    baseColor={baseColor}
+                    fontHook={fontHook}
+                    fontTransition={fontTransition}
+                    letterSpacing={letterSpacing}
+                    lineHeight={lineHeight}
+                    baseFontSize={baseFontSize}
+                    shadowBlur={shadowBlur}
+                    shadowOpacity={shadowOpacity}
+                    shadowColor={shadowColor}
+                    strokeColor={strokeColor}
+                    strokeWidth={strokeWidth}
+                    glowColor={glowColor}
+                    glowIntensity={glowIntensity}
+                    gradientEnabled={gradientEnabled}
+                    gradientFrom={gradientFrom}
+                    gradientTo={gradientTo}
+                    gradientAngle={gradientAngle}
+                    vignetteIntensity={vignetteIntensity}
+                    grainIntensity={grainIntensity}
+                    lightLeakColor={lightLeakColor}
+                    lightLeakIntensity={lightLeakIntensity}
+                  />
+                </div>
+              </div>
               <div className="text-[10px] text-neutral-500 mt-1.5 leading-relaxed">
                 <span className="text-neutral-400 font-semibold">Dica:</span>{" "}
-                troca o fundo (Escuro/Claro/Xadrez/Vídeo) pra ver a sombra de
-                ângulos diferentes. <span className="text-neutral-400">Xadrez</span>{" "}
-                evidencia o blur exato — útil pra calibrar opacity. Filtro de cor
-                aparece em <span className="text-neutral-400">Vídeo</span>.
+                à esquerda troca o fundo pra ver a sombra de ângulos diferentes.
+                À direita, simulação <span className="text-neutral-400">9:16 Reels</span>{" "}
+                com imagem de fundo real pra ver como o slide vai ficar.
               </div>
             </div>
           </div>
@@ -1647,6 +1680,7 @@ function PreviewCanvas({
   fontTransition,
   letterSpacing,
   lineHeight,
+  baseFontSize,
   shadowBlur,
   shadowOpacity,
   shadowColor,
@@ -1672,6 +1706,7 @@ function PreviewCanvas({
   fontTransition: string;
   letterSpacing: number;
   lineHeight: number;
+  baseFontSize: number;
   shadowBlur: number;
   shadowOpacity: number;
   shadowColor: string;
@@ -1803,35 +1838,236 @@ function PreviewCanvas({
           fundo {bg}
         </div>
       )}
+      {/* V35: tamanho da fonte agora responde a baseFontSize. O canvas real
+          é 1080×1920; o preview é ~224px alto. Scale ≈ 0.20. Quando user
+          define baseFontSize > 0, ambas linhas usam esse valor escalado. */}
+      {(() => {
+        const previewScale = 0.20;
+        const hookSize =
+          baseFontSize > 0 ? baseFontSize * previewScale : 30; // 30 ≈ text-3xl
+        const transitionSize =
+          baseFontSize > 0 ? baseFontSize * previewScale * 0.55 : 16; // 16 = text-base
+        return (
+          <>
+            <div
+              className="relative font-black text-center px-4"
+              style={{
+                color: baseColor,
+                fontFamily: `"${fontHook}", system-ui, sans-serif`,
+                fontSize: `${hookSize}px`,
+                letterSpacing: `${letterSpacing}em`,
+                lineHeight,
+                textShadow: buildShadowWithGlow(0.8),
+                textTransform: "uppercase",
+                ...gradientStyle,
+              }}
+            >
+              PARA DEIXAR UM
+              <br />
+              RASTRO REAL
+            </div>
+            <div
+              className="relative text-center px-4"
+              style={{
+                color: baseColor,
+                fontFamily: `"${fontTransition}", system-ui, sans-serif`,
+                fontWeight: 600,
+                fontSize: `${transitionSize}px`,
+                letterSpacing: `${letterSpacing}em`,
+                lineHeight,
+                textShadow: buildShadowWithGlow(0.7),
+                ...gradientStyle,
+              }}
+            >
+              Você precisa sair do óbvio
+            </div>
+          </>
+        );
+      })()}
+    </div>
+  );
+}
+
+/**
+ * V35: Preview Reels 9:16 com imagem REAL de fundo (mulher caminhando ao
+ * pôr-do-sol, hospedada no Pexels CDN). Mesmo styling do preview principal,
+ * mas com aspect-ratio do anúncio final, pra usuário ter ideia clara de
+ * como o slide vai sair.
+ */
+function ReelsPreview({
+  colorFilter,
+  overlayOpacity,
+  baseColor,
+  fontHook,
+  fontTransition,
+  letterSpacing,
+  lineHeight,
+  baseFontSize,
+  shadowBlur,
+  shadowOpacity,
+  shadowColor,
+  strokeColor,
+  strokeWidth,
+  glowColor,
+  glowIntensity,
+  gradientEnabled,
+  gradientFrom,
+  gradientTo,
+  gradientAngle,
+  vignetteIntensity,
+  grainIntensity,
+  lightLeakColor,
+  lightLeakIntensity,
+}: {
+  colorFilter: ColorFilter;
+  overlayOpacity: number;
+  baseColor: string;
+  fontHook: string;
+  fontTransition: string;
+  letterSpacing: number;
+  lineHeight: number;
+  baseFontSize: number;
+  shadowBlur: number;
+  shadowOpacity: number;
+  shadowColor: string;
+  strokeColor: string;
+  strokeWidth: number;
+  glowColor: string;
+  glowIntensity: number;
+  gradientEnabled: boolean;
+  gradientFrom: string;
+  gradientTo: string;
+  gradientAngle: number;
+  vignetteIntensity: number;
+  grainIntensity: number;
+  lightLeakColor: string;
+  lightLeakIntensity: number;
+}) {
+  const filterCss =
+    colorFilter !== "neutro" ? colorFilterCss(colorFilter) : "none";
+
+  const buildShadowWithGlow = (scale: number) => {
+    const base = buildTextShadow({
+      shadowBlur,
+      shadowOpacity,
+      scale,
+      shadowColor,
+      strokeColor,
+      strokeWidth,
+    });
+    if (glowIntensity <= 0) return base;
+    const g = glowColor;
+    const i = glowIntensity;
+    const glow = [
+      `0 0 ${8 * scale}px ${g}${alphaHex(i * 0.9)}`,
+      `0 0 ${18 * scale}px ${g}${alphaHex(i * 0.7)}`,
+      `0 0 ${36 * scale}px ${g}${alphaHex(i * 0.5)}`,
+    ].join(", ");
+    return `${glow}, ${base}`;
+  };
+
+  const gradientStyle: React.CSSProperties = gradientEnabled
+    ? {
+        background: `linear-gradient(${gradientAngle}deg, ${gradientFrom}, ${gradientTo})`,
+        WebkitBackgroundClip: "text",
+        backgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+        color: "transparent",
+      }
+    : {};
+
+  // Preview Reels: ~126×224 (9:16). Scale ≈ 0.117 vs canvas real (1080×1920).
+  const previewScale = 0.117;
+  const hookSize =
+    baseFontSize > 0 ? baseFontSize * previewScale : 22;
+  const transitionSize =
+    baseFontSize > 0 ? baseFontSize * previewScale * 0.55 : 11;
+
+  // Imagem de fundo — pessoa caminhando ao pôr-do-sol (Pexels stock estável)
+  const bgImage =
+    "https://images.pexels.com/photos/1308881/pexels-photo-1308881.jpeg?auto=compress&cs=tinysrgb&w=300&h=600";
+
+  return (
+    <div
+      className="relative rounded overflow-hidden flex flex-col items-center justify-center gap-2 border border-neutral-700"
+      style={{
+        width: 126,
+        height: 224,
+        backgroundImage: `url(${bgImage})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        filter: filterCss,
+      }}
+    >
       <div
-        className="relative font-black text-3xl text-center px-4"
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: `rgba(0,0,0,${overlayOpacity})` }}
+      />
+      {vignetteIntensity > 0 && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: `radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,${vignetteIntensity}) 100%)`,
+          }}
+        />
+      )}
+      {lightLeakIntensity > 0 && (
+        <div
+          className="absolute inset-0 pointer-events-none mix-blend-screen"
+          style={{
+            background: `radial-gradient(ellipse at 85% 15%, ${lightLeakColor}${alphaHex(lightLeakIntensity * 0.85)} 0%, transparent 45%), radial-gradient(ellipse at 15% 85%, ${lightLeakColor}${alphaHex(lightLeakIntensity * 0.5)} 0%, transparent 40%)`,
+          }}
+        />
+      )}
+      {grainIntensity > 0 && (
+        <svg
+          className="absolute inset-0 pointer-events-none mix-blend-overlay"
+          style={{ width: "100%", height: "100%", opacity: grainIntensity }}
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <filter id="reels-grain">
+            <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" />
+            <feColorMatrix type="saturate" values="0" />
+          </filter>
+          <rect width="100%" height="100%" filter="url(#reels-grain)" />
+        </svg>
+      )}
+      <div
+        className="absolute top-1 left-1 text-[8px] uppercase tracking-wider px-1 py-0.5 rounded bg-black/60 text-neutral-300"
+      >
+        9:16 reels
+      </div>
+      <div
+        className="relative font-black text-center px-2"
         style={{
           color: baseColor,
           fontFamily: `"${fontHook}", system-ui, sans-serif`,
+          fontSize: `${hookSize}px`,
           letterSpacing: `${letterSpacing}em`,
           lineHeight,
-          textShadow: buildShadowWithGlow(0.8),
+          textShadow: buildShadowWithGlow(0.5),
           textTransform: "uppercase",
           ...gradientStyle,
         }}
       >
-        PARA DEIXAR UM
+        PARA DEIXAR
         <br />
-        RASTRO REAL
+        UM RASTRO
       </div>
       <div
-        className="relative text-base text-center px-4"
+        className="relative text-center px-2"
         style={{
           color: baseColor,
           fontFamily: `"${fontTransition}", system-ui, sans-serif`,
           fontWeight: 600,
+          fontSize: `${transitionSize}px`,
           letterSpacing: `${letterSpacing}em`,
           lineHeight,
-          textShadow: buildShadowWithGlow(0.7),
+          textShadow: buildShadowWithGlow(0.4),
           ...gradientStyle,
         }}
       >
-        Você precisa sair do óbvio
+        Sai do óbvio
       </div>
     </div>
   );
