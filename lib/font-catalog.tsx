@@ -357,7 +357,17 @@ export function FontSelect({
                 </div>
               )}
             </div>
-            <div className="max-h-80 overflow-y-auto">
+            <div
+              className="max-h-80 overflow-y-auto"
+              style={{ overscrollBehavior: "contain" }}
+              onWheel={(e) => {
+                // V30: trap scroll wheel pra não vazar pra página/sidebar.
+                // overscroll-behavior CSS já cuida do bounce/refresh, mas
+                // alguns browsers ainda propagam o wheel. stopPropagation
+                // garante que só o dropdown consome.
+                e.stopPropagation();
+              }}
+            >
               {filteredGroups.length === 0 ? (
                 <div className="px-3 py-6 text-center text-xs text-neutral-500">
                   Nenhuma fonte com &quot;{query}&quot;
