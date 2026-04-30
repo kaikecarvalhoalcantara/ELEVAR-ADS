@@ -3421,13 +3421,20 @@ function ControlPanel({
 
       <CollapsibleGroup
         label="🎬 Vídeo de fundo"
-        hint="Importe do PC OU pesquise no Pexels. Vídeos do cliente direto na página."
+        hint="Importe do PC, escolha dos seus arquivos, ou pesquise no Pexels."
       >
-        {/* V32: Botão de importar SEMPRE visível — não precisa mais clicar
-            no vídeo do canvas pra achar */}
+        {/* V32: Botão de importar SEMPRE visível */}
         <ImportVideoButton
           onUpdate={(patch) => onUpdatePage(patch)}
         />
+
+        {/* V33: Picker de assets já importados — aparece se tem arquivos */}
+        <ClientAssetPicker
+          onPick={(path, url) =>
+            onUpdatePage({ videoSrc: path, videoUrl: url, videoRemoved: false })
+          }
+        />
+
         <div className="text-[10px] uppercase text-neutral-500 mt-3 mb-1">
           Buscar no Pexels
         </div>
@@ -3769,6 +3776,7 @@ function PexelsLiveSearch({
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
+  const [translatedTo, setTranslatedTo] = useState<string | null>(null);
 
   // Quando muda a query da página (navegou pra outra página), atualiza
   // o input do search pra refletir a nova sugestão
@@ -3798,6 +3806,7 @@ function PexelsLiveSearch({
       if (data.ok) {
         setItems(data.items);
         setHasMore(!!data.hasMore);
+        setTranslatedTo(data.translatedTo ?? null);
       }
     } finally {
       setLoading(false);
@@ -3869,11 +3878,17 @@ function PexelsLiveSearch({
               {loading ? "…" : "ir"}
             </button>
           </div>
-          <div className="text-[9px] text-neutral-500">
-            💡 Em <strong>inglês</strong> dá MUITO mais resultados (Pexels é
-            buscador em inglês). Ex: &quot;person crying&quot;, &quot;city
-            night&quot;, &quot;money&quot;.
-          </div>
+          {translatedTo ? (
+            <div className="text-[10px] text-purple-300 bg-purple-900/20 border border-purple-700 rounded px-2 py-1">
+              🌐 Traduzido pra: <strong>{translatedTo}</strong>
+            </div>
+          ) : (
+            <div className="text-[9px] text-neutral-500">
+              💡 Em <strong>inglês</strong> dá MUITO mais resultados (Pexels é
+              buscador em inglês). Ex: &quot;person crying&quot;, &quot;city
+              night&quot;, &quot;money&quot;.
+            </div>
+          )}
           {!loading && items.length > 0 && (
             <div className="text-[10px] text-neutral-400">
               {items.length} resultado{items.length === 1 ? "" : "s"}
@@ -4389,6 +4404,133 @@ function ImportVideoButton({
         💡 Sobe direto pra ESTA página. Aceita MP4/MOV/WEBM/MKV/AVI e PNG/JPG/
         WEBP/GIF (Pinterest, TikTok, Instagram, etc.).
       </p>
+    </div>
+  );
+}
+
+/**
+ * V33: Picker dos assets do cliente já importados. Mostra grid de
+ * thumbnails — click escolhe pro slide atual. Sem isso, user subia
+ * vídeo na aba 'Assets do cliente' mas não tinha como usar.
+ */
+function ClientAssetPicker({
+  onPick,
+}: {
+  onPick: (path: string, url: string) => void;
+}) {
+  const [assets, setAssets] = useState<
+    Array<{
+      id: string;
+      filename: string;
+      filepath: string;
+      type: "video" | "image";
+    }>
+  >([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/client-assets");
+      const data = await res.json();
+      if (data.ok) setAssets(data.assets ?? []);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (open && assets.length === 0) {
+      load();
+    }
+  }, [open, assets.length]);
+
+  function pathToUrl(filepath: string): string {
+    // V32: extrai subpath conhecido (mesma lógica do localPathToHttpUrl)
+    const norm = filepath.replace(/\\/g, "/");
+    const knownDirs = ["client-assets", "video-cache", "generated"];
+    for (const d of knownDirs) {
+      const idx = norm.lastIndexOf(`/${d}/`);
+      if (idx >= 0) {
+        return (
+          "/api/local-video/" +
+          norm
+            .substring(idx + 1)
+            .split("/")
+            .map((s) => encodeURIComponent(s))
+            .join("/")
+        );
+      }
+    }
+    return "";
+  }
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="text-xs text-purple-400 hover:text-purple-300"
+      >
+        {open ? "fechar" : "📁 Meus arquivos importados"}
+      </button>
+      {open && (
+        <div className="mt-2 space-y-2">
+          {loading ? (
+            <p className="text-[10px] text-neutral-500">Carregando…</p>
+          ) : assets.length === 0 ? (
+            <p className="text-[10px] text-neutral-500">
+              Nenhum arquivo importado ainda. Use o botão{" "}
+              <strong>📁 Importar</strong> acima ou a aba{" "}
+              <strong>Assets do cliente</strong> da home.
+            </p>
+          ) : (
+            <>
+              <div className="text-[10px] text-neutral-400">
+                {assets.length} arquivo{assets.length === 1 ? "" : "s"}.
+                Click pra usar nesta página.
+              </div>
+              <div className="grid grid-cols-3 gap-1 max-h-72 overflow-y-auto">
+                {assets.map((a) => {
+                  const url = pathToUrl(a.filepath);
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => onPick(a.filepath, url)}
+                      className="relative rounded overflow-hidden border border-neutral-800 hover:border-purple-500 group"
+                      title={a.filename}
+                    >
+                      {a.type === "video" ? (
+                        <video
+                          src={url}
+                          muted
+                          preload="metadata"
+                          className="w-full aspect-[9/16] object-cover bg-black"
+                        />
+                      ) : (
+                        <img
+                          src={url}
+                          alt={a.filename}
+                          className="w-full aspect-[9/16] object-cover bg-black"
+                        />
+                      )}
+                      <div className="absolute inset-x-0 bottom-0 bg-black/70 text-[8px] text-white px-1 py-0.5 truncate">
+                        {a.filename}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={load}
+                className="text-[10px] text-neutral-400 hover:text-neutral-200 underline w-full text-center"
+              >
+                ⟳ Atualizar
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
