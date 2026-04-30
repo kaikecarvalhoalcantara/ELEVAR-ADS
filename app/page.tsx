@@ -1198,6 +1198,13 @@ function AssetsTab() {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // V31: Progress de upload em massa (150 vídeos do Pinterest etc)
+  const [progress, setProgress] = useState<{
+    done: number;
+    total: number;
+    ok: number;
+    failed: { name: string; error: string }[];
+  } | null>(null);
 
   async function reload() {
     setLoading(true);
@@ -1221,10 +1228,15 @@ function AssetsTab() {
     if (!files || files.length === 0) return;
     setBusy(true);
     setError(null);
-    try {
-      for (const file of Array.from(files)) {
-        // V30: usa raw body em vez de FormData — funciona com arquivos
-        // grandes (WhatsApp 20-50MB que falhavam no parsing antes).
+    setProgress({ done: 0, total: files.length, ok: 0, failed: [] });
+    const list = Array.from(files);
+    // V31: Upload PARALELO em batches de 4. Pra 150 vídeos isso dá
+    // ~4x mais rápido. Falhas individuais não param os outros.
+    const PARALLEL = 4;
+    const failed: { name: string; error: string }[] = [];
+    let okCount = 0;
+    async function uploadOne(file: File): Promise<void> {
+      try {
         const res = await fetch("/api/upload-asset", {
           method: "POST",
           headers: {
@@ -1234,13 +1246,49 @@ function AssetsTab() {
           body: file,
         });
         const data = await res.json();
-        if (!data.ok) throw new Error(`${file.name}: ${data.error}`);
+        if (!data.ok) {
+          failed.push({ name: file.name, error: data.error ?? "Erro" });
+        } else {
+          okCount++;
+        }
+      } catch (err) {
+        failed.push({ name: file.name, error: (err as Error).message });
+      } finally {
+        setProgress((p) =>
+          p
+            ? {
+                ...p,
+                done: p.done + 1,
+                ok: okCount,
+                failed: [...failed],
+              }
+            : null,
+        );
       }
+    }
+    // Processa em janelas paralelas de 4
+    let cursor = 0;
+    async function worker() {
+      while (cursor < list.length) {
+        const idx = cursor++;
+        const file = list[idx]!;
+        await uploadOne(file);
+      }
+    }
+    try {
+      await Promise.all(Array.from({ length: PARALLEL }, () => worker()));
       await reload();
-    } catch (err) {
-      setError((err as Error).message);
+      if (failed.length > 0) {
+        setError(
+          `${failed.length} de ${list.length} arquivos falharam. ` +
+            `Primeiros: ${failed.slice(0, 3).map((f) => f.name).join(", ")}` +
+            (failed.length > 3 ? "..." : ""),
+        );
+      }
     } finally {
       setBusy(false);
+      // Mantém progresso final visível por uns segundos
+      setTimeout(() => setProgress(null), 4000);
     }
   }
 
@@ -1301,10 +1349,55 @@ function AssetsTab() {
             {busy ? "Subindo…" : "Arraste arquivos aqui ou clique pra selecionar"}
           </div>
           <div className="text-xs text-neutral-500 mt-1">
-            png, jpg, webp, mp4, mov, webm
+            Aceita várias de uma vez. Imagens (png/jpg/webp/gif) e vídeos (mp4/mov/webm/mkv)
           </div>
         </label>
       </div>
+
+      {/* V31: Barra de progresso pra upload em massa */}
+      {progress && (
+        <div className="rounded p-3 bg-neutral-900 border border-neutral-700 space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-semibold">
+              {progress.done < progress.total
+                ? `📤 Subindo ${progress.done}/${progress.total}…`
+                : `✅ ${progress.ok} OK${
+                    progress.failed.length > 0
+                      ? ` · ❌ ${progress.failed.length} falharam`
+                      : ""
+                  }`}
+            </span>
+            <span className="text-xs text-neutral-400">
+              {Math.round((progress.done / progress.total) * 100)}%
+            </span>
+          </div>
+          <div className="w-full h-2 bg-neutral-800 rounded overflow-hidden">
+            <div
+              className="h-full bg-purple-500 transition-all duration-300"
+              style={{ width: `${(progress.done / progress.total) * 100}%` }}
+            />
+          </div>
+          {progress.failed.length > 0 && (
+            <details className="text-xs text-red-300">
+              <summary className="cursor-pointer">
+                Ver {progress.failed.length} arquivo{progress.failed.length === 1 ? "" : "s"} que falharam
+              </summary>
+              <ul className="mt-1 space-y-0.5 max-h-32 overflow-y-auto">
+                {progress.failed.slice(0, 20).map((f, i) => (
+                  <li key={i} className="break-all">
+                    • {f.name}: {f.error}
+                  </li>
+                ))}
+                {progress.failed.length > 20 && (
+                  <li className="text-neutral-500">
+                    ...e mais {progress.failed.length - 20}
+                  </li>
+                )}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="text-sm text-red-400 bg-red-950/30 border border-red-900 rounded p-3">
