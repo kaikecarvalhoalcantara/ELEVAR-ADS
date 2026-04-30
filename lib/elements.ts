@@ -152,6 +152,55 @@ export function createElement(shape: ElementShape): PageElement {
         rotation: 0,
         iconName: "star",
       };
+    // V41: 4 modelos de sombra com gradiente
+    case "shadow-oval":
+      return {
+        id,
+        shape,
+        x: 0.2,
+        y: 0.42,
+        w: 0.6,
+        h: 0.16,
+        color: "#000000",
+        opacity: 0.85,
+        rotation: 0,
+      };
+    case "shadow-radial":
+      return {
+        id,
+        shape,
+        x: 0.3,
+        y: 0.3,
+        w: 0.4,
+        h: 0.4,
+        color: "#000000",
+        opacity: 0.9,
+        rotation: 0,
+      };
+    case "shadow-band":
+      return {
+        id,
+        shape,
+        x: 0,
+        y: 0,
+        w: 0.5,
+        h: 1,
+        color: "#000000",
+        opacity: 0.95,
+        rotation: 0,
+      };
+    case "shadow-edge":
+      return {
+        id,
+        shape,
+        x: 0,
+        y: 0.7,
+        w: 1,
+        h: 0.3,
+        color: "#000000",
+        opacity: 0.9,
+        rotation: 0,
+      };
   }
 }
 
@@ -341,6 +390,42 @@ export function elementStyle(
         transform: `rotate(${el.rotation}deg)`,
         boxShadow: undefined,
         filter: boxShadow ? `drop-shadow(${boxShadow})` : undefined,
+      };
+    // V41: 4 sombras com gradiente. Sem boxShadow externo — o blur vem
+    // do próprio gradiente CSS. Cor do elemento controla o tom da sombra
+    // (default preto, mas pode ser branco pra "highlight" inverso).
+    case "shadow-oval":
+      // Oval horizontal blurado — gradiente radial achatado, fade pras bordas
+      return {
+        ...base,
+        background: `radial-gradient(ellipse at center, ${el.color} 0%, ${el.color} 25%, transparent 75%)`,
+        transform: `rotate(${el.rotation}deg)`,
+        boxShadow: undefined,
+      };
+    case "shadow-radial":
+      // Círculo perfeito com gradiente radial — vinheta pontual
+      return {
+        ...base,
+        background: `radial-gradient(circle at center, ${el.color} 0%, ${el.color} 18%, transparent 70%)`,
+        transform: `rotate(${el.rotation}deg)`,
+        boxShadow: undefined,
+      };
+    case "shadow-band":
+      // Banda lateral com fade — usa-se pra split-screen (lado preto +
+      // lado vídeo). Por default fade do esquerda pra direita.
+      return {
+        ...base,
+        background: `linear-gradient(90deg, ${el.color} 0%, ${el.color} 60%, transparent 100%)`,
+        transform: `rotate(${el.rotation}deg)`,
+        boxShadow: undefined,
+      };
+    case "shadow-edge":
+      // Letterbox/edge — barra horizontal grossa com fade pra cima
+      return {
+        ...base,
+        background: `linear-gradient(180deg, transparent 0%, ${el.color} 70%)`,
+        transform: `rotate(${el.rotation}deg)`,
+        boxShadow: undefined,
       };
     case "rectangle":
     default:

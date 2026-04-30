@@ -3132,30 +3132,60 @@ function ControlPanel({
         />
       </CollapsibleGroup>
 
-      <CollapsibleGroup label="🔷 Shapes & Elementos">
-        <div className="flex gap-1.5 flex-wrap">
+      <CollapsibleGroup label="🌑 Sombras (split-screen, vinheta, letterbox)">
+        {/* V41: Paleta de sombras com gradiente — 4 modelos. Substitui os
+            shapes/elementos antigos (rectangle/circle/etc) que não eram
+            usados na produção. Cada sombra é arrastável, redimensionável,
+            rotacionável e deletável como qualquer elemento. */}
+        <div className="grid grid-cols-2 gap-2">
           {(
             [
-              "rectangle",
-              "circle",
-              "line",
-              "diamond",
-              "triangle",
-              "star",
-              "hexagon",
-              "arrow",
-              "octagon",
-              "heart",
-              "plus",
-              "icon",
-            ] as ElementShape[]
+              {
+                shape: "shadow-band" as ElementShape,
+                label: "Faixa lateral",
+                hint: "Tela dividida — metade preta com fade",
+                preview:
+                  "linear-gradient(90deg, #000 0%, #000 60%, transparent 100%)",
+              },
+              {
+                shape: "shadow-radial" as ElementShape,
+                label: "Vinheta circular",
+                hint: "Círculo radial com fade pras bordas",
+                preview:
+                  "radial-gradient(circle at center, #000 0%, #000 25%, transparent 70%)",
+              },
+              {
+                shape: "shadow-oval" as ElementShape,
+                label: "Oval horizontal",
+                hint: "Halo blurado debaixo de texto/objeto",
+                preview:
+                  "radial-gradient(ellipse at center, #000 0%, #000 25%, transparent 75%)",
+              },
+              {
+                shape: "shadow-edge" as ElementShape,
+                label: "Letterbox",
+                hint: "Barra cinematográfica em cima/embaixo",
+                preview:
+                  "linear-gradient(180deg, transparent 0%, #000 70%)",
+              },
+            ]
           ).map((s) => (
             <button
-              key={s}
-              onClick={() => addElement(s)}
-              className="text-xs px-2 py-1 rounded border border-neutral-700 hover:border-purple-500 bg-neutral-900"
+              key={s.shape}
+              onClick={() => addElement(s.shape)}
+              className="text-left rounded border border-neutral-700 hover:border-purple-500 bg-neutral-900 p-2 flex gap-2 items-center"
+              title={s.hint}
             >
-              + {s}
+              <div
+                className="w-12 h-12 rounded border border-neutral-700 flex-shrink-0"
+                style={{ background: `${s.preview}, #b0b0b0` }}
+              />
+              <div className="min-w-0">
+                <div className="text-xs font-semibold truncate">+ {s.label}</div>
+                <div className="text-[10px] text-neutral-500 leading-tight line-clamp-2">
+                  {s.hint}
+                </div>
+              </div>
             </button>
           ))}
         </div>

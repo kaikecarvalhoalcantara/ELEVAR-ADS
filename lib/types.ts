@@ -161,7 +161,12 @@ export type ElementShape =
   | "octagon"
   | "heart"
   | "plus"
-  | "icon";
+  | "icon"
+  // V41: Sombras com gradiente — usadas pra slide tela-dividida
+  | "shadow-oval"     // oval horizontal blurado (debaixo do texto, halo)
+  | "shadow-radial"   // círculo radial gradient (vinheta pontual)
+  | "shadow-band"     // banda retangular com fade lateral (split-screen)
+  | "shadow-edge";    // linha grossa horizontal (letterbox cinemático)
 
 export type EntryAnimation =
   | "none"
