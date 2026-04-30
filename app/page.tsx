@@ -266,24 +266,72 @@ function TabBtn({
   );
 }
 
+/**
+ * V38: Section agora é COLAPSÁVEL — clicando no título abre/fecha o
+ * conteúdo. defaultOpen define o estado inicial. Reduz drasticamente
+ * a poluição visual da home: o user vê só o que precisa, expande as
+ * seções avançadas quando quer mexer. Nenhuma opção foi removida.
+ */
 function Section({
   title,
   hint,
   children,
+  defaultOpen = true,
+  badge,
 }: {
   title: string;
   hint?: string;
   children: React.ReactNode;
+  defaultOpen?: boolean;
+  badge?: string; // texto pequeno ao lado do título (ex: "configurado")
 }) {
+  const [open, setOpen] = useState(defaultOpen);
+  // V38: escuta eventos globais "abrir tudo" / "fechar tudo" do header da home
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    const onClose = () => setOpen(false);
+    window.addEventListener("sections-open-all", onOpen);
+    window.addEventListener("sections-close-all", onClose);
+    return () => {
+      window.removeEventListener("sections-open-all", onOpen);
+      window.removeEventListener("sections-close-all", onClose);
+    };
+  }, []);
   return (
-    <section className="space-y-3 border border-neutral-800 rounded-lg p-4 bg-neutral-950/40">
-      <div>
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-200">
-          {title}
-        </h2>
-        {hint && <p className="text-xs text-neutral-500 mt-0.5">{hint}</p>}
-      </div>
-      {children}
+    <section className="border border-neutral-800 rounded-lg bg-neutral-950/40 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-start justify-between gap-3 p-3 text-left hover:bg-neutral-900/50 transition-colors"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-200">
+              {title}
+            </h2>
+            {badge && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/40 border border-purple-700 text-purple-300 uppercase tracking-wide">
+                {badge}
+              </span>
+            )}
+          </div>
+          {hint && (
+            <p
+              className={`text-xs text-neutral-500 mt-0.5 ${open ? "" : "line-clamp-1"}`}
+            >
+              {hint}
+            </p>
+          )}
+        </div>
+        <span className="text-purple-400 text-base font-bold pt-0.5 select-none">
+          {open ? "▾" : "▸"}
+        </span>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-neutral-900">
+          {children}
+        </div>
+      )}
     </section>
   );
 }
@@ -457,7 +505,39 @@ function GenerateTab() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-2">
+      {/* V38: dica do colapsável + atalhos pra abrir/fechar tudo */}
+      <div className="flex items-center justify-between gap-3 px-1 text-[11px] text-neutral-500">
+        <span>
+          💡 Click no <span className="text-neutral-300">título</span> de cada
+          seção pra abrir/fechar. Tudo continua editável depois no editor.
+        </span>
+        <div className="flex gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              // Força tudo aberto via custom event ou re-mount?
+              // Simples: refresh da página com hash?
+              // Better: mexer no key do container, mas isso reseta state.
+              // Mais simples ainda: emit custom event.
+              window.dispatchEvent(new CustomEvent("sections-open-all"));
+            }}
+            className="hover:text-neutral-300 underline"
+          >
+            abrir tudo
+          </button>
+          <span className="text-neutral-700">·</span>
+          <button
+            type="button"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent("sections-close-all"));
+            }}
+            className="hover:text-neutral-300 underline"
+          >
+            fechar tudo
+          </button>
+        </div>
+      </div>
       <Section
         title="1. Cliente"
         hint="Aparece no nome do projeto e no contexto da IA"
@@ -514,6 +594,7 @@ function GenerateTab() {
       <Section
         title="✨ Presets prontos (atalho — preenche tudo de uma vez)"
         hint="Clique num preset pra preencher cor, sombra, outline, fontes e tom de uma vez. Você pode ajustar tudo depois nas seções abaixo."
+        defaultOpen={false}
       >
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
           {STYLE_PRESETS.map((p) => (
@@ -535,6 +616,7 @@ function GenerateTab() {
       <Section
         title="4. Tom & Vibe"
         hint="Define o filtro visual + sensação cinematográfica. A IA usa isso pra escolher imagens não-óbvias."
+        defaultOpen={false}
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -581,6 +663,7 @@ function GenerateTab() {
       <Section
         title="5. Público & Mood narrativo"
         hint="Mood é a curva emocional da copy. Público guia a estética."
+        defaultOpen={false}
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Select label="Mood emocional" value={mood} onChange={(v) => setMood(v as Mood)} options={MOODS} />
@@ -591,6 +674,7 @@ function GenerateTab() {
       <Section
         title="6. Tipografia"
         hint={`Default: ~60% gancho (uppercase bold), ~5% transição (sentence-case), ~35% sem texto. ${HOOK_FONTS_ALL.length}+ fontes do Google Fonts categorizadas — escolha a que combina com o cliente.`}
+        defaultOpen={false}
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <FontSelect
@@ -611,6 +695,7 @@ function GenerateTab() {
       <Section
         title="7. Cor & estilo visual"
         hint="Calibrado automaticamente conforme o tom acima — ajuste se quiser. Tudo é editável depois no editor."
+        defaultOpen={false}
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-3">
