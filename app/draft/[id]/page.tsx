@@ -2480,6 +2480,8 @@ function VideoLayer({
     videoW?: number;
     videoH?: number;
     videoRotation?: number;
+    videoFlipH?: boolean; // V45
+    videoFlipV?: boolean; // V45
   }) => void;
   onDelete: () => void; // V44
   previewTime?: number | null; // V22: tempo pra scrub durante drag do trim
@@ -2720,6 +2722,73 @@ function VideoLayer({
             }}
           >
             ✕
+          </button>
+          {/* V45: Botões INLINE de inverter horizontal/vertical no canto sup-esquerdo */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange({ videoFlipH: !flipH });
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            title="Inverter horizontalmente (espelhar)"
+            style={{
+              position: "absolute",
+              left: `${x * 100}%`,
+              top: `${y * 100}%`,
+              width: 22,
+              height: 22,
+              marginLeft: -28,
+              marginTop: -26,
+              background: flipH ? "#3b82f6" : "rgba(40,40,40,0.95)",
+              border: "2px solid white",
+              borderRadius: 4,
+              cursor: "pointer",
+              zIndex: 32,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 12,
+              color: "white",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+              padding: 0,
+              lineHeight: 1,
+              userSelect: "none",
+            }}
+          >
+            ⇆
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange({ videoFlipV: !flipV });
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            title="Inverter verticalmente"
+            style={{
+              position: "absolute",
+              left: `${x * 100}%`,
+              top: `${y * 100}%`,
+              width: 22,
+              height: 22,
+              marginLeft: -28,
+              marginTop: 0,
+              background: flipV ? "#3b82f6" : "rgba(40,40,40,0.95)",
+              border: "2px solid white",
+              borderRadius: 4,
+              cursor: "pointer",
+              zIndex: 32,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 12,
+              color: "white",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+              padding: 0,
+              lineHeight: 1,
+              userSelect: "none",
+            }}
+          >
+            ⇅
           </button>
           {/* V44: Indicador central de drag — chama atenção pra mover */}
           <div
