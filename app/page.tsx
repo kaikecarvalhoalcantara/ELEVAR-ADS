@@ -267,71 +267,31 @@ function TabBtn({
 }
 
 /**
- * V38: Section agora é COLAPSÁVEL — clicando no título abre/fecha o
- * conteúdo. defaultOpen define o estado inicial. Reduz drasticamente
- * a poluição visual da home: o user vê só o que precisa, expande as
- * seções avançadas quando quer mexer. Nenhuma opção foi removida.
+ * V39: Section voltou a ser estática (sem accordion). User não gostou do
+ * collapse. Agora a organização vem do LAYOUT (grid 2-cols + agrupamento)
+ * em vez de esconder coisas atrás de click. Padding mais apertado pra
+ * reduzir scroll total. Aceita `defaultOpen` por compat mas é ignorado.
  */
 function Section({
   title,
   hint,
   children,
-  defaultOpen = true,
-  badge,
 }: {
   title: string;
   hint?: string;
   children: React.ReactNode;
-  defaultOpen?: boolean;
-  badge?: string; // texto pequeno ao lado do título (ex: "configurado")
+  defaultOpen?: boolean; // V39: legacy, ignorado
+  badge?: string; // V39: legacy, ignorado
 }) {
-  const [open, setOpen] = useState(defaultOpen);
-  // V38: escuta eventos globais "abrir tudo" / "fechar tudo" do header da home
-  useEffect(() => {
-    const onOpen = () => setOpen(true);
-    const onClose = () => setOpen(false);
-    window.addEventListener("sections-open-all", onOpen);
-    window.addEventListener("sections-close-all", onClose);
-    return () => {
-      window.removeEventListener("sections-open-all", onOpen);
-      window.removeEventListener("sections-close-all", onClose);
-    };
-  }, []);
   return (
-    <section className="border border-neutral-800 rounded-lg bg-neutral-950/40 overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-start justify-between gap-3 p-3 text-left hover:bg-neutral-900/50 transition-colors"
-      >
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-200">
-              {title}
-            </h2>
-            {badge && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/40 border border-purple-700 text-purple-300 uppercase tracking-wide">
-                {badge}
-              </span>
-            )}
-          </div>
-          {hint && (
-            <p
-              className={`text-xs text-neutral-500 mt-0.5 ${open ? "" : "line-clamp-1"}`}
-            >
-              {hint}
-            </p>
-          )}
-        </div>
-        <span className="text-purple-400 text-base font-bold pt-0.5 select-none">
-          {open ? "▾" : "▸"}
-        </span>
-      </button>
-      {open && (
-        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-neutral-900">
-          {children}
-        </div>
-      )}
+    <section className="space-y-3 border border-neutral-800 rounded-lg p-3.5 bg-neutral-950/40 h-full">
+      <div>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-200">
+          {title}
+        </h2>
+        {hint && <p className="text-xs text-neutral-500 mt-0.5">{hint}</p>}
+      </div>
+      {children}
     </section>
   );
 }
@@ -505,50 +465,42 @@ function GenerateTab() {
   }
 
   return (
-    <div className="space-y-2">
-      {/* V38: dica do colapsável + atalhos pra abrir/fechar tudo */}
-      <div className="flex items-center justify-between gap-3 px-1 text-[11px] text-neutral-500">
-        <span>
-          💡 Click no <span className="text-neutral-300">título</span> de cada
-          seção pra abrir/fechar. Tudo continua editável depois no editor.
-        </span>
-        <div className="flex gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              // Força tudo aberto via custom event ou re-mount?
-              // Simples: refresh da página com hash?
-              // Better: mexer no key do container, mas isso reseta state.
-              // Mais simples ainda: emit custom event.
-              window.dispatchEvent(new CustomEvent("sections-open-all"));
-            }}
-            className="hover:text-neutral-300 underline"
-          >
-            abrir tudo
-          </button>
-          <span className="text-neutral-700">·</span>
-          <button
-            type="button"
-            onClick={() => {
-              window.dispatchEvent(new CustomEvent("sections-close-all"));
-            }}
-            className="hover:text-neutral-300 underline"
-          >
-            fechar tudo
-          </button>
-        </div>
-      </div>
-      <Section
-        title="1. Cliente"
-        hint="Aparece no nome do projeto e no contexto da IA"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Field label="Cliente" value={cliente} onChange={setCliente} placeholder="Cliente" />
-          <Field label="Nicho" value={nicho} onChange={setNicho} placeholder="Nicho" />
-          <Field label="Nome do projeto" value={nome} onChange={setNome} placeholder="Nome do projeto" />
-        </div>
-      </Section>
+    <div className="space-y-3">
+      {/* V39: Layout reorganizado em GRID 2-col em telas grandes (≥lg).
+          Seções pequenas pareadas lado-a-lado. Seções com muitos
+          controles ocupam linha inteira. Tudo continua VISÍVEL — sem
+          accordion. Só fica mais denso e organizado. */}
 
+      {/* Linha 1: Cliente (small) + Formato/idioma (small) lado-a-lado */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
+        <Section
+          title="1. Cliente"
+          hint="Aparece no nome do projeto e no contexto da IA"
+        >
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Field label="Cliente" value={cliente} onChange={setCliente} placeholder="Cliente" />
+            <Field label="Nicho" value={nicho} onChange={setNicho} placeholder="Nicho" />
+            <Field label="Nome do projeto" value={nome} onChange={setNome} placeholder="Nome do projeto" />
+          </div>
+        </Section>
+        <Section
+          title="3. Formato e idioma"
+          hint="Define proporção do vídeo e idioma da copy"
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <Select label="Formato" value={format} onChange={(v) => setFormat(v as Format)} options={FORMATS} />
+            <Select
+              label="Idioma"
+              value={language}
+              onChange={(v) => setLanguage(v as Lang)}
+              options={LANGS.map((l) => l.value)}
+              renderLabel={(v) => LANGS.find((l) => l.value === v)?.label ?? v}
+            />
+          </div>
+        </Section>
+      </div>
+
+      {/* Linha 2: Template visual (3 cards, full-width) */}
       <Section
         title="2. Template visual"
         hint="Escolhe o padrão de layout. Cada um aplica defaults coerentes nas páginas geradas — você ainda pode ajustar tudo depois no editor."
@@ -575,26 +527,10 @@ function GenerateTab() {
         </div>
       </Section>
 
-      <Section
-        title="3. Formato e idioma"
-        hint="Define proporção do vídeo e idioma da copy"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Select label="Formato" value={format} onChange={(v) => setFormat(v as Format)} options={FORMATS} />
-          <Select
-            label="Idioma"
-            value={language}
-            onChange={(v) => setLanguage(v as Lang)}
-            options={LANGS.map((l) => l.value)}
-            renderLabel={(v) => LANGS.find((l) => l.value === v)?.label ?? v}
-          />
-        </div>
-      </Section>
-
+      {/* Linha 3: ✨ Presets prontos (full-width, atalho útil pra ver de cara) */}
       <Section
         title="✨ Presets prontos (atalho — preenche tudo de uma vez)"
         hint="Clique num preset pra preencher cor, sombra, outline, fontes e tom de uma vez. Você pode ajustar tudo depois nas seções abaixo."
-        defaultOpen={false}
       >
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
           {STYLE_PRESETS.map((p) => (
@@ -613,10 +549,10 @@ function GenerateTab() {
         </div>
       </Section>
 
+      {/* Linha 4: 4. Tom & Vibe (full-width, tem 8 cards) */}
       <Section
         title="4. Tom & Vibe"
         hint="Define o filtro visual + sensação cinematográfica. A IA usa isso pra escolher imagens não-óbvias."
-        defaultOpen={false}
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -660,42 +596,42 @@ function GenerateTab() {
         </div>
       </Section>
 
-      <Section
-        title="5. Público & Mood narrativo"
-        hint="Mood é a curva emocional da copy. Público guia a estética."
-        defaultOpen={false}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Select label="Mood emocional" value={mood} onChange={(v) => setMood(v as Mood)} options={MOODS} />
-          <Select label="Público" value={audience} onChange={(v) => setAudience(v as Audience)} options={AUDIENCES} />
-        </div>
-      </Section>
+      {/* Linha 5: 5. Público & Mood + 6. Tipografia (ambos pequenos, lado-a-lado) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
+        <Section
+          title="5. Público & Mood narrativo"
+          hint="Mood é a curva emocional da copy. Público guia a estética."
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Select label="Mood emocional" value={mood} onChange={(v) => setMood(v as Mood)} options={MOODS} />
+            <Select label="Público" value={audience} onChange={(v) => setAudience(v as Audience)} options={AUDIENCES} />
+          </div>
+        </Section>
+        <Section
+          title="6. Tipografia"
+          hint={`${HOOK_FONTS_ALL.length}+ fontes do Google Fonts categorizadas — escolha a que combina com o cliente.`}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <FontSelect
+              label="Gancho (UPPERCASE)"
+              value={fontHook}
+              onChange={setFontHook}
+              groups={ALL_FONT_GROUPS}
+            />
+            <FontSelect
+              label="Transição (sentence)"
+              value={fontTransition}
+              onChange={setFontTransition}
+              groups={ALL_FONT_GROUPS}
+            />
+          </div>
+        </Section>
+      </div>
 
-      <Section
-        title="6. Tipografia"
-        hint={`Default: ~60% gancho (uppercase bold), ~5% transição (sentence-case), ~35% sem texto. ${HOOK_FONTS_ALL.length}+ fontes do Google Fonts categorizadas — escolha a que combina com o cliente.`}
-        defaultOpen={false}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <FontSelect
-            label="Fonte gancho (uppercase bold)"
-            value={fontHook}
-            onChange={setFontHook}
-            groups={ALL_FONT_GROUPS}
-          />
-          <FontSelect
-            label="Fonte transição (sentence-case)"
-            value={fontTransition}
-            onChange={setFontTransition}
-            groups={ALL_FONT_GROUPS}
-          />
-        </div>
-      </Section>
-
+      {/* Linha 6: 7. Cor & estilo visual (full-width, é a maior — preview lado a lado) */}
       <Section
         title="7. Cor & estilo visual"
         hint="Calibrado automaticamente conforme o tom acima — ajuste se quiser. Tudo é editável depois no editor."
-        defaultOpen={false}
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-3">
@@ -1032,6 +968,7 @@ function GenerateTab() {
         </div>
       </Section>
 
+      {/* Linha 7: 8. Copy do anúncio (full-width, textarea grande) */}
       <Section
         title="8. Copy do anúncio"
         hint="Cole o doc inteiro com os 10 anúncios — formato 'AD 01 - PADRÃO HDCPY' / 'ANÚNCIO COMPLETO' já é reconhecido"
