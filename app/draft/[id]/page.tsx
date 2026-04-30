@@ -83,6 +83,8 @@ export default function EditorPage() {
   const [draft, setDraft] = useState<EnrichedDraft | null>(null);
   // V17: estado lifted pra mostrar painel de color grading quando vídeo selecionado
   const [videoIsSelected, setVideoIsSelected] = useState(false);
+  // V42: lifted também pro keyboard Delete poder ocultar o texto.
+  const [textIsSelected, setTextIsSelected] = useState(false);
   // V22: scrub preview do vídeo principal quando user mexe nos handles do trim.
   // null = vídeo toca normal (autoplay/loop). número = pausa e seek pra esse tempo.
   const [videoPreviewTime, setVideoPreviewTime] = useState<number | null>(null);
@@ -130,18 +132,50 @@ export default function EditorPage() {
   }, [selectedAd, selectedPage]);
 
   // Ctrl/Cmd+C copia elemento selecionado, Ctrl/Cmd+V cola na página atual
+  // V42: Delete/Backspace SEM modificador apaga o que está selecionado:
+  //   prioridade: elementos > vídeo > texto. Antes só funcionava com Ctrl
+  //   o que era pouco intuitivo — agora é igual Canva/Figma (Del direto).
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      // ignora se o foco está num input/textarea (deixa o navegador copiar texto)
+      // ignora se o foco está num input/textarea (deixa o navegador apagar texto)
       const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || (e.target as HTMLElement | null)?.isContentEditable) {
         return;
       }
-      const mod = e.ctrlKey || e.metaKey;
-      if (!mod) return;
       if (!draft) return;
       const ad = draft.ads[selectedAd];
       if (!ad) return;
+
+      // V42: Delete/Backspace livre — sem modificador
+      if (e.key === "Delete" || e.key === "Backspace") {
+        const cur = ad.pages[selectedPage];
+        if (!cur) return;
+        if (selectedElementIds.size > 0) {
+          e.preventDefault();
+          updatePage(selectedAd, selectedPage, {
+            elements: (cur.elements ?? []).filter(
+              (el) => !selectedElementIds.has(el.id),
+            ),
+          });
+          setSelectedElementIds(new Set());
+          return;
+        }
+        if (videoIsSelected) {
+          e.preventDefault();
+          updatePage(selectedAd, selectedPage, { videoRemoved: true });
+          setVideoIsSelected(false);
+          return;
+        }
+        if (textIsSelected) {
+          e.preventDefault();
+          updatePage(selectedAd, selectedPage, { hideText: true });
+          setTextIsSelected(false);
+          return;
+        }
+      }
+
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
       if ((e.key === "z" || e.key === "Z") && !e.shiftKey) {
         e.preventDefault();
         undo();
@@ -177,21 +211,21 @@ export default function EditorPage() {
           elements: [...(cur.elements ?? []), pasted],
         });
         setSelectedElementId(newId);
-      } else if (e.key === "Delete" || e.key === "Backspace") {
-        if (selectedElementIds.size === 0) return;
-        e.preventDefault();
-        const cur = ad.pages[selectedPage];
-        if (!cur) return;
-        updatePage(selectedAd, selectedPage, {
-          elements: (cur.elements ?? []).filter((el) => !selectedElementIds.has(el.id)),
-        });
-        setSelectedElementIds(new Set());
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, selectedAd, selectedPage, selectedElementId, elementClipboard]);
+  }, [
+    draft,
+    selectedAd,
+    selectedPage,
+    selectedElementId,
+    selectedElementIds,
+    elementClipboard,
+    videoIsSelected,
+    textIsSelected,
+  ]);
 
   // load fonts
   useEffect(() => {
@@ -798,6 +832,8 @@ export default function EditorPage() {
               }}
               videoSelected={videoIsSelected}
               onSetVideoSelected={setVideoIsSelected}
+              textSelected={textIsSelected}
+              onSetTextSelected={setTextIsSelected}
               videoPreviewTime={videoPreviewTime}
             />
           ) : (
@@ -899,6 +935,8 @@ function EditableCanvas({
   onSelectElement,
   videoSelected,
   onSetVideoSelected,
+  textSelected,
+  onSetTextSelected,
   videoPreviewTime,
 }: {
   page: EnrichedPage;
@@ -908,6 +946,8 @@ function EditableCanvas({
   onSelectElement: (id: string | null, multi: boolean) => void;
   videoSelected: boolean;
   onSetVideoSelected: (selected: boolean) => void;
+  textSelected: boolean;
+  onSetTextSelected: (selected: boolean) => void;
   videoPreviewTime?: number | null;
 }) {
   const dims = dimsFor(draft.format);
@@ -915,7 +955,10 @@ function EditableCanvas({
   const scale = previewW / dims.width;
 
   const [editing, setEditing] = useState(false);
-  const [selected, setSelected] = useState(false);
+  // V42: state interno sincronizado com o externo (textSelected) — pai usa
+  // pra deletar via Delete; canvas controla internamente.
+  const selected = textSelected;
+  const setSelected = onSetTextSelected;
   const [draftText, setDraftText] = useState(page.text);
   const dragRef = useRef<{ startY: number; startSize: number } | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
