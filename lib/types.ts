@@ -224,6 +224,7 @@ export interface PageDraft extends PageStyle {
   videoZoom?: number; // 1 = sem zoom, 1.5 = 50% mais perto
   videoFlipH?: boolean;
   videoFlipV?: boolean;
+  videoRotation?: number; // V44: -180..180 graus (0 = sem rotação)
   videoTrimStart?: number; // segundos pra pular do início do clip
   videoTrimEnd?: number;   // V21: segundos onde o clip deve PARAR (corta o final)
   videoPlaybackRate?: number; // V32: velocidade do vídeo (0.25 a 3, default 1)

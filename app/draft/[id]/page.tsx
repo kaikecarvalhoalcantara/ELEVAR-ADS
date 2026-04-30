@@ -117,6 +117,22 @@ export default function EditorPage() {
     });
   }
   const [elementClipboard, setElementClipboard] = useState<PageElement | null>(null);
+  // V44: clipboard pro vídeo — guarda src/url + transforms pra colar em outro slide
+  const [videoClipboard, setVideoClipboard] = useState<{
+    videoSrc: string;
+    videoUrl: string;
+    videoZoom?: number;
+    videoFlipH?: boolean;
+    videoFlipV?: boolean;
+    videoRotation?: number;
+    videoX?: number;
+    videoY?: number;
+    videoW?: number;
+    videoH?: number;
+    videoTrimStart?: number;
+    videoTrimEnd?: number;
+    videoPlaybackRate?: number;
+  } | null>(null);
 
   // Undo/redo (V7): stacks de snapshots + estado de disponibilidade pra UI
   const undoStack = useRef<EnrichedDraft[]>([]);
@@ -188,6 +204,27 @@ export default function EditorPage() {
         e.preventDefault();
         redo();
       } else if (e.key === "c" || e.key === "C") {
+        // V44: prioridade — vídeo selecionado copia o vídeo, senão copia elemento
+        const cur = ad.pages[selectedPage];
+        if (videoIsSelected && cur && cur.videoUrl) {
+          e.preventDefault();
+          setVideoClipboard({
+            videoSrc: cur.videoSrc,
+            videoUrl: cur.videoUrl,
+            videoZoom: cur.videoZoom,
+            videoFlipH: cur.videoFlipH,
+            videoFlipV: cur.videoFlipV,
+            videoRotation: cur.videoRotation,
+            videoX: cur.videoX,
+            videoY: cur.videoY,
+            videoW: cur.videoW,
+            videoH: cur.videoH,
+            videoTrimStart: cur.videoTrimStart,
+            videoTrimEnd: cur.videoTrimEnd,
+            videoPlaybackRate: cur.videoPlaybackRate,
+          });
+          return;
+        }
         const el = ad.pages[selectedPage]?.elements?.find(
           (x) => x.id === selectedElementId,
         );
@@ -196,6 +233,20 @@ export default function EditorPage() {
           setElementClipboard(el);
         }
       } else if (e.key === "v" || e.key === "V") {
+        // V44: prioridade — se tem video clipboard E vídeo está selecionado
+        // (ou nada selecionado), cola o vídeo no slide atual
+        if (
+          videoClipboard &&
+          (videoIsSelected ||
+            (!selectedElementId && !textIsSelected))
+        ) {
+          e.preventDefault();
+          updatePage(selectedAd, selectedPage, {
+            ...videoClipboard,
+            videoRemoved: false,
+          });
+          return;
+        }
         if (!elementClipboard) return;
         e.preventDefault();
         const newId = Math.random().toString(36).slice(2, 10);
@@ -223,6 +274,7 @@ export default function EditorPage() {
     selectedElementId,
     selectedElementIds,
     elementClipboard,
+    videoClipboard,
     videoIsSelected,
     textIsSelected,
   ]);
@@ -1245,6 +1297,7 @@ function EditableCanvas({
           zoom={page.videoZoom ?? 1}
           flipH={page.videoFlipH ?? false}
           flipV={page.videoFlipV ?? false}
+          rotation={page.videoRotation ?? 0}
           trimStart={page.videoTrimStart ?? 0}
           x={page.videoX ?? 0}
           y={page.videoY ?? 0}
@@ -1257,6 +1310,10 @@ function EditableCanvas({
             onSelectElement(null, false);
           }}
           onChange={(patch) => onUpdate(patch)}
+          onDelete={() => {
+            onUpdate({ videoRemoved: true });
+            onSetVideoSelected(false);
+          }}
           previewTime={videoPreviewTime}
         />
       )}
@@ -2390,6 +2447,7 @@ function VideoLayer({
   zoom,
   flipH,
   flipV,
+  rotation,
   trimStart,
   x,
   y,
@@ -2399,6 +2457,7 @@ function VideoLayer({
   containerRef,
   onSelect,
   onChange,
+  onDelete,
   previewTime,
 }: {
   src: string;
@@ -2406,6 +2465,7 @@ function VideoLayer({
   zoom: number;
   flipH: boolean;
   flipV: boolean;
+  rotation: number; // V44
   trimStart: number;
   x: number;
   y: number;
@@ -2414,7 +2474,14 @@ function VideoLayer({
   selected: boolean;
   containerRef: React.RefObject<HTMLDivElement | null>;
   onSelect: () => void;
-  onChange: (patch: { videoX?: number; videoY?: number; videoW?: number; videoH?: number }) => void;
+  onChange: (patch: {
+    videoX?: number;
+    videoY?: number;
+    videoW?: number;
+    videoH?: number;
+    videoRotation?: number;
+  }) => void;
+  onDelete: () => void; // V44
   previewTime?: number | null; // V22: tempo pra scrub durante drag do trim
 }) {
   const ref = useRef<HTMLVideoElement | null>(null);
@@ -2511,7 +2578,10 @@ function VideoLayer({
   const flipX = flipH ? -1 : 1;
   const flipY = flipV ? -1 : 1;
   const scale = Math.max(1, zoom);
-  const transform = `scale(${scale * flipX}, ${scale * flipY})`;
+  // V44: rotação aplicada APÓS scale/flip
+  const transform =
+    `scale(${scale * flipX}, ${scale * flipY})` +
+    (rotation !== 0 ? ` rotate(${rotation}deg)` : "");
   return (
     <>
       <div
@@ -2606,9 +2676,207 @@ function VideoLayer({
             );
           })}
           <div className="absolute -top-7 left-2 text-[10px] text-purple-300 pointer-events-none">
-            vídeo selecionado · arrasta pra mover · cantos pra resize
+            vídeo selecionado · arrasta pra mover · cantos pra resize · 🟢 girar · 🔴 excluir
+          </div>
+          {/* V44: Bolinha verde de rotação acima do topo central */}
+          <VideoRotationHandle
+            x={x}
+            y={y}
+            w={w}
+            rotation={rotation}
+            containerRef={containerRef}
+            onChange={(rot) => onChange({ videoRotation: rot })}
+          />
+          {/* V44: X vermelho no canto sup-direito pra remover o vídeo direto */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            title="Excluir vídeo (ou aperte Delete)"
+            style={{
+              position: "absolute",
+              left: `${(x + w) * 100}%`,
+              top: `${y * 100}%`,
+              width: 20,
+              height: 20,
+              marginLeft: 6,
+              marginTop: -26,
+              background: "#dc2626",
+              border: "2px solid white",
+              borderRadius: "50%",
+              cursor: "pointer",
+              zIndex: 32,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 12,
+              fontWeight: 700,
+              color: "white",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+              padding: 0,
+              lineHeight: 1,
+            }}
+          >
+            ✕
+          </button>
+          {/* V44: Indicador central de drag — chama atenção pra mover */}
+          <div
+            onMouseDown={(e) => startDrag("move", e)}
+            title="Arraste pra mover o vídeo pelo slide"
+            style={{
+              position: "absolute",
+              left: `${(x + w / 2) * 100}%`,
+              top: `${(y + h / 2) * 100}%`,
+              width: 36,
+              height: 36,
+              marginLeft: -18,
+              marginTop: -18,
+              background: "rgba(168,85,247,0.85)",
+              border: "2px solid white",
+              borderRadius: "50%",
+              cursor: "move",
+              zIndex: 31,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 16,
+              color: "white",
+              boxShadow: "0 4px 8px rgba(0,0,0,0.5)",
+              userSelect: "none",
+            }}
+          >
+            ✥
           </div>
         </>
+      )}
+    </>
+  );
+}
+
+/**
+ * V44: Bolinha verde pra rotacionar o vídeo (mesmo mecanismo da
+ * RotationHandle dos elementos, adaptada pros params de vídeo).
+ */
+function VideoRotationHandle({
+  x,
+  y,
+  w,
+  rotation,
+  containerRef,
+  onChange,
+}: {
+  x: number;
+  y: number;
+  w: number;
+  rotation: number;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  onChange: (rot: number) => void;
+}) {
+  const dragRef = useRef<{
+    centerX: number;
+    centerY: number;
+    startAngle: number;
+    startRotation: number;
+  } | null>(null);
+  function startRotate(e: React.MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const centerX = rect.left + (x + w / 2) * rect.width;
+    const centerY = rect.top + (y + 0.5) * rect.height; // aprox centro vertical do video
+    const startAngle =
+      (Math.atan2(e.clientY - centerY, e.clientX - centerX) * 180) / Math.PI;
+    dragRef.current = { centerX, centerY, startAngle, startRotation: rotation };
+    window.addEventListener("mousemove", onRotate);
+    window.addEventListener("mouseup", endRotate);
+  }
+  function onRotate(e: MouseEvent) {
+    if (!dragRef.current) return;
+    const cur =
+      (Math.atan2(
+        e.clientY - dragRef.current.centerY,
+        e.clientX - dragRef.current.centerX,
+      ) *
+        180) /
+      Math.PI;
+    const delta = cur - dragRef.current.startAngle;
+    let next = dragRef.current.startRotation + delta;
+    if (e.shiftKey) next = Math.round(next / 15) * 15;
+    next = ((next + 540) % 360) - 180;
+    onChange(Math.round(next));
+  }
+  function endRotate() {
+    dragRef.current = null;
+    window.removeEventListener("mousemove", onRotate);
+    window.removeEventListener("mouseup", endRotate);
+  }
+  const cx = x + w / 2;
+  return (
+    <>
+      <div
+        style={{
+          position: "absolute",
+          left: `${cx * 100}%`,
+          top: `${y * 100}%`,
+          width: 1,
+          height: 28,
+          marginLeft: -0.5,
+          marginTop: -28,
+          background: "#22c55e",
+          pointerEvents: "none",
+          zIndex: 31,
+        }}
+      />
+      <div
+        onMouseDown={startRotate}
+        title="Arraste pra girar o vídeo (Shift = snap 15°)"
+        style={{
+          position: "absolute",
+          left: `${cx * 100}%`,
+          top: `${y * 100}%`,
+          width: 18,
+          height: 18,
+          marginLeft: -9,
+          marginTop: -42,
+          background: "#22c55e",
+          border: "2px solid white",
+          borderRadius: "50%",
+          cursor: "grab",
+          zIndex: 32,
+          boxShadow: "0 2px 4px rgba(0,0,0,0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 10,
+          color: "white",
+          userSelect: "none",
+        }}
+      >
+        ↻
+      </div>
+      {rotation !== 0 && (
+        <div
+          style={{
+            position: "absolute",
+            left: `${cx * 100}%`,
+            top: `${y * 100}%`,
+            marginLeft: 14,
+            marginTop: -48,
+            fontSize: 10,
+            color: "#22c55e",
+            background: "rgba(0,0,0,0.7)",
+            padding: "1px 5px",
+            borderRadius: 3,
+            pointerEvents: "none",
+            zIndex: 32,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {rotation}°
+        </div>
       )}
     </>
   );

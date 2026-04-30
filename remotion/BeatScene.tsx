@@ -80,6 +80,7 @@ interface Props {
       videoZoom?: number;
       videoFlipH?: boolean;
       videoFlipV?: boolean;
+      videoRotation?: number; // V44
       videoTrimStart?: number;
       videoTrimEnd?: number;
       videoPlaybackRate?: number;
@@ -311,11 +312,14 @@ export const BeatScene: React.FC<Props> = ({
     videoBlacks: beat.videoBlacks,
   });
 
-  // Vídeo transforms (V4 zoom/flip/trim) + posição livre (V9)
+  // Vídeo transforms (V4 zoom/flip/trim) + posição livre (V9) + rotação (V44)
   const videoZoom = Math.max(1, beat.videoZoom ?? 1);
   const flipX = beat.videoFlipH ? -1 : 1;
   const flipY = beat.videoFlipV ? -1 : 1;
-  const videoTransform = `scale(${videoZoom * flipX}, ${videoZoom * flipY})`;
+  const videoRot = beat.videoRotation ?? 0;
+  const videoTransform =
+    `scale(${videoZoom * flipX}, ${videoZoom * flipY})` +
+    (videoRot !== 0 ? ` rotate(${videoRot}deg)` : "");
   const startFrom = Math.max(0, Math.round((beat.videoTrimStart ?? 0) * fps));
   // V27: trim END agora aplicado de verdade (antes ficava só no draft, sumia no MP4)
   const endAt =
