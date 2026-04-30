@@ -120,15 +120,18 @@ export async function searchPexelsVideos(args: {
   query: string;
   orientation?: "portrait" | "landscape" | "square";
   perPage?: number;
+  page?: number; // V32: paginação — page=1 é a primeira
 }): Promise<PexelsVideo[]> {
   const apiKey = process.env.PEXELS_API_KEY;
   if (!apiKey) {
     throw new Error("PEXELS_API_KEY ausente no .env.local");
   }
+  // V32: per_page padrão 80 (máximo do Pexels). Antes era 15 → poucos resultados.
   const params = new URLSearchParams({
     query: args.query,
     orientation: args.orientation ?? "portrait",
-    per_page: String(args.perPage ?? 15),
+    per_page: String(args.perPage ?? 80),
+    page: String(args.page ?? 1),
   });
   const res = await fetch(`${PEXELS_SEARCH_URL}?${params.toString()}`, {
     headers: { Authorization: apiKey },
@@ -145,19 +148,24 @@ export function pickBestVideoFile(
   video: PexelsVideo,
   prefer: { width: number; height: number },
 ): PexelsVideoFile | null {
-  const portrait = video.video_files.filter(
-    (vf) => vf.height >= vf.width && vf.file_type === "video/mp4",
-  );
-  if (portrait.length === 0) {
-    const fallback = video.video_files.find((vf) => vf.file_type === "video/mp4");
-    return fallback ?? null;
+  // V32: filtragem MENOS estrita — antes só retornava portrait+mp4 (filtro
+  // duplo que zerava muitos resultados). Agora pega TODOS os mp4, prioriza
+  // portrait via score (mas não exclui landscape).
+  const mp4Files = video.video_files.filter((vf) => vf.file_type === "video/mp4");
+  if (mp4Files.length === 0) {
+    return video.video_files[0] ?? null;
   }
-  let best = portrait[0]!;
+
+  let best = mp4Files[0]!;
   let bestScore = Infinity;
-  for (const vf of portrait) {
+  for (const vf of mp4Files) {
+    // Score: penaliza diferença de dimensão E penaliza orientação errada
     const widthDelta = Math.abs(vf.width - prefer.width);
     const heightDelta = Math.abs(vf.height - prefer.height);
-    const score = widthDelta + heightDelta;
+    const isPortrait = vf.height >= vf.width;
+    const wantPortrait = prefer.height >= prefer.width;
+    const orientationPenalty = isPortrait === wantPortrait ? 0 : 200;
+    const score = widthDelta + heightDelta + orientationPenalty;
     if (score < bestScore) {
       bestScore = score;
       best = vf;

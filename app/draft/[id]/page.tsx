@@ -3765,7 +3765,10 @@ function PexelsLiveSearch({
   const [query, setQuery] = useState(initialQuery);
   const [items, setItems] = useState<{ pexelsId: number; previewUrl: string; fileUrl: string }[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
 
   // Quando muda a query da página (navegou pra outra página), atualiza
   // o input do search pra refletir a nova sugestão
@@ -3785,24 +3788,52 @@ function PexelsLiveSearch({
     const term = q ?? query;
     if (!term.trim()) return;
     setLoading(true);
+    setPage(1);
+    setHasMore(false);
     try {
-      const res = await fetch(`/api/library/search?query=${encodeURIComponent(term)}&format=${format}`);
+      const res = await fetch(
+        `/api/library/search?query=${encodeURIComponent(term)}&format=${format}&page=1&perPage=80`,
+      );
       const data = await res.json();
-      if (data.ok) setItems(data.items);
+      if (data.ok) {
+        setItems(data.items);
+        setHasMore(!!data.hasMore);
+      }
     } finally {
       setLoading(false);
     }
   }
 
+  // V32: Paginação — carrega próxima página acumulando resultados
+  async function loadMore() {
+    if (loadingMore) return;
+    const nextPage = page + 1;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(
+        `/api/library/search?query=${encodeURIComponent(query)}&format=${format}&page=${nextPage}&perPage=80`,
+      );
+      const data = await res.json();
+      if (data.ok) {
+        // Dedup pelo pexelsId pra evitar duplicatas
+        const seen = new Set(items.map((it) => it.pexelsId));
+        const newOnes = (data.items as typeof items).filter(
+          (it) => !seen.has(it.pexelsId),
+        );
+        setItems([...items, ...newOnes]);
+        setPage(nextPage);
+        setHasMore(!!data.hasMore && newOnes.length > 0);
+      }
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   async function pick(item: { pexelsId: number; fileUrl: string }) {
-    // INSTANTÂNEO: usa a URL do Pexels CDN direto, sem baixar pro
-    // servidor. Browser carrega da Pexels (rápido) e o render também
-    // (lib/render.ts já passa URLs HTTP direto pro Remotion).
     setDownloadingId(item.pexelsId);
     try {
       onPick(item.fileUrl, item.fileUrl);
     } finally {
-      // Pequeno delay visual pra usuário ver feedback
       setTimeout(() => setDownloadingId(null), 200);
     }
   }
@@ -3828,7 +3859,7 @@ function PexelsLiveSearch({
                 if (e.key === "Enter") search();
               }}
               className="flex-1 rounded bg-neutral-900 border border-neutral-700 px-2 py-1 text-xs"
-              placeholder="palavras-chave em inglês"
+              placeholder="palavras em inglês (ex: businessman, beach, sunset)"
             />
             <button
               onClick={() => search()}
@@ -3838,6 +3869,16 @@ function PexelsLiveSearch({
               {loading ? "…" : "ir"}
             </button>
           </div>
+          <div className="text-[9px] text-neutral-500">
+            💡 Em <strong>inglês</strong> dá MUITO mais resultados (Pexels é
+            buscador em inglês). Ex: &quot;person crying&quot;, &quot;city
+            night&quot;, &quot;money&quot;.
+          </div>
+          {!loading && items.length > 0 && (
+            <div className="text-[10px] text-neutral-400">
+              {items.length} resultado{items.length === 1 ? "" : "s"}
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-1">
             {items.map((it) => (
               <button
@@ -3859,6 +3900,24 @@ function PexelsLiveSearch({
               </button>
             ))}
           </div>
+          {/* V32: Botão Carregar mais */}
+          {hasMore && items.length > 0 && (
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="w-full text-xs px-2 py-2 rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-600 disabled:opacity-50"
+            >
+              {loadingMore
+                ? "Carregando mais…"
+                : `↓ Carregar mais (página ${page + 1})`}
+            </button>
+          )}
+          {!loading && items.length === 0 && query && (
+            <div className="text-[11px] text-neutral-500 text-center py-4">
+              Nenhum resultado pra <code>{query}</code>. Tenta em inglês ou
+              palavras mais simples.
+            </div>
+          )}
         </div>
       )}
     </div>
