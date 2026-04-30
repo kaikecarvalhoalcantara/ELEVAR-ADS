@@ -4226,7 +4226,7 @@ function ImportVideoButton({
       <input
         ref={inputRef}
         type="file"
-        accept="video/mp4,video/quicktime,video/webm,image/png,image/jpeg,image/webp"
+        accept="video/*,image/*"
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
@@ -4238,7 +4238,8 @@ function ImportVideoButton({
         <p className="text-[10px] text-red-400">Erro: {error}</p>
       )}
       <p className="text-[10px] text-neutral-500 leading-tight">
-        💡 Sobe direto pra ESTA página. Aceita MP4/MOV/WEBM e imagens.
+        💡 Sobe direto pra ESTA página. Aceita MP4/MOV/WEBM/MKV/AVI e PNG/JPG/
+        WEBP/GIF (Pinterest, TikTok, Instagram, etc.).
       </p>
     </div>
   );

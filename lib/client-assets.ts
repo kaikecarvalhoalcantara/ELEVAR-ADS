@@ -13,8 +13,16 @@ const ASSETS_ROOT = storagePath("client-assets");
 const RAW_DIR = join(ASSETS_ROOT, "raw");
 const META_FILE = join(ASSETS_ROOT, "metadata.json");
 
-const VIDEO_EXT = new Set([".mp4", ".mov", ".webm", ".m4v"]);
-const IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif"]);
+// V28: lista expandida de formatos — cobre Pinterest, TikTok, Instagram,
+// YouTube downloads, etc. (mkv, avi, etc raramente funcionam no Remotion
+// sem conversão, mas vamos aceitar; Chromium roda mp4/webm com mais
+// confiança).
+const VIDEO_EXT = new Set([
+  ".mp4", ".mov", ".webm", ".m4v", ".mkv", ".avi", ".ogv", ".3gp",
+]);
+const IMAGE_EXT = new Set([
+  ".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif", ".bmp", ".heic",
+]);
 
 const STOP_WORDS = new Set([
   "the", "of", "and", "a", "an", "to", "in", "on", "for", "with", "by",
