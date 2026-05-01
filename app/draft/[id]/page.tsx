@@ -119,8 +119,7 @@ export default function EditorPage() {
   const [elementClipboard, setElementClipboard] = useState<PageElement | null>(null);
   // V49: toast fugaz pra confirmar Ctrl+C/V — antes user não tinha feedback algum
   const [copyToast, setCopyToast] = useState<string | null>(null);
-  // V49: réguas de alinhamento (regra dos terços + crosshair central) — toggle global
-  const [showGrid, setShowGrid] = useState(true);
+  // V50: showGrid removido — réguas agora aparecem só durante drag (smart guides)
   // V44: clipboard pro vídeo — guarda src/url + transforms pra colar em outro slide
   const [videoClipboard, setVideoClipboard] = useState<{
     videoSrc: string;
@@ -859,18 +858,8 @@ export default function EditorPage() {
           >
             ▶ Animação
           </button>
-          {/* V49: Toggle réguas de alinhamento (regra dos terços + crosshair) */}
-          <button
-            onClick={() => setShowGrid((v) => !v)}
-            className={`px-3 py-1 rounded text-sm border ${
-              showGrid
-                ? "bg-purple-700/40 border-purple-500 text-purple-200"
-                : "bg-neutral-800 border-neutral-600 hover:bg-neutral-700"
-            }`}
-            title="Mostrar/esconder réguas de alinhamento (regra dos terços + crosshair central)"
-          >
-            ▦ Réguas
-          </button>
+          {/* V50: Toggle "▦ Réguas" REMOVIDO. As réguas agora aparecem
+              automaticamente durante o drag, igual Canva. */}
           <button
             onClick={() => renderAds([ad.number])}
             disabled={draft.rendering?.status === "in_progress"}
@@ -918,7 +907,6 @@ export default function EditorPage() {
               textSelected={textIsSelected}
               onSetTextSelected={setTextIsSelected}
               videoPreviewTime={videoPreviewTime}
-              showGrid={showGrid}
             />
           ) : (
             <div className="text-sm text-neutral-500">selecione uma página</div>
@@ -1022,7 +1010,6 @@ function EditableCanvas({
   textSelected,
   onSetTextSelected,
   videoPreviewTime,
-  showGrid,
 }: {
   page: EnrichedPage;
   draft: EnrichedDraft;
@@ -1034,7 +1021,6 @@ function EditableCanvas({
   textSelected: boolean;
   onSetTextSelected: (selected: boolean) => void;
   videoPreviewTime?: number | null;
-  showGrid: boolean;
 }) {
   const dims = dimsFor(draft.format);
   const previewW = dims.width >= dims.height ? 600 : 420;
@@ -1046,6 +1032,9 @@ function EditableCanvas({
   const selected = textSelected;
   const setSelected = onSetTextSelected;
   const [draftText, setDraftText] = useState(page.text);
+  // V50: réguas de alinhamento dinâmicas — só aparecem durante drag do vídeo
+  // quando o centro está alinhado com o centro do canvas (snap).
+  const [videoCenterGuides, setVideoCenterGuides] = useState({ v: false, h: false });
   const dragRef = useRef<{ startY: number; startSize: number } | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [activeGuides, setActiveGuides] = useState<AlignGuide[]>([]);
@@ -1346,6 +1335,7 @@ function EditableCanvas({
             onSelectElement(null, false);
           }}
           onChange={(patch) => onUpdate(patch)}
+          onCenterGuides={setVideoCenterGuides}
           previewTime={videoPreviewTime}
         />
       )}
@@ -1396,67 +1386,34 @@ function EditableCanvas({
         </svg>
       )}
 
-      {/* V49: Réguas de alinhamento (regra dos terços + crosshair central).
-          Linhas rosa fucsia com pointer-events:none — só visual, não bloqueia
-          drag/click. Toggleable via botão "▦ Réguas" na barra superior. */}
-      {showGrid && (
-        <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 22 }}>
-          {/* Regra dos terços — verticais 33% e 67% */}
-          <div
-            className="absolute top-0 bottom-0"
-            style={{
-              left: "33.333%",
-              width: 1,
-              background: "rgba(236,72,153,0.55)",
-            }}
-          />
-          <div
-            className="absolute top-0 bottom-0"
-            style={{
-              left: "66.666%",
-              width: 1,
-              background: "rgba(236,72,153,0.55)",
-            }}
-          />
-          {/* Regra dos terços — horizontais 33% e 67% */}
-          <div
-            className="absolute left-0 right-0"
-            style={{
-              top: "33.333%",
-              height: 1,
-              background: "rgba(236,72,153,0.55)",
-            }}
-          />
-          <div
-            className="absolute left-0 right-0"
-            style={{
-              top: "66.666%",
-              height: 1,
-              background: "rgba(236,72,153,0.55)",
-            }}
-          />
-          {/* Crosshair central — linha vertical e horizontal no centro */}
-          <div
-            className="absolute top-0 bottom-0"
-            style={{
-              left: "50%",
-              width: 1,
-              marginLeft: -0.5,
-              background: "rgba(236,72,153,0.85)",
-              boxShadow: "0 0 4px rgba(236,72,153,0.6)",
-            }}
-          />
-          <div
-            className="absolute left-0 right-0"
-            style={{
-              top: "50%",
-              height: 1,
-              marginTop: -0.5,
-              background: "rgba(236,72,153,0.85)",
-              boxShadow: "0 0 4px rgba(236,72,153,0.6)",
-            }}
-          />
-        </div>
+      {/* V50: Réguas dinâmicas — aparecem SÓ durante o drag do vídeo, quando
+          o centro do vídeo bate com o centro do canvas. Estilo Canva: linha
+          rosa fúcsia visível só pra mostrar "tá alinhado!" e some ao soltar. */}
+      {videoCenterGuides.v && (
+        <div
+          className="absolute top-0 bottom-0 pointer-events-none"
+          style={{
+            left: "50%",
+            width: 1,
+            marginLeft: -0.5,
+            background: "#ec4899",
+            boxShadow: "0 0 6px rgba(236,72,153,0.9)",
+            zIndex: 35,
+          }}
+        />
+      )}
+      {videoCenterGuides.h && (
+        <div
+          className="absolute left-0 right-0 pointer-events-none"
+          style={{
+            top: "50%",
+            height: 1,
+            marginTop: -0.5,
+            background: "#ec4899",
+            boxShadow: "0 0 6px rgba(236,72,153,0.9)",
+            zIndex: 35,
+          }}
+        />
       )}
 
       {/* Elements layer (entre overlay e texto) */}
@@ -2555,6 +2512,7 @@ function VideoLayer({
   containerRef,
   onSelect,
   onChange,
+  onCenterGuides,
   previewTime,
 }: {
   src: string;
@@ -2577,6 +2535,7 @@ function VideoLayer({
     videoW?: number;
     videoH?: number;
   }) => void;
+  onCenterGuides: (g: { v: boolean; h: boolean }) => void; // V50
   previewTime?: number | null; // V22: tempo pra scrub durante drag do trim
 }) {
   const ref = useRef<HTMLVideoElement | null>(null);
@@ -2635,10 +2594,20 @@ function VideoLayer({
     const start = dragRef.current.start;
     const mode = dragRef.current.mode;
     if (mode === "move") {
-      onChange({
-        videoX: clamp(start.x + dx, -0.8, 1),
-        videoY: clamp(start.y + dy, -0.8, 1),
-      });
+      let nx = clamp(start.x + dx, -0.8, 1);
+      let ny = clamp(start.y + dy, -0.8, 1);
+      // V50: SNAP no centro do canvas — quando o centro do vídeo está dentro
+      // de 1.5% do centro do canvas, gruda no centro e mostra linha rosa.
+      // É como Canva faz — ajuda a alinhar perfeitamente com 1 visual snap.
+      const SNAP = 0.015;
+      const centerX = nx + start.w / 2;
+      const centerY = ny + start.h / 2;
+      const snapV = Math.abs(centerX - 0.5) < SNAP;
+      const snapH = Math.abs(centerY - 0.5) < SNAP;
+      if (snapV) nx = 0.5 - start.w / 2;
+      if (snapH) ny = 0.5 - start.h / 2;
+      onCenterGuides({ v: snapV, h: snapH });
+      onChange({ videoX: nx, videoY: ny });
     } else {
       let nx = start.x;
       let ny = start.y;
@@ -2666,6 +2635,7 @@ function VideoLayer({
   }
   function endDrag() {
     dragRef.current = null;
+    onCenterGuides({ v: false, h: false }); // V50: limpa guides ao soltar
     window.removeEventListener("mousemove", onDragMove);
     window.removeEventListener("mouseup", endDrag);
   }
