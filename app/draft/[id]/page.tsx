@@ -887,33 +887,6 @@ export default function EditorPage() {
               textSelected={textIsSelected}
               onSetTextSelected={setTextIsSelected}
               videoPreviewTime={videoPreviewTime}
-              hasVideoClipboard={!!videoClipboard}
-              onCopyVideo={() => {
-                // V46: copia o vídeo do slide atual pro clipboard global
-                if (!page || !page.videoUrl) return;
-                setVideoClipboard({
-                  videoSrc: page.videoSrc,
-                  videoUrl: page.videoUrl,
-                  videoZoom: page.videoZoom,
-                  videoFlipH: page.videoFlipH,
-                  videoFlipV: page.videoFlipV,
-                  videoRotation: page.videoRotation,
-                  videoX: page.videoX,
-                  videoY: page.videoY,
-                  videoW: page.videoW,
-                  videoH: page.videoH,
-                  videoTrimStart: page.videoTrimStart,
-                  videoTrimEnd: page.videoTrimEnd,
-                  videoPlaybackRate: page.videoPlaybackRate,
-                });
-              }}
-              onPasteVideo={() => {
-                if (!videoClipboard) return;
-                updatePage(selectedAd, selectedPage, {
-                  ...videoClipboard,
-                  videoRemoved: false,
-                });
-              }}
             />
           ) : (
             <div className="text-sm text-neutral-500">selecione uma página</div>
@@ -1017,9 +990,6 @@ function EditableCanvas({
   textSelected,
   onSetTextSelected,
   videoPreviewTime,
-  onCopyVideo,
-  onPasteVideo,
-  hasVideoClipboard,
 }: {
   page: EnrichedPage;
   draft: EnrichedDraft;
@@ -1031,9 +1001,6 @@ function EditableCanvas({
   textSelected: boolean;
   onSetTextSelected: (selected: boolean) => void;
   videoPreviewTime?: number | null;
-  onCopyVideo: () => void; // V46
-  onPasteVideo: () => void; // V46
-  hasVideoClipboard: boolean; // V46
 }) {
   const dims = dimsFor(draft.format);
   const previewW = dims.width >= dims.height ? 600 : 420;
@@ -1320,20 +1287,8 @@ function EditableCanvas({
       }}
       onClick={selectVideoFromBackground}
     >
-      {/* V46: Banner flutuante "Colar vídeo aqui" — aparece quando há vídeo
-          no clipboard. Click cola tudo (substitui o vídeo atual). */}
-      {hasVideoClipboard && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onPasteVideo();
-          }}
-          className="absolute -top-9 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg border border-emerald-400 flex items-center gap-1.5 whitespace-nowrap z-40"
-          title="Cola o vídeo copiado neste slide (substitui o atual)"
-        >
-          📥 Colar vídeo aqui
-        </button>
-      )}
+      {/* V47: Banner "Colar vídeo aqui" REMOVIDO. Pra colar use Ctrl+V
+          (atalho de teclado puro, igual sombra). */}
       {/* Background sólido (V18: cor escolhida pelo user, default preto) */}
       <div className="absolute inset-0" style={{ background: bgColor }} />
       {/* Vídeo de fundo posicionável (V9) — esconde se videoRemoved (V18) */}
@@ -1357,12 +1312,6 @@ function EditableCanvas({
             onSelectElement(null, false);
           }}
           onChange={(patch) => onUpdate(patch)}
-          onDelete={() => {
-            onUpdate({ videoRemoved: true });
-            onSetVideoSelected(false);
-          }}
-          onCopy={onCopyVideo}
-          hasClipboard={hasVideoClipboard}
           previewTime={videoPreviewTime}
         />
       )}
@@ -2506,9 +2455,6 @@ function VideoLayer({
   containerRef,
   onSelect,
   onChange,
-  onDelete,
-  onCopy,
-  hasClipboard,
   previewTime,
 }: {
   src: string;
@@ -2516,7 +2462,7 @@ function VideoLayer({
   zoom: number;
   flipH: boolean;
   flipV: boolean;
-  rotation: number; // V44
+  rotation: number; // V44 — aplicado no transform mas controlado no painel direito
   trimStart: number;
   x: number;
   y: number;
@@ -2530,13 +2476,7 @@ function VideoLayer({
     videoY?: number;
     videoW?: number;
     videoH?: number;
-    videoRotation?: number;
-    videoFlipH?: boolean; // V45
-    videoFlipV?: boolean; // V45
   }) => void;
-  onDelete: () => void; // V44
-  onCopy: () => void; // V46: botão 📋 inline pra copiar pro clipboard
-  hasClipboard: boolean; // V46: pra mostrar feedback "✓ Copiado"
   previewTime?: number | null; // V22: tempo pra scrub durante drag do trim
 }) {
   const ref = useRef<HTMLVideoElement | null>(null);
@@ -2700,6 +2640,14 @@ function VideoLayer({
       </div>
       {selected && (
         <>
+          {/* V47: Apenas os 4 cantos pra resize. TODOS os botões inline
+              (rotação, delete, flip, copiar) foram removidos a pedido do
+              usuário — comportamento estilo Canva: drag livre com mouse
+              em qualquer ponto, atalhos de teclado pro resto:
+                · Delete / Backspace → excluir vídeo
+                · Ctrl+C → copiar (depois Ctrl+V em outro slide pra colar)
+              Flip horizontal/vertical e rotação continuam disponíveis no
+              painel direito (Vídeo de fundo) sem poluir o canvas. */}
           {(["nw", "ne", "sw", "se"] as const).map((dir) => {
             const left = dir.endsWith("e") ? x + w : x;
             const top = dir.startsWith("s") ? y + h : y;
@@ -2730,288 +2678,18 @@ function VideoLayer({
               />
             );
           })}
-          <div className="absolute -top-7 left-2 text-[10px] text-purple-300 pointer-events-none">
-            vídeo selecionado · arrasta pra mover · cantos pra resize · 🟢 girar · 🔴 excluir
+          <div className="absolute -top-6 left-2 text-[10px] text-purple-300 pointer-events-none whitespace-nowrap">
+            vídeo selecionado · arrasta pra mover · cantos pra resize · Delete pra excluir · Ctrl+C/V pra copiar
           </div>
-          {/* V44: Bolinha verde de rotação acima do topo central */}
-          <VideoRotationHandle
-            x={x}
-            y={y}
-            w={w}
-            rotation={rotation}
-            containerRef={containerRef}
-            onChange={(rot) => onChange({ videoRotation: rot })}
-          />
-          {/* V44: X vermelho no canto sup-direito pra remover o vídeo direto */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-            title="Excluir vídeo (ou aperte Delete)"
-            style={{
-              position: "absolute",
-              left: `${(x + w) * 100}%`,
-              top: `${y * 100}%`,
-              width: 20,
-              height: 20,
-              marginLeft: 6,
-              marginTop: -26,
-              background: "#dc2626",
-              border: "2px solid white",
-              borderRadius: "50%",
-              cursor: "pointer",
-              zIndex: 32,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 12,
-              fontWeight: 700,
-              color: "white",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
-              padding: 0,
-              lineHeight: 1,
-            }}
-          >
-            ✕
-          </button>
-          {/* V45: Botões INLINE de inverter horizontal/vertical no canto sup-esquerdo */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onChange({ videoFlipH: !flipH });
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-            title="Inverter horizontalmente (espelhar)"
-            style={{
-              position: "absolute",
-              left: `${x * 100}%`,
-              top: `${y * 100}%`,
-              width: 22,
-              height: 22,
-              marginLeft: -28,
-              marginTop: -26,
-              background: flipH ? "#3b82f6" : "rgba(40,40,40,0.95)",
-              border: "2px solid white",
-              borderRadius: 4,
-              cursor: "pointer",
-              zIndex: 32,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 12,
-              color: "white",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
-              padding: 0,
-              lineHeight: 1,
-              userSelect: "none",
-            }}
-          >
-            ⇆
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onChange({ videoFlipV: !flipV });
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-            title="Inverter verticalmente"
-            style={{
-              position: "absolute",
-              left: `${x * 100}%`,
-              top: `${y * 100}%`,
-              width: 22,
-              height: 22,
-              marginLeft: -28,
-              marginTop: 0,
-              background: flipV ? "#3b82f6" : "rgba(40,40,40,0.95)",
-              border: "2px solid white",
-              borderRadius: 4,
-              cursor: "pointer",
-              zIndex: 32,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 12,
-              color: "white",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
-              padding: 0,
-              lineHeight: 1,
-              userSelect: "none",
-            }}
-          >
-            ⇅
-          </button>
-          {/* V46: Botão 📋 Copiar inline — alternativa visual ao Ctrl+C */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onCopy();
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-            title="Copiar vídeo (depois cole em outro slide com Ctrl+V ou no botão 'Colar')"
-            style={{
-              position: "absolute",
-              left: `${x * 100}%`,
-              top: `${y * 100}%`,
-              width: 22,
-              height: 22,
-              marginLeft: -28,
-              marginTop: 26,
-              background: hasClipboard ? "#10b981" : "rgba(40,40,40,0.95)",
-              border: "2px solid white",
-              borderRadius: 4,
-              cursor: "pointer",
-              zIndex: 32,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 11,
-              color: "white",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
-              padding: 0,
-              lineHeight: 1,
-              userSelect: "none",
-            }}
-          >
-            {hasClipboard ? "✓" : "⎘"}
-          </button>
-          {/* V46: Bolinha central REMOVIDA — wrapper inteiro do vídeo já é
-              arrastável (cursor: move). Estava confundindo. Agora o user
-              clica em qualquer lugar do vídeo e arrasta. */}
         </>
       )}
     </>
   );
 }
 
-/**
- * V44: Bolinha verde pra rotacionar o vídeo (mesmo mecanismo da
- * RotationHandle dos elementos, adaptada pros params de vídeo).
- */
-function VideoRotationHandle({
-  x,
-  y,
-  w,
-  rotation,
-  containerRef,
-  onChange,
-}: {
-  x: number;
-  y: number;
-  w: number;
-  rotation: number;
-  containerRef: React.RefObject<HTMLDivElement | null>;
-  onChange: (rot: number) => void;
-}) {
-  const dragRef = useRef<{
-    centerX: number;
-    centerY: number;
-    startAngle: number;
-    startRotation: number;
-  } | null>(null);
-  function startRotate(e: React.MouseEvent) {
-    e.stopPropagation();
-    e.preventDefault();
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const centerX = rect.left + (x + w / 2) * rect.width;
-    const centerY = rect.top + (y + 0.5) * rect.height; // aprox centro vertical do video
-    const startAngle =
-      (Math.atan2(e.clientY - centerY, e.clientX - centerX) * 180) / Math.PI;
-    dragRef.current = { centerX, centerY, startAngle, startRotation: rotation };
-    window.addEventListener("mousemove", onRotate);
-    window.addEventListener("mouseup", endRotate);
-  }
-  function onRotate(e: MouseEvent) {
-    if (!dragRef.current) return;
-    const cur =
-      (Math.atan2(
-        e.clientY - dragRef.current.centerY,
-        e.clientX - dragRef.current.centerX,
-      ) *
-        180) /
-      Math.PI;
-    const delta = cur - dragRef.current.startAngle;
-    let next = dragRef.current.startRotation + delta;
-    if (e.shiftKey) next = Math.round(next / 15) * 15;
-    next = ((next + 540) % 360) - 180;
-    onChange(Math.round(next));
-  }
-  function endRotate() {
-    dragRef.current = null;
-    window.removeEventListener("mousemove", onRotate);
-    window.removeEventListener("mouseup", endRotate);
-  }
-  const cx = x + w / 2;
-  return (
-    <>
-      <div
-        style={{
-          position: "absolute",
-          left: `${cx * 100}%`,
-          top: `${y * 100}%`,
-          width: 1,
-          height: 28,
-          marginLeft: -0.5,
-          marginTop: -28,
-          background: "#22c55e",
-          pointerEvents: "none",
-          zIndex: 31,
-        }}
-      />
-      <div
-        onMouseDown={startRotate}
-        title="Arraste pra girar o vídeo (Shift = snap 15°)"
-        style={{
-          position: "absolute",
-          left: `${cx * 100}%`,
-          top: `${y * 100}%`,
-          width: 18,
-          height: 18,
-          marginLeft: -9,
-          marginTop: -42,
-          background: "#22c55e",
-          border: "2px solid white",
-          borderRadius: "50%",
-          cursor: "grab",
-          zIndex: 32,
-          boxShadow: "0 2px 4px rgba(0,0,0,0.5)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 10,
-          color: "white",
-          userSelect: "none",
-        }}
-      >
-        ↻
-      </div>
-      {rotation !== 0 && (
-        <div
-          style={{
-            position: "absolute",
-            left: `${cx * 100}%`,
-            top: `${y * 100}%`,
-            marginLeft: 14,
-            marginTop: -48,
-            fontSize: 10,
-            color: "#22c55e",
-            background: "rgba(0,0,0,0.7)",
-            padding: "1px 5px",
-            borderRadius: 3,
-            pointerEvents: "none",
-            zIndex: 32,
-            whiteSpace: "nowrap",
-          }}
-        >
-          {rotation}°
-        </div>
-      )}
-    </>
-  );
-}
+/* V47: VideoRotationHandle removido — rotação do vídeo agora SÓ pelo
+   painel direito (Vídeo de fundo → slider Rotação). Comportamento
+   estilo Canva: canvas limpo, controles em painel. */
 
 /* ---------------- Page strip (Canva-like bottom thumbs) ---------------- */
 
