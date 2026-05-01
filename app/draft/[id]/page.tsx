@@ -117,6 +117,10 @@ export default function EditorPage() {
     });
   }
   const [elementClipboard, setElementClipboard] = useState<PageElement | null>(null);
+  // V49: toast fugaz pra confirmar Ctrl+C/V — antes user não tinha feedback algum
+  const [copyToast, setCopyToast] = useState<string | null>(null);
+  // V49: réguas de alinhamento (regra dos terços + crosshair central) — toggle global
+  const [showGrid, setShowGrid] = useState(true);
   // V44: clipboard pro vídeo — guarda src/url + transforms pra colar em outro slide
   const [videoClipboard, setVideoClipboard] = useState<{
     videoSrc: string;
@@ -204,13 +208,16 @@ export default function EditorPage() {
         e.preventDefault();
         redo();
       } else if (e.key === "c" || e.key === "C") {
-        // V44: prioridade — vídeo selecionado copia o vídeo, senão copia elemento
+        // V49: condição RELAXADA — antes exigia videoUrl truthy, mas em alguns
+        // casos (vídeo importado recente, antes do enrichment terminar) o
+        // videoUrl podia estar vazio mesmo com videoSrc preenchido. Agora
+        // copia se TEM videoSrc OU videoUrl. Sem mais cancelamento silencioso.
         const cur = ad.pages[selectedPage];
-        if (videoIsSelected && cur && cur.videoUrl) {
+        if (videoIsSelected && cur && (cur.videoSrc || cur.videoUrl)) {
           e.preventDefault();
           setVideoClipboard({
-            videoSrc: cur.videoSrc,
-            videoUrl: cur.videoUrl,
+            videoSrc: cur.videoSrc ?? "",
+            videoUrl: cur.videoUrl ?? "",
             videoZoom: cur.videoZoom,
             videoFlipH: cur.videoFlipH,
             videoFlipV: cur.videoFlipV,
@@ -223,6 +230,9 @@ export default function EditorPage() {
             videoTrimEnd: cur.videoTrimEnd,
             videoPlaybackRate: cur.videoPlaybackRate,
           });
+          // V49: feedback visual fugaz — define um "toast" temporário
+          setCopyToast(`✓ Vídeo copiado — Ctrl+V em outro slide pra colar`);
+          window.setTimeout(() => setCopyToast(null), 2200);
           return;
         }
         const el = ad.pages[selectedPage]?.elements?.find(
@@ -231,20 +241,21 @@ export default function EditorPage() {
         if (el) {
           e.preventDefault();
           setElementClipboard(el);
+          setCopyToast(`✓ Sombra copiada — Ctrl+V em outro slide pra colar`);
+          window.setTimeout(() => setCopyToast(null), 2200);
         }
       } else if (e.key === "v" || e.key === "V") {
-        // V44: prioridade — se tem video clipboard E vídeo está selecionado
-        // (ou nada selecionado), cola o vídeo no slide atual
-        if (
-          videoClipboard &&
-          (videoIsSelected ||
-            (!selectedElementId && !textIsSelected))
-        ) {
+        // V49: relaxado — basta ter clipboard, cola no slide atual independente
+        // do que está selecionado (ainda dá prioridade pra elementos se tiver
+        // tanto videoClipboard quanto elementClipboard).
+        if (videoClipboard && !selectedElementId) {
           e.preventDefault();
           updatePage(selectedAd, selectedPage, {
             ...videoClipboard,
             videoRemoved: false,
           });
+          setCopyToast(`✓ Vídeo colado neste slide`);
+          window.setTimeout(() => setCopyToast(null), 1800);
           return;
         }
         if (!elementClipboard) return;
@@ -786,6 +797,14 @@ export default function EditorPage() {
 
   return (
     <main className="h-screen flex flex-col bg-neutral-950 text-neutral-100 overflow-hidden">
+      {/* V49: Toast fugaz de copy/paste — aparece centralizado no topo */}
+      {copyToast && (
+        <div
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-emerald-600 text-white text-xs font-semibold px-4 py-2 rounded-md shadow-2xl border border-emerald-400 animate-in fade-in slide-in-from-top-2 pointer-events-none"
+        >
+          {copyToast}
+        </div>
+      )}
       <header className="px-4 py-2.5 border-b border-neutral-800 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
           <button onClick={() => router.push("/")} className="text-xs text-neutral-400 hover:text-neutral-200">
@@ -840,6 +859,18 @@ export default function EditorPage() {
           >
             ▶ Animação
           </button>
+          {/* V49: Toggle réguas de alinhamento (regra dos terços + crosshair) */}
+          <button
+            onClick={() => setShowGrid((v) => !v)}
+            className={`px-3 py-1 rounded text-sm border ${
+              showGrid
+                ? "bg-purple-700/40 border-purple-500 text-purple-200"
+                : "bg-neutral-800 border-neutral-600 hover:bg-neutral-700"
+            }`}
+            title="Mostrar/esconder réguas de alinhamento (regra dos terços + crosshair central)"
+          >
+            ▦ Réguas
+          </button>
           <button
             onClick={() => renderAds([ad.number])}
             disabled={draft.rendering?.status === "in_progress"}
@@ -887,6 +918,7 @@ export default function EditorPage() {
               textSelected={textIsSelected}
               onSetTextSelected={setTextIsSelected}
               videoPreviewTime={videoPreviewTime}
+              showGrid={showGrid}
             />
           ) : (
             <div className="text-sm text-neutral-500">selecione uma página</div>
@@ -990,6 +1022,7 @@ function EditableCanvas({
   textSelected,
   onSetTextSelected,
   videoPreviewTime,
+  showGrid,
 }: {
   page: EnrichedPage;
   draft: EnrichedDraft;
@@ -1001,6 +1034,7 @@ function EditableCanvas({
   textSelected: boolean;
   onSetTextSelected: (selected: boolean) => void;
   videoPreviewTime?: number | null;
+  showGrid: boolean;
 }) {
   const dims = dimsFor(draft.format);
   const previewW = dims.width >= dims.height ? 600 : 420;
@@ -1360,6 +1394,69 @@ function EditableCanvas({
           </filter>
           <rect width="100%" height="100%" filter="url(#editor-canvas-grain)" />
         </svg>
+      )}
+
+      {/* V49: Réguas de alinhamento (regra dos terços + crosshair central).
+          Linhas rosa fucsia com pointer-events:none — só visual, não bloqueia
+          drag/click. Toggleable via botão "▦ Réguas" na barra superior. */}
+      {showGrid && (
+        <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 22 }}>
+          {/* Regra dos terços — verticais 33% e 67% */}
+          <div
+            className="absolute top-0 bottom-0"
+            style={{
+              left: "33.333%",
+              width: 1,
+              background: "rgba(236,72,153,0.55)",
+            }}
+          />
+          <div
+            className="absolute top-0 bottom-0"
+            style={{
+              left: "66.666%",
+              width: 1,
+              background: "rgba(236,72,153,0.55)",
+            }}
+          />
+          {/* Regra dos terços — horizontais 33% e 67% */}
+          <div
+            className="absolute left-0 right-0"
+            style={{
+              top: "33.333%",
+              height: 1,
+              background: "rgba(236,72,153,0.55)",
+            }}
+          />
+          <div
+            className="absolute left-0 right-0"
+            style={{
+              top: "66.666%",
+              height: 1,
+              background: "rgba(236,72,153,0.55)",
+            }}
+          />
+          {/* Crosshair central — linha vertical e horizontal no centro */}
+          <div
+            className="absolute top-0 bottom-0"
+            style={{
+              left: "50%",
+              width: 1,
+              marginLeft: -0.5,
+              background: "rgba(236,72,153,0.85)",
+              boxShadow: "0 0 4px rgba(236,72,153,0.6)",
+            }}
+          />
+          <div
+            className="absolute left-0 right-0"
+            style={{
+              top: "50%",
+              height: 1,
+              marginTop: -0.5,
+              background: "rgba(236,72,153,0.85)",
+              boxShadow: "0 0 4px rgba(236,72,153,0.6)",
+            }}
+          />
+        </div>
       )}
 
       {/* Elements layer (entre overlay e texto) */}
