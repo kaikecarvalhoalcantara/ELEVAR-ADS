@@ -78,7 +78,11 @@ export interface PageWithStyle extends Beat, PageStyle {
     | "desalinhado"
     | "vazado"
     | "neon"
-    | "falha";
+    | "falha"
+    | "relevo"   // V53
+    | "metalico" // V53
+    | "fogo"     // V53
+    | "gelo";    // V53
   letterEffectIntensity?: number;
   letterEffectColor?: string;
 }

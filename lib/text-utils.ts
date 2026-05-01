@@ -136,7 +136,12 @@ export type LetterEffect =
   | "desalinhado"
   | "vazado"
   | "neon"
-  | "falha";
+  | "falha"
+  // V53: 4 novos efeitos
+  | "relevo"      // 3D embossed/inset look
+  | "metalico"    // gold/silver shimmer com gradient
+  | "fogo"        // glow laranja/vermelho com flame edge
+  | "gelo";       // glow azul/branco frio com sparkle
 
 export interface LetterEffectStyle {
   textShadow?: string;
@@ -145,6 +150,9 @@ export interface LetterEffectStyle {
   WebkitTextFillColor?: string;
   background?: string;
   padding?: string;
+  // V53: pra "metalico" — gradient text via background-clip
+  WebkitBackgroundClip?: string;
+  backgroundClip?: string;
   /** se true, desabilita o textShadow base do user (efeito tem o seu próprio) */
   overrideShadow?: boolean;
 }
@@ -244,6 +252,56 @@ export function buildLetterEffect(
           `-${3 * i}px 0 0 #00d4ff`,
           `${5 * i}px ${2 * i}px 0 #ff0040aa`,
           `-${5 * i}px -${2 * i}px 0 #00d4ffaa`,
+        ].join(", "),
+        overrideShadow: true,
+      };
+    // V53: 4 efeitos novos
+    case "relevo":
+      // 3D embossed — sombra clara em cima/esquerda + escura em baixo/direita
+      return {
+        textShadow: [
+          `-${1 * i}px -${1 * i}px 0 rgba(255,255,255,0.6)`,
+          `-${2 * i}px -${2 * i}px 0 rgba(255,255,255,0.3)`,
+          `${1 * i}px ${1 * i}px 0 rgba(0,0,0,0.6)`,
+          `${2 * i}px ${2 * i}px ${4 * i}px rgba(0,0,0,0.4)`,
+        ].join(", "),
+        overrideShadow: true,
+      };
+    case "metalico":
+      // Brilho metálico — gradiente dourado/prata com sombra dura embaixo
+      return {
+        background: `linear-gradient(180deg, ${color} 0%, #ffffff 35%, ${color} 65%, #8a6a1a 100%)`,
+        WebkitBackgroundClip: "text",
+        backgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+        color: "transparent",
+        textShadow: [
+          `0 ${2 * i}px ${4 * i}px rgba(0,0,0,0.5)`,
+          `0 0 ${8 * i}px ${color}66`,
+        ].join(", "),
+        overrideShadow: true,
+      };
+    case "fogo":
+      // Glow vermelho/laranja com pulsação visual
+      return {
+        textShadow: [
+          `0 0 ${4 * i}px #ffeb3b`,
+          `0 0 ${8 * i}px #ff9800`,
+          `0 0 ${16 * i}px #ff5722`,
+          `0 0 ${28 * i}px #d32f2f`,
+          `0 ${3 * i}px ${10 * i}px #b71c1ccc`,
+        ].join(", "),
+        overrideShadow: true,
+      };
+    case "gelo":
+      // Glow azul claro frio + sparkle
+      return {
+        textShadow: [
+          `0 0 ${3 * i}px #ffffff`,
+          `0 0 ${8 * i}px #b3e5fc`,
+          `0 0 ${16 * i}px #4fc3f7`,
+          `0 0 ${28 * i}px #0288d1`,
+          `0 ${1 * i}px ${4 * i}px #01579baa`,
         ].join(", "),
         overrideShadow: true,
       };

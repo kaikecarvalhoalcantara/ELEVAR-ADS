@@ -293,6 +293,13 @@ export const BeatScene: React.FC<Props> = ({
                 display: "inline-block",
               }
             : {}),
+          // V53: efeito "metalico" usa background-clip:text
+          ...(letterFx.WebkitBackgroundClip
+            ? { WebkitBackgroundClip: letterFx.WebkitBackgroundClip as never }
+            : {}),
+          ...(letterFx.backgroundClip
+            ? { backgroundClip: letterFx.backgroundClip as never }
+            : {}),
         }
       : {}),
   };

@@ -5441,6 +5441,11 @@ function LetterEffectGrid({
     { key: "vazado", label: "Vazado" },
     { key: "neon", label: "Neon" },
     { key: "falha", label: "Falha" },
+    // V53: 4 efeitos novos
+    { key: "relevo", label: "Relevo 3D" },
+    { key: "metalico", label: "Metálico" },
+    { key: "fogo", label: "Fogo" },
+    { key: "gelo", label: "Gelo" },
   ];
 
   function previewStyle(key: typeof value): React.CSSProperties {
@@ -5460,6 +5465,13 @@ function LetterEffectGrid({
       result.background = fx.background;
       result.padding = fx.padding;
       result.display = "inline-block";
+    }
+    // V53: efeito "metalico" usa background-clip:text
+    if (fx.WebkitBackgroundClip) {
+      result.WebkitBackgroundClip = fx.WebkitBackgroundClip as never;
+    }
+    if (fx.backgroundClip) {
+      result.backgroundClip = fx.backgroundClip as never;
     }
     return result;
   }

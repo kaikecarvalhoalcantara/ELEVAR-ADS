@@ -113,6 +113,7 @@ export interface PageStyle {
   animationEntryDuration?: number;  // frames (default 14)
   animationExitDuration?: number;   // frames (default 14)
   // V21: efeito visual da letra (preset estilo Canva)
+  // V53: +4 efeitos novos — relevo, metalico, fogo, gelo
   letterEffect?:
     | "none"
     | "projetada"   // drop shadow projetada
@@ -123,7 +124,11 @@ export interface PageStyle {
     | "desalinhado" // chromatic aberration
     | "vazado"      // hollow (stroke fino, sem fill)
     | "neon"        // glow forte multicor
-    | "falha";      // glitch (RGB split forte)
+    | "falha"       // glitch (RGB split forte)
+    | "relevo"      // V53: 3D embossed
+    | "metalico"    // V53: gradiente dourado/prata
+    | "fogo"        // V53: glow vermelho/laranja
+    | "gelo";       // V53: glow azul claro frio
   letterEffectIntensity?: number;   // 0..100 (default 50)
   letterEffectColor?: string;       // cor de destaque do efeito (hex)
 }
