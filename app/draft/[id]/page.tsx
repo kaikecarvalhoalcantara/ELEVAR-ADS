@@ -1315,9 +1315,12 @@ function EditableCanvas({
           previewTime={videoPreviewTime}
         />
       )}
-      {/* Overlay darkening */}
+      {/* Overlay darkening — V48: pointer-events:none é CRÍTICO. Sem isso, esse
+          div em cima do vídeo capturava TODOS os mouse events e impedia o
+          drag/resize do vídeo de funcionar. Bug que existia desde V14 e que
+          o usuário reclamou repetidamente. */}
       <div
-        className="absolute inset-0"
+        className="absolute inset-0 pointer-events-none"
         style={{
           background: `linear-gradient(180deg, rgba(0,0,0,${style.overlayOpacity * 0.6}) 0%, rgba(0,0,0,${style.overlayOpacity}) 100%)`,
         }}
