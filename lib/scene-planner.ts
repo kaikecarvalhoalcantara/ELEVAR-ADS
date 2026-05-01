@@ -10,20 +10,44 @@ import type {
 
 const client = new Anthropic({ apiKey: process.env.CLAUDE_KEY });
 
-const SYSTEM = `Você é um diretor de criação de anúncios cinematográficos. Recebe uma copy e suas batidas (texto que aparece página por página). Pra cada batida, decide o VÍDEO DE FUNDO — uma query do Pexels (3-5 palavras em inglês) e 1-3 tags.
+const SYSTEM = `Você é diretor de criação de anúncios verticais. Pra cada batida do texto, decide o VÍDEO/FOTO DE FUNDO do Pexels — query em inglês (3-6 palavras) + tags.
 
-PRINCÍPIO 1 — NÃO LITERAL: não escolha imagem que mostra exatamente o que o texto diz. O objetivo é fazer o lead prestar atenção no que ele NÃO está vendo. Atmosfera/metáfora/ambiente > ilustração direta.
-- "ele apertou minha mão" → ❌ "handshake" → ✅ "office hallway shadow" / "watch ticking dark"
-- "perfume" → ❌ "perfume bottle" → ✅ "smoke moody dark" / "elegant man portrait"
-- "minha mãe morrendo" → ❌ "elderly hospital" → ✅ "sunset window curtain" / "empty rocking chair"
+PRINCÍPIO 1 — CONTEXTO LITERAL (V52): a imagem precisa fazer SENTIDO direto pro texto.
+NÃO use metáforas abstratas que não conectam. O lead precisa entender em 0.5s
+do que se trata. Antes era abstrato demais — gerava imagens aleatórias (mulher pra
+"em segundos", coisas estranhas). Corrigido:
 
-PRINCÍPIO 2 — COERÊNCIA DE COR: o anúncio inteiro deve ter UMA paleta consistente, ditada pelo tone do projeto. Você adiciona modificadores de cor a TODAS as queries:
-- toneFilter "escuro" / "premium" → sempre adiciona "dark moody" + cor escura específica (ex: "dark amber tones", "deep red shadow", "dark navy mood"). Nunca vídeos saturados/coloridos.
-- toneFilter "suave" → "soft pastel", "warm light"
-- toneFilter "infantil" → "warm sunlight", "vibrant cheerful"
-- toneFilter "vintage" → "sepia tones", "warm grain"
+  ✅ BOM (literal/contextual):
+  - "em segundos" → "clock ticking close up" / "stopwatch dark"
+  - "perfume" → "perfume bottle elegant" / "perfume mist dark"
+  - "casamento" → "wedding rings close up" / "bride preparation dark"
+  - "ele apertou minha mão" → "handshake business dark" / "two hands close"
+  - "trabalho" → "office desk laptop" / "businessman typing"
+  - "criança" → "child playing warm" / "kid laughing daylight"
+  - "minha mãe" → "elderly mother portrait" / "older woman warm"
 
-REGRA: dentro do mesmo anúncio, mantém a MESMA família de cor (todos escuros âmbar, todos pastel, etc). Não mistura um vermelho com um azul claro no mesmo anúncio.`;
+  ❌ EVITAR (abstrato demais):
+  - "ele apertou minha mão" → "office hallway shadow" (sem conexão)
+  - "perfume" → "smoke moody" (genérico demais)
+  - "em segundos" → "woman thinking" (zero relação com tempo)
+
+PRINCÍPIO 2 — PALETA RÍGIDA E COERENTE: TODAS as queries do MESMO anúncio devem
+adicionar OS MESMOS modificadores de cor/luz no FIM. Anúncio inteiro tem que
+parecer um filme só, não 10 vídeos coloridos diferentes (azul + vermelho + verde
++ cinza dá visual ruim).
+
+  Sufixos OBRIGATÓRIOS por toneFilter:
+  - "escuro" → SEMPRE termina com "dark cinematic moody" — sem exceção
+  - "premium" → SEMPRE termina com "dark gold luxury cinematic"
+  - "neutro" → SEMPRE termina com "soft natural light cinematic"
+  - "suave" → SEMPRE termina com "soft pastel warm light"
+  - "infantil" → SEMPRE termina com "warm sunlight cheerful"
+  - "vintage" → SEMPRE termina com "sepia warm grain vintage"
+
+PRINCÍPIO 3 — RECICLAGEM DE TAGS: as tags devem se REPETIR ao longo do anúncio.
+Use o mesmo conjunto de 4-6 tags ambientais (ex: "dark", "moody", "shadow", "amber",
+"cinematic") como base, variando só a tag específica do contexto. Isso ajuda o
+sistema a baixar vídeos similares.`;
 
 interface PlanInput {
   ad: ParsedAd;
@@ -41,21 +65,29 @@ function buildPrompt(input: PlanInput): string {
     .join("\n");
   const tone = input.toneFilter ?? "neutro";
   const vibe = input.vibe ?? "cinematografico";
-  const colorHintByTone: Record<string, string> = {
-    escuro: "dark amber/red/navy moody — evite saturação. Prefira: 'dark amber bokeh', 'deep red shadow', 'dark navy mood', 'black gold smoke'",
-    premium: "dark with gold accents — 'dark gold luxury', 'black silk moody', 'amber glow dark'",
-    neutro: "balanced moody, slight warmth",
-    suave: "soft pastel light, warm rose/cream tones",
-    infantil: "warm sunlight, cheerful vibrant — yellow/orange/soft blue",
-    vintage: "sepia warm grain, faded amber/tan",
+  // V52: SUFIXO de paleta — adicionado ao FIM de toda query, sem exceção.
+  // Garante que todos os vídeos do anúncio tenham a mesma família de cor.
+  const paletteSuffixByTone: Record<string, string> = {
+    escuro: "dark cinematic moody",
+    premium: "dark gold luxury cinematic",
+    neutro: "soft natural light cinematic",
+    suave: "soft pastel warm light",
+    infantil: "warm sunlight cheerful",
+    vintage: "sepia warm grain vintage",
   };
-  const colorRule = colorHintByTone[tone] ?? "moody cinematic";
+  const paletteSuffix = paletteSuffixByTone[tone] ?? "cinematic moody";
 
   return `Anúncio nº ${input.ad.number} (PADRÃO ${input.ad.padrao}).
 Estratégia: ${input.ad.description || "(não informada)"}
 Mood narrativo: ${input.mood} | Público: ${input.audience} | Idioma: ${input.language}
-Tone filter (DITAR PALETA): ${tone} → ${colorRule}
+Tone filter: ${tone}
 Vibe: ${vibe}
+
+🎨 PALETA OBRIGATÓRIA (V52): TODAS as queries DEVEM TERMINAR com:
+   "${paletteSuffix}"
+Não invente outras cores nem misture paletas. Se for tone=escuro e a copy fala
+de praia, NÃO escolha "tropical beach sunny" — escolha "ocean waves night dark
+cinematic moody". Cor SEMPRE escura/coerente.
 
 COPY COMPLETA (entenda o ARCO):
 """
@@ -66,10 +98,26 @@ BATIDAS em ordem (${input.beats.length} no total):
 ${beatList}
 
 Para cada batida — NA ORDEM, EXATAMENTE ${input.beats.length} cenas — gere:
-- "query": 3-6 palavras em INGLÊS pra Pexels vertical. **NÃO literal** + **paleta coerente com tone "${tone}"**. Sempre inclua um modificador de cor/luz: ${colorRule}. Ex: texto fala "casamento" tone=escuro → "dark wine glass bokeh"; texto "trabalho" tone=escuro → "city window night dark"; texto "criança" tone=infantil → "warm sunlight kid laughing".
-- "tags": 1-3 substantivos em INGLÊS minúsculas single-word, capturando o SUBSTRATO. Ex: ["smoke","window"], ["candle","bokeh"].
 
-Pra CTA ("Saiba Mais"): query premium abstrata respeitando paleta — ex tone=escuro: "dark gold smoke flow"; tone=infantil: "warm sunlight pastel".
+- "query": 3-6 palavras em INGLÊS pra Pexels vertical, SEGUINDO ESTAS REGRAS:
+   1. **CONTEXTO LITERAL** primeiro: a query precisa conectar diretamente com o
+      texto, fazer sentido visualmente. Use o substantivo principal do texto.
+   2. **2-3 palavras** de cenário/contexto literal + **paleta** ao final.
+   3. SEMPRE termina com: "${paletteSuffix}"
+
+   Exemplos com tone=${tone}:
+   - texto "em segundos" → "clock ticking close ${paletteSuffix}"
+   - texto "trabalho duro" → "businessman office desk ${paletteSuffix}"
+   - texto "casamento" → "wedding rings hands ${paletteSuffix}"
+   - texto "minha mãe" → "elderly mother portrait ${paletteSuffix}"
+   - texto "perfume" → "perfume bottle elegant ${paletteSuffix}"
+   - texto "celular" → "smartphone hands close ${paletteSuffix}"
+
+- "tags": 1-3 substantivos em INGLÊS minúsculas single-word, capturando o
+  contexto LITERAL (ex: ["clock","watch"], ["wedding","rings"]).
+
+Pra CTA ("Saiba Mais"): query premium abstrata respeitando paleta:
+"premium product display ${paletteSuffix}".
 
 Responda SOMENTE JSON válido sem markdown:
 {"scenes":[{"text":"...","weight":"hook","query":"...","tags":["..."]}, ...]}`;
@@ -101,10 +149,31 @@ export async function planScenes(input: PlanInput): Promise<ScenePlan[]> {
       `Cenas invalidas: esperado ${input.beats.length}, veio ${parsed.scenes?.length}`,
     );
   }
+  // V52: Defesa em profundidade — se a IA não incluiu o sufixo de paleta,
+  // a gente força no servidor. Garante coerência mesmo se o prompt falhar.
+  const paletteSuffixByTone: Record<string, string> = {
+    escuro: "dark cinematic moody",
+    premium: "dark gold luxury cinematic",
+    neutro: "soft natural light cinematic",
+    suave: "soft pastel warm light",
+    infantil: "warm sunlight cheerful",
+    vintage: "sepia warm grain vintage",
+  };
+  const tone = input.toneFilter ?? "neutro";
+  const paletteSuffix = paletteSuffixByTone[tone] ?? "cinematic moody";
+  function ensurePalette(query: string): string {
+    const q = query.toLowerCase().trim();
+    // Se a query já contém pelo menos 2 das palavras-chave do sufixo, mantém
+    const suffixWords = paletteSuffix.split(/\s+/);
+    const overlap = suffixWords.filter((w) => q.includes(w)).length;
+    if (overlap >= 2) return query.trim();
+    // Senão, adiciona o sufixo
+    return `${query.trim()} ${paletteSuffix}`;
+  }
   return parsed.scenes.map((s, i) => ({
     text: input.beats[i]!.text,
     weight: input.beats[i]!.weight,
-    query: (s.query || "cinematic moody").trim(),
+    query: ensurePalette(s.query || `cinematic ${paletteSuffix}`),
     tags: (s.tags ?? []).map((t) => t.toLowerCase().trim()).filter(Boolean),
   }));
 }
