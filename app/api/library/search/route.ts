@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { searchPexelsVideos, pickBestVideoFile } from "../../../../lib/pexels";
+import {
+  searchPexelsVideos,
+  searchPexelsPhotos,
+  pickBestVideoFile,
+  pickBestPhotoUrl,
+} from "../../../../lib/pexels";
 import { dimensionsFor } from "../../../../lib/video-library";
 import type { Format } from "../../../../lib/types";
 
@@ -126,6 +131,12 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const query = url.searchParams.get("query");
   const format = (url.searchParams.get("format") ?? "9:16") as Format;
+  // V51: mediaType controla o que buscar — video, image, ou both (default).
+  // "both" busca em paralelo as duas APIs e mistura os resultados.
+  const mediaType = (url.searchParams.get("mediaType") ?? "video") as
+    | "video"
+    | "image"
+    | "both";
   // V32: paginação + perPage maior
   const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10) || 1);
   const perPage = Math.min(
@@ -138,24 +149,40 @@ export async function GET(request: Request) {
   // V33: traduz PT → EN antes de pesquisar (Pexels é EN-optimized)
   const { translated, isOriginal } = translateQuery(query);
   const finalQuery = isOriginal ? query : translated;
+  const orientation =
+    format === "9:16" ? "portrait" : format === "16:9" ? "landscape" : "square";
+  const dims = dimensionsFor(format);
+
   try {
-    const videos = await searchPexelsVideos({
-      query: finalQuery,
-      orientation:
-        format === "9:16"
-          ? "portrait"
-          : format === "16:9"
-            ? "landscape"
-            : "square",
-      perPage,
-      page,
-    });
-    const dims = dimensionsFor(format);
-    const items = videos
+    // V51: busca paralela em vídeos + fotos quando mediaType=both.
+    // Resultados combinados — vídeos primeiro (mais úteis), fotos depois.
+    const wantVideo = mediaType === "video" || mediaType === "both";
+    const wantImage = mediaType === "image" || mediaType === "both";
+    const [videosRaw, photosRaw] = await Promise.all([
+      wantVideo
+        ? searchPexelsVideos({
+            query: finalQuery,
+            orientation,
+            perPage,
+            page,
+          })
+        : Promise.resolve([]),
+      wantImage
+        ? searchPexelsPhotos({
+            query: finalQuery,
+            orientation,
+            perPage,
+            page,
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const videoItems = videosRaw
       .map((v) => {
         const file = pickBestVideoFile(v, dims);
         return file
           ? {
+              kind: "video" as const,
               pexelsId: v.id,
               previewUrl: v.image,
               fileUrl: file.link,
@@ -165,13 +192,31 @@ export async function GET(request: Request) {
             }
           : null;
       })
-      .filter(Boolean);
+      .filter((v): v is NonNullable<typeof v> => Boolean(v));
+
+    const photoItems = photosRaw.map((p) => ({
+      kind: "image" as const,
+      pexelsId: p.id,
+      previewUrl: p.src.medium,
+      fileUrl: pickBestPhotoUrl(p, dims),
+      width: p.width,
+      height: p.height,
+      duration: 0, // foto não tem duração
+      photographer: p.photographer,
+    }));
+
+    // Mistura: vídeos primeiro (geralmente mais relevantes pra ad), fotos depois
+    const items = [...videoItems, ...photoItems];
+
     return NextResponse.json({
       ok: true,
       items,
       page,
       perPage,
-      hasMore: items.length === perPage, // se devolveu o máximo, provavelmente tem mais
+      mediaType,
+      // hasMore: se ALGUMA das duas listas tá no máximo, prob. tem mais
+      hasMore:
+        videoItems.length === perPage || photoItems.length === perPage,
       // V33: indica se houve tradução pra mostrar no UI
       translatedFrom: isOriginal ? null : query,
       translatedTo: isOriginal ? null : finalQuery,

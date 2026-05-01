@@ -1,6 +1,9 @@
 import type { MoodAudience } from "./types";
 
 const PEXELS_SEARCH_URL = "https://api.pexels.com/videos/search";
+// V51: API de FOTOS do Pexels — endpoint diferente do de vídeos.
+// Adicionado pra dar muito mais opções pro user (HD, profissional, etc).
+const PEXELS_PHOTOS_URL = "https://api.pexels.com/v1/search";
 
 export interface PexelsVideoFile {
   id: number;
@@ -142,6 +145,86 @@ export async function searchPexelsVideos(args: {
   }
   const data = (await res.json()) as PexelsSearchResponse;
   return data.videos;
+}
+
+// V51: Tipos da Pexels Photos API
+export interface PexelsPhotoSrc {
+  original: string;
+  large2x: string;
+  large: string;
+  medium: string;
+  portrait: string;
+  landscape: string;
+  small: string;
+  tiny: string;
+}
+
+export interface PexelsPhoto {
+  id: number;
+  width: number;
+  height: number;
+  url: string;
+  photographer: string;
+  src: PexelsPhotoSrc;
+  alt: string;
+}
+
+export interface PexelsPhotosResponse {
+  page: number;
+  per_page: number;
+  total_results: number;
+  photos: PexelsPhoto[];
+  next_page?: string;
+}
+
+/**
+ * V51: Busca FOTOS no Pexels — endpoint /v1/search.
+ * Diferente de vídeos: retorna 80 fotos por página (max), com tamanhos
+ * múltiplos pré-renderizados (medium, large, original).
+ */
+export async function searchPexelsPhotos(args: {
+  query: string;
+  orientation?: "portrait" | "landscape" | "square";
+  perPage?: number;
+  page?: number;
+}): Promise<PexelsPhoto[]> {
+  const apiKey = process.env.PEXELS_API_KEY;
+  if (!apiKey) {
+    throw new Error("PEXELS_API_KEY ausente no .env.local");
+  }
+  const params = new URLSearchParams({
+    query: args.query,
+    orientation: args.orientation ?? "portrait",
+    per_page: String(args.perPage ?? 80),
+    page: String(args.page ?? 1),
+  });
+  const res = await fetch(`${PEXELS_PHOTOS_URL}?${params.toString()}`, {
+    headers: { Authorization: apiKey },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Pexels photos search falhou (${res.status}): ${text}`);
+  }
+  const data = (await res.json()) as PexelsPhotosResponse;
+  return data.photos;
+}
+
+/**
+ * V51: Escolhe a melhor URL de imagem baseada nas dimensões alvo.
+ * Pexels oferece 8 tamanhos pré-renderizados. Pegamos o menor que ainda
+ * tenha resolução >= que o canvas (evita upscale/blur), com fallback no
+ * "original" se nada bater.
+ */
+export function pickBestPhotoUrl(
+  photo: PexelsPhoto,
+  prefer: { width: number; height: number },
+): string {
+  const isPortrait = prefer.height >= prefer.width;
+  // Pra portrait, "portrait" é otimizado (1280×1920); pra landscape, "landscape" (1920×1280)
+  if (isPortrait && photo.src.portrait) return photo.src.portrait;
+  if (!isPortrait && photo.src.landscape) return photo.src.landscape;
+  // Fallback: large2x (geralmente 1880×∞) → large → original
+  return photo.src.large2x ?? photo.src.large ?? photo.src.original;
 }
 
 export function pickBestVideoFile(

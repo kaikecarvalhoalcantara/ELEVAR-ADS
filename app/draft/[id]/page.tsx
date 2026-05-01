@@ -4304,13 +4304,22 @@ function PexelsLiveSearch({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(initialQuery);
-  const [items, setItems] = useState<{ pexelsId: number; previewUrl: string; fileUrl: string }[]>([]);
+  type PexelsItem = {
+    kind: "video" | "image";
+    pexelsId: number;
+    previewUrl: string;
+    fileUrl: string;
+    duration?: number;
+  };
+  const [items, setItems] = useState<PexelsItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [translatedTo, setTranslatedTo] = useState<string | null>(null);
+  // V51: Filtro de mídia — vídeos, fotos ou ambos. "both" recheia a galeria.
+  const [mediaType, setMediaType] = useState<"video" | "image" | "both">("both");
 
   // Quando muda a query da página (navegou pra outra página), atualiza
   // o input do search pra refletir a nova sugestão
@@ -4326,6 +4335,13 @@ function PexelsLiveSearch({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // V51: Re-busca quando muda mediaType (toggle Vídeos/Fotos/Tudo)
+  useEffect(() => {
+    if (!open) return;
+    search(query);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mediaType]);
+
   async function search(q?: string) {
     const term = q ?? query;
     if (!term.trim()) return;
@@ -4334,7 +4350,7 @@ function PexelsLiveSearch({
     setHasMore(false);
     try {
       const res = await fetch(
-        `/api/library/search?query=${encodeURIComponent(term)}&format=${format}&page=1&perPage=80`,
+        `/api/library/search?query=${encodeURIComponent(term)}&format=${format}&page=1&perPage=80&mediaType=${mediaType}`,
       );
       const data = await res.json();
       if (data.ok) {
@@ -4354,7 +4370,7 @@ function PexelsLiveSearch({
     setLoadingMore(true);
     try {
       const res = await fetch(
-        `/api/library/search?query=${encodeURIComponent(query)}&format=${format}&page=${nextPage}&perPage=80`,
+        `/api/library/search?query=${encodeURIComponent(query)}&format=${format}&page=${nextPage}&perPage=80&mediaType=${mediaType}`,
       );
       const data = await res.json();
       if (data.ok) {
@@ -4423,6 +4439,27 @@ function PexelsLiveSearch({
               night&quot;, &quot;money&quot;.
             </div>
           )}
+          {/* V51: Toggle Vídeos / Fotos / Tudo — recheia a galeria */}
+          <div className="flex gap-1">
+            {([
+              { v: "both", label: "🎬+📷 Tudo", title: "Vídeos + Fotos misturados (mais resultados)" },
+              { v: "video", label: "🎬 Vídeos", title: "Só vídeos" },
+              { v: "image", label: "📷 Fotos", title: "Só fotos (HD, profissional)" },
+            ] as const).map((opt) => (
+              <button
+                key={opt.v}
+                onClick={() => setMediaType(opt.v)}
+                title={opt.title}
+                className={`flex-1 text-[10px] px-2 py-1 rounded border ${
+                  mediaType === opt.v
+                    ? "bg-purple-700/40 border-purple-500 text-purple-200"
+                    : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:bg-neutral-700"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
           {!loading && items.length > 0 && (
             <div className="text-[10px] text-neutral-400">
               {items.length} resultado{items.length === 1 ? "" : "s"}
@@ -4431,7 +4468,7 @@ function PexelsLiveSearch({
           <div className="grid grid-cols-3 gap-1">
             {items.map((it) => (
               <button
-                key={it.pexelsId}
+                key={`${it.kind}-${it.pexelsId}`}
                 onClick={() => pick(it)}
                 disabled={downloadingId === it.pexelsId}
                 className="relative rounded overflow-hidden border border-neutral-800 hover:border-purple-500 disabled:opacity-50"
@@ -4441,6 +4478,16 @@ function PexelsLiveSearch({
                   alt={String(it.pexelsId)}
                   className="w-full aspect-[9/16] object-cover bg-black"
                 />
+                {/* V51: badge no canto sup-esq mostrando se é vídeo ou foto */}
+                <div className="absolute top-1 left-1 text-[9px] bg-black/70 text-white px-1 py-0.5 rounded leading-none">
+                  {it.kind === "video" ? "🎬" : "📷"}
+                </div>
+                {/* duração curta no canto inf-direito (só em vídeo) */}
+                {it.kind === "video" && it.duration && it.duration > 0 && (
+                  <div className="absolute bottom-1 right-1 text-[8px] bg-black/70 text-white px-1 py-0.5 rounded leading-none">
+                    {Math.round(it.duration)}s
+                  </div>
+                )}
                 {downloadingId === it.pexelsId && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-[9px]">
                     baixando…
