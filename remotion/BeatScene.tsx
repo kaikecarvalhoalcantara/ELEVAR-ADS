@@ -134,6 +134,10 @@ interface Props {
       animationSpeed?: number;
       animationEntryDuration?: number;
       animationExitDuration?: number;
+      // V61: controles Canva
+      animationDirection?: "ambos" | "entrando" | "saindo";
+      animationStyle?: "palavra" | "linha";
+      animationFlipExit?: boolean;
       // V21: letter effect
       letterEffect?: LetterEffect;
       letterEffectIntensity?: number;
@@ -519,6 +523,9 @@ export const BeatScene: React.FC<Props> = ({
             weight={beat.weight}
             entryDuration={beat.animationEntryDuration ?? 14}
             exitDuration={beat.animationExitDuration ?? 14}
+            direction={beat.animationDirection ?? "ambos"}
+            splitStyle={beat.animationStyle ?? "palavra"}
+            flipExit={beat.animationFlipExit ?? false}
           />
           {iconBelowSvg && (
             <IconRenderer svg={iconBelowSvg} color={iconColor} size={iconSize} />
@@ -648,4 +655,8 @@ export interface AnimationProps {
   // V19: duração customizável de entrada/saída (em frames)
   entryDuration?: number; // default 14
   exitDuration?: number;  // default 14
+  // V61: controles Canva — funcional desta vez
+  direction?: "ambos" | "entrando" | "saindo"; // default "ambos"
+  splitStyle?: "palavra" | "linha";            // default "palavra"
+  flipExit?: boolean;                          // inverter direção saída
 }

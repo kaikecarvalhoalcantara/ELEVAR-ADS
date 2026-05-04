@@ -170,6 +170,10 @@ export async function renderAdsInBackground(
       animationSpeed: p.animationSpeed,
       animationEntryDuration: p.animationEntryDuration,
       animationExitDuration: p.animationExitDuration,
+      // V61: Canva controls
+      animationDirection: p.animationDirection,
+      animationStyle: p.animationStyle,
+      animationFlipExit: p.animationFlipExit,
       // V21: letter effect
       letterEffect: p.letterEffect,
       letterEffectIntensity: p.letterEffectIntensity,

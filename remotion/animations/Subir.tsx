@@ -2,8 +2,9 @@ import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import type { AnimationProps } from "../BeatScene";
 
 /**
- * Subir — palavra por palavra (estilo Canva). Cada palavra sobe de baixo
- * pra cima com fade, com stagger entre elas. Linhas têm pequeno gap extra.
+ * Subir — palavra/linha por palavra/linha estilo Canva. translateY do
+ * fundo (60) → 0 com fade. V61: respeita direction (ambos/entrando/saindo),
+ * splitStyle (palavra/linha) e flipExit (inverte direção da saída).
  */
 export const Subir: React.FC<AnimationProps> = ({
   lines,
@@ -11,40 +12,88 @@ export const Subir: React.FC<AnimationProps> = ({
   style,
   entryDuration = 14,
   exitDuration = 14,
+  direction = "ambos",
+  splitStyle = "palavra",
+  flipExit = false,
 }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const exitStart = durationInFrames - exitDuration;
-  // V60: stagger MAIS PERCEPTÍVEL — antes 3 frames era quase invisível
-  // (apenas 0.125s a 24fps). 6 frames dá ~0.25s entre palavras, claro.
   const wordDelay = 6;
-  const lineGap = 8; // frames extra entre linhas (era 4)
+  const lineGap = 8;
 
-  // Soma de palavras já processadas pra calcular delay acumulado
+  // V61: helper que calcula opacity + translateY pra um item individual
+  function compute(itemDelay: number): { opacity: number; translateY: number } {
+    // Entry progress (0 → 1 conforme vai entrando)
+    const entryProgress =
+      direction === "saindo"
+        ? 1 // saindo: começa visível direto
+        : spring({
+            frame: frame - itemDelay,
+            fps,
+            durationInFrames: entryDuration,
+            config: { damping: 18, mass: 0.6 },
+          });
+
+    // Exit progress (1 → 0 conforme vai saindo)
+    const exitProgress =
+      direction === "entrando"
+        ? 1 // entrando: nunca sai (fica até o fim)
+        : interpolate(frame, [exitStart, durationInFrames], [1, 0], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          });
+
+    // translateY base: entrada de baixo pra cima
+    const tyEntry = interpolate(entryProgress, [0, 1], [60, 0]);
+    // translateY exit: dependendo do flipExit, sai pra cima (-60) ou pra baixo (+60)
+    const tyExit = interpolate(
+      exitProgress,
+      [0, 1],
+      [flipExit ? 60 : -60, 0],
+    );
+    // Combina: durante exit (frame >= exitStart), aplica tyExit; senão tyEntry
+    const inExit = direction !== "entrando" && frame >= exitStart;
+    const translateY = inExit ? tyExit : tyEntry;
+    const opacity = Math.min(entryProgress, exitProgress);
+    return { opacity, translateY };
+  }
+
+  // V61: Modo LINHA — anima a linha inteira
+  if (splitStyle === "linha") {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+        {lines.map((line, lineIdx) => {
+          const { opacity, translateY } = compute(lineIdx * lineGap);
+          return (
+            <div
+              key={lineIdx}
+              style={{
+                ...style,
+                transform: `translateY(${translateY}px)`,
+                opacity,
+              }}
+            >
+              {line}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Modo PALAVRA (default) — palavra por palavra
   let cumulativeWordIdx = 0;
-
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
       {lines.map((line, lineIdx) => {
         const words = line.split(" ").filter(Boolean);
         const segs = lineSegments?.[lineIdx];
-        // Mapeia palavras pras suas cores se houver segments
         const wordColors = mapWordColors(words, segs);
         const elements = words.map((word, wordIdx) => {
           const totalDelay = cumulativeWordIdx + lineIdx * lineGap;
           cumulativeWordIdx += wordDelay;
-          const progress = spring({
-            frame: frame - totalDelay,
-            fps,
-            durationInFrames: entryDuration,
-            config: { damping: 18, mass: 0.6 },
-          });
-          const exit = interpolate(frame, [exitStart, durationInFrames], [1, 0], {
-            extrapolateLeft: "clamp",
-            extrapolateRight: "clamp",
-          });
-          const translateY = interpolate(progress, [0, 1], [60, 0]);
-          const opacity = Math.min(progress, exit);
+          const { opacity, translateY } = compute(totalDelay);
           return (
             <span
               key={wordIdx}
@@ -65,7 +114,6 @@ export const Subir: React.FC<AnimationProps> = ({
             key={lineIdx}
             style={{
               ...style,
-              // Override pra permitir spans inline
               whiteSpace: "normal",
               padding: 0,
             }}
@@ -78,16 +126,11 @@ export const Subir: React.FC<AnimationProps> = ({
   );
 };
 
-/**
- * Mapeia segments (formato lib/types) → cor por palavra. Se não tem
- * segments, retorna array vazio (cada palavra usa cor padrão).
- */
 function mapWordColors(
   words: string[],
   segs?: { text: string; color?: string }[],
 ): Array<string | undefined> {
   if (!segs || segs.length === 0) return words.map(() => undefined);
-  // Concatena segments e divide por palavra preservando cor de cada segmento
   const colors: Array<string | undefined> = [];
   let segIdx = 0;
   let consumedInSeg = 0;
@@ -98,7 +141,7 @@ function mapWordColors(
     }
     const seg = segs[segIdx]!;
     colors.push(seg.color);
-    consumedInSeg += words[i]!.length + 1; // +1 pelo espaço
+    consumedInSeg += words[i]!.length + 1;
     if (consumedInSeg >= seg.text.length) {
       segIdx++;
       consumedInSeg = 0;

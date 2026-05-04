@@ -67,6 +67,10 @@ export interface PageWithStyle extends Beat, PageStyle {
   animationSpeed?: number;
   animationEntryDuration?: number;
   animationExitDuration?: number;
+  // V61: Canva controls
+  animationDirection?: "ambos" | "entrando" | "saindo";
+  animationStyle?: "palavra" | "linha";
+  animationFlipExit?: boolean;
   // V21: letter effect
   letterEffect?:
     | "none"

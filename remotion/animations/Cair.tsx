@@ -2,25 +2,74 @@ import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import type { AnimationProps } from "../BeatScene";
 
 /**
- * V58: Cair — palavra/letra cai de cima pra baixo (oposto de Subir).
- * Estilo Canva. translateY de -50 a 0 com spring, fade.
+ * Cair — palavra/linha cai de cima. translateY -60 → 0. V61 controles.
  */
 export const Cair: React.FC<AnimationProps> = ({
   lines,
   lineSegments,
   style,
-  entryDuration = 18,
+  entryDuration = 14,
   exitDuration = 14,
+  direction = "ambos",
+  splitStyle = "palavra",
+  flipExit = false,
 }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const exitStart = durationInFrames - exitDuration;
-  // V60: stagger mais perceptível
   const wordDelay = 6;
   const lineGap = 8;
 
-  let cumulativeWordIdx = 0;
+  function compute(itemDelay: number): { opacity: number; translateY: number } {
+    const entryProgress =
+      direction === "saindo"
+        ? 1
+        : spring({
+            frame: frame - itemDelay,
+            fps,
+            durationInFrames: entryDuration,
+            config: { damping: 18, mass: 0.6 },
+          });
+    const exitProgress =
+      direction === "entrando"
+        ? 1
+        : interpolate(frame, [exitStart, durationInFrames], [1, 0], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          });
+    // Cair: começa em -60 (cima)
+    const tyEntry = interpolate(entryProgress, [0, 1], [-60, 0]);
+    // Exit: padrão sai pra baixo (+60); flipExit inverte (sobe -60)
+    const tyExit = interpolate(exitProgress, [0, 1], [flipExit ? -60 : 60, 0]);
+    const inExit = direction !== "entrando" && frame >= exitStart;
+    const translateY = inExit ? tyExit : tyEntry;
+    const opacity = Math.min(entryProgress, exitProgress);
+    return { opacity, translateY };
+  }
 
+  if (splitStyle === "linha") {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+        {lines.map((line, lineIdx) => {
+          const { opacity, translateY } = compute(lineIdx * lineGap);
+          return (
+            <div
+              key={lineIdx}
+              style={{
+                ...style,
+                transform: `translateY(${translateY}px)`,
+                opacity,
+              }}
+            >
+              {line}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  let cumulativeWordIdx = 0;
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
       {lines.map((line, lineIdx) => {
@@ -30,19 +79,7 @@ export const Cair: React.FC<AnimationProps> = ({
         const elements = words.map((word, wordIdx) => {
           const totalDelay = cumulativeWordIdx + lineIdx * lineGap;
           cumulativeWordIdx += wordDelay;
-          const progress = spring({
-            frame: frame - totalDelay,
-            fps,
-            durationInFrames: entryDuration,
-            config: { damping: 18, mass: 0.6 },
-          });
-          const exit = interpolate(frame, [exitStart, durationInFrames], [1, 0], {
-            extrapolateLeft: "clamp",
-            extrapolateRight: "clamp",
-          });
-          // Cair: começa em -60 (acima), vai pra 0
-          const translateY = interpolate(progress, [0, 1], [-60, 0]);
-          const opacity = Math.min(progress, exit);
+          const { opacity, translateY } = compute(totalDelay);
           return (
             <span
               key={wordIdx}

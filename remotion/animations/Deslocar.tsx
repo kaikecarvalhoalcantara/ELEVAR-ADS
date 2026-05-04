@@ -2,13 +2,10 @@ import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import type { AnimationProps } from "../BeatScene";
 
 /**
- * V60: Deslocar — estilo Canva. Cada LINHA inteira entra de uma direção
- * ALTERNADA: linha 1 vem da esquerda, linha 2 vem da direita, linha 3
- * da esquerda... Quem mostrou ao user no Canva foi exatamente isso —
- * "uma frase de cima do lado esquerdo, a debaixo da direita".
- *
- * Antes era palavra por palavra todas vindas da esquerda — não era o
- * efeito Canva real.
+ * Deslocar — estilo Canva: linhas alternadas vindo de lados opostos.
+ * Linha 1 da esquerda (-80), linha 2 da direita (+80), linha 3 esquerda...
+ * V61: respeita direction + flipExit. splitStyle não se aplica (é por linha
+ * por design).
  */
 export const Deslocar: React.FC<AnimationProps> = ({
   lines,
@@ -16,30 +13,43 @@ export const Deslocar: React.FC<AnimationProps> = ({
   style,
   entryDuration = 18,
   exitDuration = 14,
+  direction = "ambos",
+  flipExit = false,
 }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const exitStart = durationInFrames - exitDuration;
-  const lineDelay = 7; // frames entre linhas (stagger marcante)
+  const lineDelay = 7;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
       {lines.map((line, lineIdx) => {
         const totalDelay = lineIdx * lineDelay;
-        const progress = spring({
-          frame: frame - totalDelay,
-          fps,
-          durationInFrames: entryDuration,
-          config: { damping: 18, mass: 0.7 },
-        });
-        const exit = interpolate(frame, [exitStart, durationInFrames], [1, 0], {
-          extrapolateLeft: "clamp",
-          extrapolateRight: "clamp",
-        });
-        // V60: linhas pares (0, 2, 4...) vêm da ESQUERDA; ímpares (1, 3...) da DIREITA
-        const direction = lineIdx % 2 === 0 ? -1 : 1;
-        const translateX = interpolate(progress, [0, 1], [direction * 80, 0]);
-        const opacity = Math.min(progress, exit);
+        const entryProgress =
+          direction === "saindo"
+            ? 1
+            : spring({
+                frame: frame - totalDelay,
+                fps,
+                durationInFrames: entryDuration,
+                config: { damping: 18, mass: 0.7 },
+              });
+        const exitProgress =
+          direction === "entrando"
+            ? 1
+            : interpolate(frame, [exitStart, durationInFrames], [1, 0], {
+                extrapolateLeft: "clamp",
+                extrapolateRight: "clamp",
+              });
+        // Linhas pares vêm da esquerda (-1), ímpares da direita (+1)
+        const dirEntry = lineIdx % 2 === 0 ? -1 : 1;
+        // Saída: por default mesma direção. flipExit inverte.
+        const dirExit = flipExit ? -dirEntry : dirEntry;
+        const txEntry = interpolate(entryProgress, [0, 1], [dirEntry * 80, 0]);
+        const txExit = interpolate(exitProgress, [0, 1], [dirExit * 80, 0]);
+        const inExit = direction !== "entrando" && frame >= exitStart;
+        const translateX = inExit ? txExit : txEntry;
+        const opacity = Math.min(entryProgress, exitProgress);
 
         const segs = lineSegments?.[lineIdx];
         const words = line.split(" ").filter(Boolean);
