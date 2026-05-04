@@ -91,6 +91,20 @@ body {
 }
 .anim-preview-flutuar { animation: anim-preview-flutuar 1.4s ease-in-out infinite; }
 
+/* V56: animações Canva — letra por letra + linha por linha */
+@keyframes anim-preview-letra {
+  0% { opacity: 0; transform: translateY(15px) scale(0.85); }
+  60% { opacity: 1; transform: translateY(-2px) scale(1.04); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.anim-preview-letra { animation: anim-preview-letra 0.7s cubic-bezier(0.3, 1.4, 0.3, 1); }
+
+@keyframes anim-preview-linha {
+  0% { opacity: 0; transform: translateY(30px) scale(0.95); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.anim-preview-linha { animation: anim-preview-linha 0.7s cubic-bezier(0.2, 0.8, 0.3, 1); }
+
 /* V21: Sliders coloridos pra Temperatura (frio→quente) e Matiz (rainbow) */
 input[type="range"].slider-temperature {
   -webkit-appearance: none;

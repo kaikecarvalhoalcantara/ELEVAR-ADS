@@ -41,6 +41,9 @@ import { Girar } from "./animations/Girar";
 import { Explodir } from "./animations/Explodir";
 import { Balancar } from "./animations/Balancar";
 import { Flutuar } from "./animations/Flutuar";
+// V56: Canva-style — letra por letra, linha por linha
+import { Letra } from "./animations/Letra";
+import { Linha } from "./animations/Linha";
 
 export type AnimationKind =
   | "teclado"
@@ -53,7 +56,9 @@ export type AnimationKind =
   | "girar"
   | "explodir"
   | "balancar"
-  | "flutuar";
+  | "flutuar"
+  | "letra"   // V56
+  | "linha";  // V56
 
 /** Helper: 0..1 → hex alpha "00".."ff" */
 function alphaHex2(v: number): string {
@@ -607,6 +612,10 @@ function animationComponent(kind: AnimationKind) {
       return Balancar;
     case "flutuar":
       return Flutuar;
+    case "letra":
+      return Letra;
+    case "linha":
+      return Linha;
   }
 }
 

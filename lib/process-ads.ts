@@ -13,12 +13,16 @@ import type {
   ScenePlan,
 } from "./types";
 
+// V56: Rotação focada nas animações ESTILO CANVA — palavra/letra/linha por
+// vez, com stagger spring. Antes incluía "teclado" e "bloco" que são menos
+// dinâmicos. Agora prioriza "subir", "deslocar", "letra", "linha", "fade".
+// Cada slide vai variar entre essas 5 — visual rítmico mas legível.
 const ANIMATION_ROTATION: AnimationKind[] = [
-  "teclado",
-  "subir",
-  "deslocar",
-  "mesclar",
-  "bloco",
+  "subir",     // palavra por palavra subindo
+  "deslocar",  // palavra por palavra vindo da esquerda
+  "letra",     // letra por letra (mais dramático)
+  "linha",     // linha inteira de uma vez (clean)
+  "fade",      // fade da frase inteira (suave)
 ];
 
 function pickWordlessIndices(total: number): Set<number> {

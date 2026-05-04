@@ -44,9 +44,11 @@ import type {
 } from "../../../lib/types";
 
 const ANIMATIONS: AnimationKind[] = [
-  "teclado", "subir", "deslocar", "mesclar", "bloco",
-  // V19: novas animações
-  "fade", "escala", "girar", "explodir", "balancar", "flutuar",
+  // V56: ordem otimizada — animações estilo Canva primeiro (mais usadas)
+  "subir", "deslocar", "letra", "linha", "fade",
+  "teclado", "mesclar", "bloco",
+  // V19: extras avançadas
+  "escala", "girar", "explodir", "balancar", "flutuar",
 ];
 const FRAMES_PER_BEAT = 48;
 const FPS = 24;

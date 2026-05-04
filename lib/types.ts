@@ -52,7 +52,10 @@ export type AnimationKind =
   | "girar"
   | "explodir"
   | "balancar"
-  | "flutuar";
+  | "flutuar"
+  // V56: animações Canva (letra/linha)
+  | "letra"   // letra por letra com spring
+  | "linha";  // linha por linha com slide-up
 
 export type ToneFilter = "neutro" | "escuro" | "suave" | "infantil" | "vintage" | "premium";
 
