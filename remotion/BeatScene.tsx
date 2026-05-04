@@ -2,8 +2,6 @@ import {
   AbsoluteFill,
   Img,
   OffthreadVideo,
-  Video,
-  getRemotionEnvironment,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
@@ -150,11 +148,16 @@ export const BeatScene: React.FC<Props> = ({
 }) => {
   const { width, fps } = useVideoConfig();
 
-  // V54: usa OffthreadVideo no render (não precisa carregar duração — extrai
-  // frame a frame), Video no preview do Player. OffthreadVideo é MUITO mais
-  // resiliente — não trava com timeout de 178s tentando carregar Html5Video.
-  const isRendering = getRemotionEnvironment().isRendering;
-  const VideoComp = isRendering ? OffthreadVideo : Video;
+  // V55: SEMPRE usa OffthreadVideo, sem detecção de environment.
+  // OffthreadVideo funciona TANTO no render server-side QUANTO no Player.
+  // No render: extrai frames via ffmpeg, sem delayRender. ZERO timeout.
+  // No Player: usa <video> HTML5 normal, playback pode ser ~10% mais lento
+  //   mas zero overhead de detecção que pode falhar em edge cases.
+  // V54 usava getRemotionEnvironment().isRendering mas em alguns cenários
+  // de bundle, isRendering retornava false durante o render real → Video
+  // era usado e quebrava com delayRender timeout. Solução robusta: sempre
+  // OffthreadVideo, independente do contexto.
+  const VideoComp = OffthreadVideo;
 
   const isHook = beat.weight === "hook" || beat.weight === "punch";
   const fontFamily = isHook ? fontHook : fontTransition;
