@@ -201,6 +201,19 @@ export function createElement(shape: ElementShape): PageElement {
         opacity: 0.9,
         rotation: 0,
       };
+    // V59: overlay de vídeo (split-screen com 2 vídeos)
+    case "video-overlay":
+      return {
+        id,
+        shape,
+        x: 0,
+        y: 0.5,
+        w: 1,
+        h: 0.5,
+        color: "#000000",
+        opacity: 1,
+        rotation: 0,
+      };
   }
 }
 
@@ -424,6 +437,18 @@ export function elementStyle(
       return {
         ...base,
         background: `linear-gradient(180deg, transparent 0%, ${el.color} 70%)`,
+        transform: `rotate(${el.rotation}deg)`,
+        boxShadow: undefined,
+      };
+    case "video-overlay":
+      // V59: container do vídeo overlay — sem background, vídeo é renderizado
+      // como tag <video>/<OffthreadVideo> filho. Mantém transforms (rotation,
+      // pos, size) no container; o vídeo dentro tem flip/zoom próprio.
+      return {
+        ...base,
+        background: "transparent",
+        backgroundColor: "transparent",
+        overflow: "hidden",
         transform: `rotate(${el.rotation}deg)`,
         boxShadow: undefined,
       };

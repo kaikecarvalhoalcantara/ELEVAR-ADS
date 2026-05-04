@@ -189,7 +189,10 @@ export type ElementShape =
   | "shadow-oval"     // oval horizontal blurado (debaixo do texto, halo)
   | "shadow-radial"   // círculo radial gradient (vinheta pontual)
   | "shadow-band"     // banda retangular com fade lateral (split-screen)
-  | "shadow-edge";    // linha grossa horizontal (letterbox cinemático)
+  | "shadow-edge"     // linha grossa horizontal (letterbox cinemático)
+  // V59: Overlay de vídeo — vídeo extra arrastável, redimensionável,
+  // pra fazer split-screen com 2 cópias do mesmo vídeo no slide
+  | "video-overlay";
 
 export type EntryAnimation =
   | "none"
@@ -226,6 +229,15 @@ export interface PageElement {
   entryDelay?: number;    // frames (default 0)
   // V9: pra shape="icon" — qual ícone do set curado renderizar
   iconName?: IconName;
+  // V59: pra shape="video-overlay" — vídeo extra dentro do slide
+  videoSrc?: string;            // filepath ou URL do vídeo (mesmo do fundo)
+  videoUrl?: string;            // URL HTTP pra browser
+  videoFlipH?: boolean;         // espelhar horizontal
+  videoFlipV?: boolean;         // espelhar vertical
+  videoPlaybackRate?: number;   // velocidade
+  videoTrimStart?: number;      // segundos cortados do início
+  videoTrimEnd?: number;        // segundos onde parar
+  videoZoom?: number;           // zoom dentro do overlay (default 1)
 }
 
 export interface PageDraft extends PageStyle {

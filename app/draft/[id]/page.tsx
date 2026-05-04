@@ -154,6 +154,45 @@ export default function EditorPage() {
     window.addEventListener("duplicate-video", onDup);
     return () => window.removeEventListener("duplicate-video", onDup);
   }, []);
+  // V59: escuta "duplicate-video-here" — cria element video-overlay no slide atual
+  useEffect(() => {
+    function onDupHere(e: Event) {
+      const detail = (e as CustomEvent).detail;
+      if (!detail || !draft) return;
+      const ad = draft.ads[selectedAd];
+      const cur = ad?.pages[selectedPage];
+      if (!cur) return;
+      const newId = Math.random().toString(36).slice(2, 10);
+      const overlay: PageElement = {
+        id: newId,
+        shape: "video-overlay",
+        x: 0,
+        y: 0.5, // metade de baixo
+        w: 1,
+        h: 0.5,
+        color: "#000000",
+        opacity: 1,
+        rotation: 0,
+        videoSrc: detail.videoSrc,
+        videoUrl: detail.videoUrl,
+        videoFlipH: detail.videoFlipH,
+        videoFlipV: detail.videoFlipV,
+        videoZoom: detail.videoZoom,
+        videoPlaybackRate: detail.videoPlaybackRate,
+        videoTrimStart: detail.videoTrimStart,
+        videoTrimEnd: detail.videoTrimEnd,
+      };
+      updatePage(selectedAd, selectedPage, {
+        elements: [...(cur.elements ?? []), overlay],
+      });
+      setSelectedElementId(newId);
+      setCopyToast("✓ Vídeo duplicado no mesmo slide — arrasta pra reposicionar");
+      window.setTimeout(() => setCopyToast(null), 2500);
+    }
+    window.addEventListener("duplicate-video-here", onDupHere);
+    return () => window.removeEventListener("duplicate-video-here", onDupHere);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, selectedAd, selectedPage]);
   // V50: showGrid removido — réguas agora aparecem só durante drag (smart guides)
   // V44: clipboard pro vídeo — guarda src/url + transforms pra colar em outro slide
   const [videoClipboard, setVideoClipboard] = useState<{
@@ -2229,6 +2268,26 @@ function ElementOnCanvas({
         )}
         {element.text && elementSupportsText(element.shape) && (
           <div style={elementTextStyle(element, scale)}>{element.text}</div>
+        )}
+        {/* V59: video-overlay — renderiza vídeo dentro do elemento */}
+        {element.shape === "video-overlay" && element.videoUrl && (
+          <video
+            key={element.videoUrl}
+            src={element.videoUrl}
+            muted
+            loop
+            autoPlay
+            playsInline
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              transform: `scale(${
+                (element.videoZoom ?? 1) * (element.videoFlipH ? -1 : 1)
+              }, ${(element.videoZoom ?? 1) * (element.videoFlipV ? -1 : 1)})`,
+              pointerEvents: "none",
+            }}
+          />
         )}
       </div>
       {selected && (
@@ -5002,38 +5061,67 @@ function VideoControlsPanel({
         {/* V25: Importar vídeo/imagem do PC direto pra esta página */}
         <ImportVideoButton onUpdate={onUpdate} />
 
-        {/* V57: Botão pra duplicar/copiar o vídeo deste slide pro clipboard.
-            Cola depois com Ctrl+V em outro slide. Atalho visual ao Ctrl+C. */}
+        {/* V57+V59: 2 botões — duplicar AQUI (split-screen no mesmo slide) +
+            copiar PRA OUTRO slide (clipboard). */}
         {!page.videoRemoved && page.videoUrl && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              // Dispara um evento custom que o pai escuta pra setar o clipboard
-              window.dispatchEvent(
-                new CustomEvent("duplicate-video", {
-                  detail: {
-                    videoSrc: page.videoSrc,
-                    videoUrl: page.videoUrl,
-                    videoZoom: page.videoZoom,
-                    videoFlipH: page.videoFlipH,
-                    videoFlipV: page.videoFlipV,
-                    videoRotation: page.videoRotation,
-                    videoX: page.videoX,
-                    videoY: page.videoY,
-                    videoW: page.videoW,
-                    videoH: page.videoH,
-                    videoTrimStart: page.videoTrimStart,
-                    videoTrimEnd: page.videoTrimEnd,
-                    videoPlaybackRate: page.videoPlaybackRate,
-                  },
-                }),
-              );
-            }}
-            className="w-full text-xs px-2 py-1.5 rounded border bg-emerald-900/30 border-emerald-700 text-emerald-200 hover:bg-emerald-900/50 flex items-center justify-center gap-2"
-            title="Copia o vídeo deste slide. Vá pra outro slide e aperte Ctrl+V (ou clique no banner verde) pra colar."
-          >
-            ⎘ Duplicar / copiar este vídeo
-          </button>
+          <div className="space-y-1.5">
+            {/* V59: Duplicar AQUI — cria element video-overlay no mesmo slide
+                com mesma fonte do vídeo de fundo, posicionado na metade de
+                baixo e invertido vertical (espelho). User pode reposicionar/
+                ajustar depois. Útil pra split-screen com mesmo vídeo. */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                window.dispatchEvent(
+                  new CustomEvent("duplicate-video-here", {
+                    detail: {
+                      videoSrc: page.videoSrc,
+                      videoUrl: page.videoUrl,
+                      videoFlipH: page.videoFlipH,
+                      videoFlipV: !page.videoFlipV, // INVERSO vertical pra split
+                      videoZoom: page.videoZoom,
+                      videoPlaybackRate: page.videoPlaybackRate,
+                      videoTrimStart: page.videoTrimStart,
+                      videoTrimEnd: page.videoTrimEnd,
+                    },
+                  }),
+                );
+              }}
+              className="w-full text-xs px-2 py-1.5 rounded border bg-purple-900/30 border-purple-700 text-purple-200 hover:bg-purple-900/50 flex items-center justify-center gap-2"
+              title="Cria uma cópia do vídeo no MESMO slide (vídeo extra arrastável). Bom pra split-screen com 2 cópias do mesmo vídeo."
+            >
+              📑 Duplicar no mesmo slide (split-screen)
+            </button>
+            {/* V57: Copiar pra outro slide via clipboard */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                window.dispatchEvent(
+                  new CustomEvent("duplicate-video", {
+                    detail: {
+                      videoSrc: page.videoSrc,
+                      videoUrl: page.videoUrl,
+                      videoZoom: page.videoZoom,
+                      videoFlipH: page.videoFlipH,
+                      videoFlipV: page.videoFlipV,
+                      videoRotation: page.videoRotation,
+                      videoX: page.videoX,
+                      videoY: page.videoY,
+                      videoW: page.videoW,
+                      videoH: page.videoH,
+                      videoTrimStart: page.videoTrimStart,
+                      videoTrimEnd: page.videoTrimEnd,
+                      videoPlaybackRate: page.videoPlaybackRate,
+                    },
+                  }),
+                );
+              }}
+              className="w-full text-xs px-2 py-1.5 rounded border bg-emerald-900/30 border-emerald-700 text-emerald-200 hover:bg-emerald-900/50 flex items-center justify-center gap-2"
+              title="Copia o vídeo deste slide. Vá pra outro slide e aperte Ctrl+V (ou clique no banner verde)."
+            >
+              ⎘ Copiar pra outro slide
+            </button>
+          </div>
         )}
 
         {/* Bloco 2: Transforms — só faz sentido se vídeo NÃO removido */}

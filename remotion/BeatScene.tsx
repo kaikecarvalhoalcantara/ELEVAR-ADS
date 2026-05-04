@@ -584,6 +584,22 @@ const ElementsLayer: React.FC<{ elements: PageElement[] }> = ({ elements }) => {
             {el.text && elementSupportsText(el.shape) && (
               <div style={elementTextStyle(el)}>{el.text}</div>
             )}
+            {/* V59: video-overlay — vídeo extra dentro do slide via OffthreadVideo */}
+            {el.shape === "video-overlay" && el.videoSrc && (
+              <OffthreadVideo
+                src={el.videoSrc}
+                muted
+                playbackRate={el.videoPlaybackRate ?? 1}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  transform: `scale(${
+                    (el.videoZoom ?? 1) * (el.videoFlipH ? -1 : 1)
+                  }, ${(el.videoZoom ?? 1) * (el.videoFlipV ? -1 : 1)})`,
+                }}
+              />
+            )}
           </div>
         );
       })}
