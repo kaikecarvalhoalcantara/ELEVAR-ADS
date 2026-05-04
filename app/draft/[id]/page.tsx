@@ -906,8 +906,15 @@ export default function EditorPage() {
               ↷
             </button>
           </div>
-          <span className="text-xs text-neutral-500">
-            {saveStatus === "saving" ? "salvando…" : saveStatus === "saved" ? "✓ salvo" : ""}
+          <span
+            className="text-xs text-neutral-500"
+            title="Tudo é salvo automaticamente na nuvem. Pode acessar de qualquer dispositivo."
+          >
+            {saveStatus === "saving"
+              ? "💾 salvando…"
+              : saveStatus === "saved"
+                ? "✓ salvo (nuvem)"
+                : ""}
           </span>
         </div>
         <div className="flex items-center gap-2">
