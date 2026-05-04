@@ -50,6 +50,23 @@ const ANIMATIONS: AnimationKind[] = [
   // V19: extras avançadas
   "escala", "girar", "explodir", "balancar", "flutuar",
 ];
+// V57: Labels estilo Canva pra deixar mais reconhecível pro user.
+// As keys internas (chave do PageDraft) ficam iguais pra não quebrar drafts.
+const ANIMATION_LABELS: Record<AnimationKind, string> = {
+  subir: "Subir (palavra ↑)",
+  deslocar: "Deslocar (palavra ←)",
+  letra: "Letra por letra",
+  linha: "Linha por linha",
+  fade: "Surgir (fade)",
+  teclado: "Datilografar",
+  mesclar: "Mesclar",
+  bloco: "Bloco",
+  escala: "Saltar (zoom)",
+  girar: "Girar",
+  explodir: "Estilhaçar",
+  balancar: "Balançar",
+  flutuar: "Flutuar",
+};
 const FRAMES_PER_BEAT = 48;
 const FPS = 24;
 
@@ -121,6 +138,18 @@ export default function EditorPage() {
   const [elementClipboard, setElementClipboard] = useState<PageElement | null>(null);
   // V49: toast fugaz pra confirmar Ctrl+C/V — antes user não tinha feedback algum
   const [copyToast, setCopyToast] = useState<string | null>(null);
+  // V57: escuta evento "duplicate-video" disparado pelo botão no painel
+  useEffect(() => {
+    function onDup(e: Event) {
+      const detail = (e as CustomEvent).detail;
+      if (!detail) return;
+      setVideoClipboard(detail);
+      setCopyToast("✓ Vídeo copiado — Ctrl+V em outro slide pra colar");
+      window.setTimeout(() => setCopyToast(null), 2200);
+    }
+    window.addEventListener("duplicate-video", onDup);
+    return () => window.removeEventListener("duplicate-video", onDup);
+  }, []);
   // V50: showGrid removido — réguas agora aparecem só durante drag (smart guides)
   // V44: clipboard pro vídeo — guarda src/url + transforms pra colar em outro slide
   const [videoClipboard, setVideoClipboard] = useState<{
@@ -909,6 +938,16 @@ export default function EditorPage() {
               textSelected={textIsSelected}
               onSetTextSelected={setTextIsSelected}
               videoPreviewTime={videoPreviewTime}
+              hasVideoClipboard={!!videoClipboard}
+              onPasteVideo={() => {
+                if (!videoClipboard) return;
+                updatePage(selectedAd, selectedPage, {
+                  ...videoClipboard,
+                  videoRemoved: false,
+                });
+                setCopyToast("✓ Vídeo colado neste slide");
+                window.setTimeout(() => setCopyToast(null), 1800);
+              }}
             />
           ) : (
             <div className="text-sm text-neutral-500">selecione uma página</div>
@@ -1012,6 +1051,8 @@ function EditableCanvas({
   textSelected,
   onSetTextSelected,
   videoPreviewTime,
+  hasVideoClipboard,
+  onPasteVideo,
 }: {
   page: EnrichedPage;
   draft: EnrichedDraft;
@@ -1023,6 +1064,8 @@ function EditableCanvas({
   textSelected: boolean;
   onSetTextSelected: (selected: boolean) => void;
   videoPreviewTime?: number | null;
+  hasVideoClipboard: boolean; // V57
+  onPasteVideo: () => void; // V57
 }) {
   const dims = dimsFor(draft.format);
   const previewW = dims.width >= dims.height ? 600 : 420;
@@ -1312,8 +1355,20 @@ function EditableCanvas({
       }}
       onClick={selectVideoFromBackground}
     >
-      {/* V47: Banner "Colar vídeo aqui" REMOVIDO. Pra colar use Ctrl+V
-          (atalho de teclado puro, igual sombra). */}
+      {/* V57: Banner verde "Colar vídeo aqui" volta — mostra QUANDO há vídeo
+          no clipboard global. User pediu botão visual além do Ctrl+V. */}
+      {hasVideoClipboard && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onPasteVideo();
+          }}
+          className="absolute -top-9 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg border border-emerald-400 whitespace-nowrap z-40"
+          title="Cola o vídeo copiado neste slide"
+        >
+          📥 Colar vídeo aqui
+        </button>
+      )}
       {/* Background sólido (V18: cor escolhida pelo user, default preto) */}
       <div className="absolute inset-0" style={{ background: bgColor }} />
       {/* Vídeo de fundo posicionável (V9) — esconde se videoRemoved (V18) */}
@@ -1326,6 +1381,8 @@ function EditableCanvas({
           flipV={page.videoFlipV ?? false}
           rotation={page.videoRotation ?? 0}
           trimStart={page.videoTrimStart ?? 0}
+          trimEnd={page.videoTrimEnd}
+          playbackRate={page.videoPlaybackRate}
           x={page.videoX ?? 0}
           y={page.videoY ?? 0}
           w={page.videoW ?? 1}
@@ -2506,6 +2563,8 @@ function VideoLayer({
   flipV,
   rotation,
   trimStart,
+  trimEnd,
+  playbackRate,
   x,
   y,
   w,
@@ -2524,6 +2583,8 @@ function VideoLayer({
   flipV: boolean;
   rotation: number; // V44 — aplicado no transform mas controlado no painel direito
   trimStart: number;
+  trimEnd?: number; // V57: corte do final (segundos)
+  playbackRate?: number; // V57: velocidade do vídeo (slow-mo / fast)
   x: number;
   y: number;
   w: number;
@@ -2555,6 +2616,29 @@ function VideoLayer({
       ref.current.currentTime = trimStart;
     }
   }, [trimStart, src]);
+
+  // V57: aplica playbackRate via JS — HTML5 video tag não aceita prop direto,
+  // tem que setar imperativamente. Antes os sliders de velocidade no painel
+  // direito não tinham efeito visual no editor (só no MP4 final).
+  useEffect(() => {
+    if (!ref.current) return;
+    ref.current.playbackRate = playbackRate ?? 1;
+  }, [playbackRate, src]);
+
+  // V57: trim end — quando o vídeo passa de trimEnd, volta pro trimStart pra
+  // simular o trecho cortado (loop dentro da janela).
+  useEffect(() => {
+    if (!ref.current || !trimEnd) return;
+    const v = ref.current;
+    function onTime() {
+      if (!v) return;
+      if (v.currentTime >= (trimEnd ?? 0)) {
+        v.currentTime = trimStart || 0;
+      }
+    }
+    v.addEventListener("timeupdate", onTime);
+    return () => v.removeEventListener("timeupdate", onTime);
+  }, [trimEnd, trimStart, src]);
 
   // V32: Força reload quando src muda. Sem isso, browser às vezes
   // segura o frame do vídeo anterior (mesmo com key={src} React).
@@ -3114,6 +3198,7 @@ function ControlPanel({
             value={page.animation}
             onChange={(v) => onUpdatePage({ animation: v as AnimationKind })}
             options={ANIMATIONS}
+            renderLabel={(v) => ANIMATION_LABELS[v as AnimationKind] ?? v}
           />
         </Row>
       </Group>
@@ -4842,6 +4927,40 @@ function VideoControlsPanel({
 
         {/* V25: Importar vídeo/imagem do PC direto pra esta página */}
         <ImportVideoButton onUpdate={onUpdate} />
+
+        {/* V57: Botão pra duplicar/copiar o vídeo deste slide pro clipboard.
+            Cola depois com Ctrl+V em outro slide. Atalho visual ao Ctrl+C. */}
+        {!page.videoRemoved && page.videoUrl && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              // Dispara um evento custom que o pai escuta pra setar o clipboard
+              window.dispatchEvent(
+                new CustomEvent("duplicate-video", {
+                  detail: {
+                    videoSrc: page.videoSrc,
+                    videoUrl: page.videoUrl,
+                    videoZoom: page.videoZoom,
+                    videoFlipH: page.videoFlipH,
+                    videoFlipV: page.videoFlipV,
+                    videoRotation: page.videoRotation,
+                    videoX: page.videoX,
+                    videoY: page.videoY,
+                    videoW: page.videoW,
+                    videoH: page.videoH,
+                    videoTrimStart: page.videoTrimStart,
+                    videoTrimEnd: page.videoTrimEnd,
+                    videoPlaybackRate: page.videoPlaybackRate,
+                  },
+                }),
+              );
+            }}
+            className="w-full text-xs px-2 py-1.5 rounded border bg-emerald-900/30 border-emerald-700 text-emerald-200 hover:bg-emerald-900/50 flex items-center justify-center gap-2"
+            title="Copia o vídeo deste slide. Vá pra outro slide e aperte Ctrl+V (ou clique no banner verde) pra colar."
+          >
+            ⎘ Duplicar / copiar este vídeo
+          </button>
+        )}
 
         {/* Bloco 2: Transforms — só faz sentido se vídeo NÃO removido */}
         {!page.videoRemoved && (
