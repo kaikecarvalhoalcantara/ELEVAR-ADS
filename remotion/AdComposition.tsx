@@ -20,6 +20,8 @@ export interface PageWithStyle extends Beat, PageStyle {
   videoFlipH?: boolean;
   videoFlipV?: boolean;
   videoRotation?: number; // V44
+  videoFocusX?: number;   // V62
+  videoFocusY?: number;   // V62
   videoTrimStart?: number;
   videoTrimEnd?: number;
   videoPlaybackRate?: number;

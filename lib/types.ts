@@ -260,6 +260,11 @@ export interface PageDraft extends PageStyle {
   videoFlipH?: boolean;
   videoFlipV?: boolean;
   videoRotation?: number; // V44: -180..180 graus (0 = sem rotação)
+  // V62: foco do crop — onde o vídeo "se ancora" dentro do crop. Igual
+  // Canva: ajusta qual parte aparece quando o crop não mostra tudo.
+  // 0 = esquerda/topo, 0.5 = centro (default), 1 = direita/baixo.
+  videoFocusX?: number;
+  videoFocusY?: number;
   videoTrimStart?: number; // segundos pra pular do início do clip
   videoTrimEnd?: number;   // V21: segundos onde o clip deve PARAR (corta o final)
   videoPlaybackRate?: number; // V32: velocidade do vídeo (0.25 a 3, default 1)

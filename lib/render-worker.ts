@@ -124,6 +124,9 @@ export async function renderAdsInBackground(
       videoZoom: p.videoZoom,
       videoFlipH: p.videoFlipH,
       videoFlipV: p.videoFlipV,
+      videoRotation: p.videoRotation,
+      videoFocusX: p.videoFocusX, // V62
+      videoFocusY: p.videoFocusY, // V62
       videoTrimStart: p.videoTrimStart,
       elements: p.elements,
       videoX: p.videoX,

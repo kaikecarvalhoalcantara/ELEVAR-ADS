@@ -88,6 +88,8 @@ interface Props {
       videoFlipH?: boolean;
       videoFlipV?: boolean;
       videoRotation?: number; // V44
+      videoFocusX?: number; // V62
+      videoFocusY?: number; // V62
       videoTrimStart?: number;
       videoTrimEnd?: number;
       videoPlaybackRate?: number;
@@ -362,6 +364,8 @@ export const BeatScene: React.FC<Props> = ({
   const vw = beat.videoW ?? 1;
   const vh = beat.videoH ?? 1;
   const isFullCanvasVideo = vx === 0 && vy === 0 && vw === 1 && vh === 1;
+  // V62: foco do crop (object-position)
+  const objectPosition = `${(beat.videoFocusX ?? 0.5) * 100}% ${(beat.videoFocusY ?? 0.5) * 100}%`;
 
   const iconAboveSvg = iconSvgString(beat.iconAbove);
   const iconBelowSvg = iconSvgString(beat.iconBelow);
@@ -387,6 +391,7 @@ export const BeatScene: React.FC<Props> = ({
                 width: "100%",
                 height: "100%",
                 objectFit: "cover",
+                objectPosition,
                 filter: filterCss || undefined,
                 transform: videoTransform !== "scale(1, 1)" ? videoTransform : undefined,
               }}
@@ -402,6 +407,7 @@ export const BeatScene: React.FC<Props> = ({
                 width: "100%",
                 height: "100%",
                 objectFit: "cover",
+                objectPosition,
                 filter: filterCss || undefined,
                 transform: videoTransform !== "scale(1, 1)" ? videoTransform : undefined,
               }}

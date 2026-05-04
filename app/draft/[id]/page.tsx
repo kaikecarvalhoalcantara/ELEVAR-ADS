@@ -1426,6 +1426,8 @@ function EditableCanvas({
           trimStart={page.videoTrimStart ?? 0}
           trimEnd={page.videoTrimEnd}
           playbackRate={page.videoPlaybackRate}
+          focusX={page.videoFocusX}
+          focusY={page.videoFocusY}
           x={page.videoX ?? 0}
           y={page.videoY ?? 0}
           w={page.videoW ?? 1}
@@ -2628,6 +2630,8 @@ function VideoLayer({
   trimStart,
   trimEnd,
   playbackRate,
+  focusX,
+  focusY,
   x,
   y,
   w,
@@ -2648,6 +2652,8 @@ function VideoLayer({
   trimStart: number;
   trimEnd?: number; // V57: corte do final (segundos)
   playbackRate?: number; // V57: velocidade do vídeo (slow-mo / fast)
+  focusX?: number; // V62: foco do crop horizontal (0-1)
+  focusY?: number; // V62: foco do crop vertical (0-1)
   x: number;
   y: number;
   w: number;
@@ -2829,6 +2835,7 @@ function VideoLayer({
             style={{
               filter: filterCss || undefined,
               transform: transform !== "scale(1, 1)" ? transform : undefined,
+              objectPosition: `${(focusX ?? 0.5) * 100}% ${(focusY ?? 0.5) * 100}%`,
               pointerEvents: "none",
             }}
           />
@@ -2846,6 +2853,7 @@ function VideoLayer({
             style={{
               filter: filterCss || undefined,
               transform: transform !== "scale(1, 1)" ? transform : undefined,
+              objectPosition: `${(focusX ?? 0.5) * 100}% ${(focusY ?? 0.5) * 100}%`,
               pointerEvents: "none",
             }}
             onTimeUpdate={(e) => {
@@ -5179,6 +5187,55 @@ function VideoControlsPanel({
                 onUpdate({ videoPlaybackRate: v === 1 ? undefined : v })
               }
             />
+            {/* V62: Foco do crop — mexe DENTRO do vídeo (igual Canva) */}
+            <div className="border-t border-neutral-800 pt-2 space-y-2">
+              <div className="text-[10px] uppercase text-neutral-500 mb-0.5">
+                Ajustar foco do vídeo (igual Canva)
+              </div>
+              <Range
+                label="Posição horizontal"
+                value={page.videoFocusX ?? 0.5}
+                min={0}
+                max={1}
+                step={0.01}
+                format={(v) =>
+                  v === 0.5
+                    ? "centro"
+                    : v < 0.5
+                      ? `← ${Math.round((0.5 - v) * 100)}%`
+                      : `→ ${Math.round((v - 0.5) * 100)}%`
+                }
+                onChange={(v) =>
+                  onUpdate({
+                    videoFocusX: Math.abs(v - 0.5) < 0.01 ? undefined : v,
+                  })
+                }
+              />
+              <Range
+                label="Posição vertical"
+                value={page.videoFocusY ?? 0.5}
+                min={0}
+                max={1}
+                step={0.01}
+                format={(v) =>
+                  v === 0.5
+                    ? "centro"
+                    : v < 0.5
+                      ? `↑ ${Math.round((0.5 - v) * 100)}%`
+                      : `↓ ${Math.round((v - 0.5) * 100)}%`
+                }
+                onChange={(v) =>
+                  onUpdate({
+                    videoFocusY: Math.abs(v - 0.5) < 0.01 ? undefined : v,
+                  })
+                }
+              />
+              <p className="text-[10px] text-neutral-500 leading-tight">
+                💡 Move o conteúdo do vídeo dentro do enquadramento (sem
+                redimensionar a caixa). Bom pra trazer rosto/objeto pro
+                centro quando o vídeo está cortado.
+              </p>
+            </div>
             {/* V21: Trim mais bem feito — input visual com start + end +
                 preview de duração do trecho escolhido */}
             <VideoTrimControl
