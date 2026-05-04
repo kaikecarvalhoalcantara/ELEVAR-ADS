@@ -15,8 +15,9 @@ export const Cair: React.FC<AnimationProps> = ({
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const exitStart = durationInFrames - exitDuration;
-  const wordDelay = 3;
-  const lineGap = 4;
+  // V60: stagger mais perceptível
+  const wordDelay = 6;
+  const lineGap = 8;
 
   let cumulativeWordIdx = 0;
 

@@ -15,8 +15,10 @@ export const Subir: React.FC<AnimationProps> = ({
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const exitStart = durationInFrames - exitDuration;
-  const wordDelay = 3; // frames entre palavras
-  const lineGap = 4; // frames extra entre linhas
+  // V60: stagger MAIS PERCEPTÍVEL — antes 3 frames era quase invisível
+  // (apenas 0.125s a 24fps). 6 frames dá ~0.25s entre palavras, claro.
+  const wordDelay = 6;
+  const lineGap = 8; // frames extra entre linhas (era 4)
 
   // Soma de palavras já processadas pra calcular delay acumulado
   let cumulativeWordIdx = 0;
