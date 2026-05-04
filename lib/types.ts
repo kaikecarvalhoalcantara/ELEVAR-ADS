@@ -46,6 +46,7 @@ export type AnimationKind =
   | "deslocar"
   | "mesclar"
   | "bloco"
+  | "cair"    // V58: palavra cai de cima
   // V19: Novas animações
   | "fade"
   | "escala"
@@ -56,6 +57,16 @@ export type AnimationKind =
   // V56: animações Canva (letra/linha)
   | "letra"   // letra por letra com spring
   | "linha";  // linha por linha com slide-up
+
+// V58: Controles avançados de animação por slide (estilo Canva).
+// "ambos" = anima entrando E saindo (default)
+// "entrando" = só na entrada (sai estático)
+// "saindo" = só na saída (entra estático)
+export type AnimationDirection = "ambos" | "entrando" | "saindo";
+// V58: Estilo de escrita das animações que dividem texto em pedaços.
+// "palavra" = anima palavra por palavra (default, atual)
+// "linha" = anima linha por linha
+export type AnimationStyle = "palavra" | "linha";
 
 export type ToneFilter = "neutro" | "escuro" | "suave" | "infantil" | "vintage" | "premium";
 
@@ -115,6 +126,10 @@ export interface PageStyle {
   animationSpeed?: number;          // 0.5..2 (default 1)
   animationEntryDuration?: number;  // frames (default 14)
   animationExitDuration?: number;   // frames (default 14)
+  // V58: Canva-style — direção e estilo da animação
+  animationDirection?: AnimationDirection; // ambos | entrando | saindo
+  animationStyle?: AnimationStyle;         // palavra | linha
+  animationFlipExit?: boolean;             // inverte direção da animação de saída
   // V21: efeito visual da letra (preset estilo Canva)
   // V53: +4 efeitos novos — relevo, metalico, fogo, gelo
   letterEffect?:

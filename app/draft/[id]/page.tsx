@@ -43,29 +43,33 @@ import type {
   TextSegment,
 } from "../../../lib/types";
 
+// V58: Animações reduzidas pras 6 que o user pediu (igual Canva).
+// As outras (letra, linha, fade, escala, girar, explodir, balancar, flutuar)
+// continuam funcionando em drafts antigos, mas não aparecem mais pra criar novos.
 const ANIMATIONS: AnimationKind[] = [
-  // V56: ordem otimizada — animações estilo Canva primeiro (mais usadas)
-  "subir", "deslocar", "letra", "linha", "fade",
-  "teclado", "mesclar", "bloco",
-  // V19: extras avançadas
-  "escala", "girar", "explodir", "balancar", "flutuar",
+  "teclado",
+  "subir",
+  "deslocar",
+  "mesclar",
+  "bloco",
+  "cair",
 ];
-// V57: Labels estilo Canva pra deixar mais reconhecível pro user.
-// As keys internas (chave do PageDraft) ficam iguais pra não quebrar drafts.
 const ANIMATION_LABELS: Record<AnimationKind, string> = {
-  subir: "Subir (palavra ↑)",
-  deslocar: "Deslocar (palavra ←)",
-  letra: "Letra por letra",
-  linha: "Linha por linha",
-  fade: "Surgir (fade)",
-  teclado: "Datilografar",
+  teclado: "Teclado",
+  subir: "Subir",
+  deslocar: "Deslocar",
   mesclar: "Mesclar",
   bloco: "Bloco",
-  escala: "Saltar (zoom)",
-  girar: "Girar",
-  explodir: "Estilhaçar",
-  balancar: "Balançar",
-  flutuar: "Flutuar",
+  cair: "Cair",
+  // labels legacy (drafts antigos)
+  letra: "Letra (legacy)",
+  linha: "Linha (legacy)",
+  fade: "Fade (legacy)",
+  escala: "Escala (legacy)",
+  girar: "Girar (legacy)",
+  explodir: "Explodir (legacy)",
+  balancar: "Balançar (legacy)",
+  flutuar: "Flutuar (legacy)",
 };
 const FRAMES_PER_BEAT = 48;
 const FPS = 24;
@@ -3338,11 +3342,81 @@ function ControlPanel({
         )}
       </CollapsibleGroup>
 
+      {/* V58: Painel de animação estilo Canva — Animar/Estilo/Direção/Velocidade */}
       <CollapsibleGroup
-        label="⏱️ Velocidade da animação"
-        hint="Controla quão rápido o texto entra e sai. Hover no texto pra ver preview."
+        label="🎬 Animação"
+        hint="Configuração estilo Canva — direção, estilo, velocidade. Igual o aplicativo do Canva."
         defaultOpen
       >
+        {/* Animar: Ambos / Entrando / Saindo */}
+        <div>
+          <div className="text-[10px] uppercase text-neutral-500 mb-1.5">Animar</div>
+          <div className="grid grid-cols-3 gap-1">
+            {([
+              { v: "ambos", label: "Ambos" },
+              { v: "entrando", label: "Entrando" },
+              { v: "saindo", label: "Saindo" },
+            ] as const).map((opt) => {
+              const cur = page.animationDirection ?? "ambos";
+              return (
+                <button
+                  key={opt.v}
+                  onClick={() => onUpdatePage({ animationDirection: opt.v })}
+                  className={`text-xs py-1.5 rounded border ${
+                    cur === opt.v
+                      ? "bg-purple-700/40 border-purple-500 text-purple-200"
+                      : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:bg-neutral-700"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Estilo de escrita: Palavra / Linha */}
+        <div>
+          <div className="text-[10px] uppercase text-neutral-500 mb-1.5">
+            Estilo de escrita
+          </div>
+          <div className="grid grid-cols-2 gap-1">
+            {([
+              { v: "palavra", label: "Palavra" },
+              { v: "linha", label: "Linha" },
+            ] as const).map((opt) => {
+              const cur = page.animationStyle ?? "palavra";
+              return (
+                <button
+                  key={opt.v}
+                  onClick={() => onUpdatePage({ animationStyle: opt.v })}
+                  className={`text-xs py-1.5 rounded border ${
+                    cur === opt.v
+                      ? "bg-purple-700/40 border-purple-500 text-purple-200"
+                      : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:bg-neutral-700"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Inverter direção da saída (toggle) */}
+        <label className="flex items-center justify-between gap-2 text-xs cursor-pointer">
+          <span className="text-neutral-300">Inverter direção da saída</span>
+          <input
+            type="checkbox"
+            checked={page.animationFlipExit ?? false}
+            onChange={(e) =>
+              onUpdatePage({ animationFlipExit: e.target.checked })
+            }
+            className="rounded"
+          />
+        </label>
+
+        {/* Velocidade entrada / saída */}
         <Range
           label="Velocidade entrada (frames)"
           value={page.animationEntryDuration ?? 14}

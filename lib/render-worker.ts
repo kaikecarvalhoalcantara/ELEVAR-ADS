@@ -1,8 +1,34 @@
 import { loadDraft, saveDraft } from "./drafts";
 import { buildProjectName, renderAd } from "./render";
 import { cleanOldRenders } from "./cleanup";
+import { promises as fs } from "node:fs";
 import type { PageWithStyle } from "../remotion/AdComposition";
 import type { ProjectStyle } from "./types";
+
+/**
+ * V58: Verifica se cada videoSrc local existe no disco. Se não, substitui
+ * por "" (sem vídeo, fundo preto). Resolve bug 404 quando user apaga
+ * arquivo importado mas o draft ainda referenciava.
+ */
+async function sanitizeVideoSrcs(srcs: string[]): Promise<string[]> {
+  return Promise.all(
+    srcs.map(async (src) => {
+      if (!src) return "";
+      // URL HTTP (Pexels CDN, etc) → assume válida, não checa
+      if (src.startsWith("http://") || src.startsWith("https://")) return src;
+      // Filepath local → checa se existe
+      try {
+        await fs.access(src);
+        return src;
+      } catch {
+        console.warn(
+          `[render-worker] arquivo NÃO existe (404 prevenido): ${src}`,
+        );
+        return "";
+      }
+    }),
+  );
+}
 
 /**
  * Worker assíncrono — renderiza N ads em sequência, atualizando o
@@ -149,7 +175,10 @@ export async function renderAdsInBackground(
       letterEffectIntensity: p.letterEffectIntensity,
       letterEffectColor: p.letterEffectColor,
     }));
-    const videos = ad.pages.map((p) => p.videoSrc);
+    // V58: sanitiza videoSrcs — checa se cada arquivo local existe.
+    // Se foi apagado (cleanup, user deletou), substitui por "" pra render
+    // não falhar com 404. Slide vira fundo preto, mas o ad inteiro renderiza.
+    const videos = await sanitizeVideoSrcs(ad.pages.map((p) => p.videoSrc));
     const animations = ad.pages.map((p) => p.animation);
     const projectStyle: ProjectStyle = {
       toneFilter: cur.toneFilter,

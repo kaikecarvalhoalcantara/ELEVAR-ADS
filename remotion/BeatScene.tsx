@@ -44,6 +44,8 @@ import { Flutuar } from "./animations/Flutuar";
 // V56: Canva-style — letra por letra, linha por linha
 import { Letra } from "./animations/Letra";
 import { Linha } from "./animations/Linha";
+// V58: Cair — palavra cai de cima
+import { Cair } from "./animations/Cair";
 
 export type AnimationKind =
   | "teclado"
@@ -51,6 +53,7 @@ export type AnimationKind =
   | "deslocar"
   | "mesclar"
   | "bloco"
+  | "cair"    // V58
   | "fade"
   | "escala"
   | "girar"
@@ -616,6 +619,8 @@ function animationComponent(kind: AnimationKind) {
       return Letra;
     case "linha":
       return Linha;
+    case "cair":
+      return Cair;
   }
 }
 
