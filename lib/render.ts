@@ -164,7 +164,12 @@ export async function renderAd(input: RenderAdInput): Promise<string> {
           enableMultiProcessOnLinux: false,
         },
         browserExecutable: process.env.REMOTION_BROWSER_EXECUTABLE || undefined,
-        timeoutInMilliseconds: 180000,
+        // V54: timeout aumentado de 180s pra 300s (5 min). Vídeos importados
+        // grandes (Pinterest/WhatsApp) podem demorar mais que 3min pra
+        // carregar via HTTP. Combinado com OffthreadVideo (que evita o
+        // delayRender no carregamento inicial), elimina o erro
+        // "delayRender Loading Html5Video duration not cleared after Xms".
+        timeoutInMilliseconds: 300000,
       });
       chunkPaths.push(chunkPath);
       // Sugere ao Node fazer GC depois de cada chunk

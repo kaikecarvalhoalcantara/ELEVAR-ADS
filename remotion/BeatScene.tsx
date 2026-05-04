@@ -3,6 +3,7 @@ import {
   Img,
   OffthreadVideo,
   Video,
+  getRemotionEnvironment,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
@@ -148,6 +149,12 @@ export const BeatScene: React.FC<Props> = ({
   projectStyle,
 }) => {
   const { width, fps } = useVideoConfig();
+
+  // V54: usa OffthreadVideo no render (não precisa carregar duração — extrai
+  // frame a frame), Video no preview do Player. OffthreadVideo é MUITO mais
+  // resiliente — não trava com timeout de 178s tentando carregar Html5Video.
+  const isRendering = getRemotionEnvironment().isRendering;
+  const VideoComp = isRendering ? OffthreadVideo : Video;
 
   const isHook = beat.weight === "hook" || beat.weight === "punch";
   const fontFamily = isHook ? fontHook : fontTransition;
@@ -370,7 +377,7 @@ export const BeatScene: React.FC<Props> = ({
               }}
             />
           ) : (
-            <Video
+            <VideoComp
               src={videoSrc}
               muted
               startFrom={startFrom}
@@ -410,7 +417,7 @@ export const BeatScene: React.FC<Props> = ({
                   }}
                 />
               ) : (
-                <Video
+                <VideoComp
                   src={videoSrc}
                   muted
                   startFrom={startFrom}
