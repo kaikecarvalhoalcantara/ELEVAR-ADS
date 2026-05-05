@@ -62,12 +62,20 @@ export async function cacheVideoLocally(url: string): Promise<string> {
       await new Promise((r) => setTimeout(r, wait));
     }
     try {
+      // V68: User-Agent realista — Pexels às vezes bloqueia fetches sem UA
       const res = await fetch(url, {
-        // Timeout de 60s pra vídeos grandes
         signal: AbortSignal.timeout(60000),
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Accept: "video/mp4,video/*,*/*",
+        },
       });
       if (!res.ok) {
-        lastErr = new Error(`HTTP ${res.status}`);
+        lastErr = new Error(`HTTP ${res.status} ${res.statusText}`);
+        console.warn(
+          `[video-cache] tentativa ${attempt + 1} HTTP ${res.status}: ${url.slice(0, 80)}`,
+        );
         continue;
       }
       const buf = Buffer.from(await res.arrayBuffer());
@@ -77,13 +85,13 @@ export async function cacheVideoLocally(url: string): Promise<string> {
       }
       await fs.writeFile(filepath, buf);
       console.log(
-        `[video-cache] ✓ baixado ${filename} (${(buf.byteLength / 1024 / 1024).toFixed(1)}MB)`,
+        `[video-cache] ✓ baixado ${filename} (${(buf.byteLength / 1024 / 1024).toFixed(1)}MB) ← ${url.slice(0, 60)}`,
       );
       return filepath;
     } catch (err) {
       lastErr = err as Error;
       console.warn(
-        `[video-cache] tentativa ${attempt + 1} falhou: ${(err as Error).message}`,
+        `[video-cache] tentativa ${attempt + 1} falhou: ${(err as Error).message} (${url.slice(0, 60)})`,
       );
     }
   }
@@ -112,5 +120,13 @@ export async function prefetchVideos(urls: string[]): Promise<string[]> {
     }
   });
   await Promise.all(workers);
+
+  // V68: Estatística clara de quantos viraram path local vs ficaram URL
+  const cached = results.filter((r) => r && !r.startsWith("http")).length;
+  const stillUrl = results.filter((r) => r && r.startsWith("http")).length;
+  const empty = results.filter((r) => !r).length;
+  console.log(
+    `[video-cache] resumo: ${cached} cacheados, ${stillUrl} ainda URL (download falhou), ${empty} vazios. Total: ${urls.length}`,
+  );
   return results;
 }

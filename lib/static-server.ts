@@ -111,9 +111,10 @@ export async function startStaticServer(
     }
   });
 
-  // Listen em porta efêmera (0 = SO escolhe)
+  // V68: Listen em 0.0.0.0 (todas interfaces) em porta efêmera.
+  // 127.0.0.1 falhava em alguns casos no Railway/Chromium subprocess.
   await new Promise<void>((resolveP, rejectP) => {
-    server.listen(0, "127.0.0.1", () => resolveP());
+    server.listen(0, "0.0.0.0", () => resolveP());
     server.on("error", rejectP);
   });
   const addr = server.address();
@@ -121,8 +122,25 @@ export async function startStaticServer(
     server.close();
     throw new Error("Não consegui pegar porta do servidor estático");
   }
+  // URL pra Chromium acessar — usa 127.0.0.1 (mesma máquina) na porta exposta
   const baseUrl = `http://127.0.0.1:${addr.port}`;
-  console.log(`[static-server] ✓ rodando em ${baseUrl} → ${root}`);
+  console.log(
+    `[static-server] ✓ rodando em ${baseUrl} (listen 0.0.0.0:${addr.port}) → ${root}`,
+  );
+
+  // Sanity check: faz um fetch interno pra confirmar que o servidor responde
+  try {
+    const testRes = await fetch(`${baseUrl}/__healthcheck__`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    console.log(
+      `[static-server] healthcheck status=${testRes.status} (esperado 404 = OK, servidor responde)`,
+    );
+  } catch (err) {
+    console.error(
+      `[static-server] ✗ healthcheck falhou: ${(err as Error).message}`,
+    );
+  }
 
   return {
     baseUrl,

@@ -114,10 +114,17 @@ export async function renderAd(input: RenderAdInput): Promise<string> {
   const httpVideos = input.videos.map((p) =>
     localPathToHttpUrl(p, staticServer.baseUrl),
   );
-  const sample = httpVideos.find((u) => u && u.startsWith("http://127."));
-  if (sample) {
-    console.log(`[render] sample local video URL: ${sample}`);
-  }
+  const localCount = httpVideos.filter((u) => u && u.startsWith("http://127.")).length;
+  const cdnCount = httpVideos.filter((u) => u && !u.startsWith("http://127.")).length;
+  const emptyCount = httpVideos.filter((u) => !u).length;
+  console.log(
+    `[render] URLs pro Remotion: ${localCount} locais (static-server), ${cdnCount} CDN externa, ${emptyCount} vazias`,
+  );
+  // Log primeira URL de cada tipo pra debug
+  const sampleLocal = httpVideos.find((u) => u && u.startsWith("http://127."));
+  const sampleCdn = httpVideos.find((u) => u && !u.startsWith("http://127."));
+  if (sampleLocal) console.log(`[render]   sample LOCAL: ${sampleLocal}`);
+  if (sampleCdn) console.log(`[render]   sample CDN:   ${sampleCdn.slice(0, 100)}`);
   const inputProps: AdProps = {
     beats: input.beats,
     videos: httpVideos,
