@@ -1,5 +1,6 @@
 import { AbsoluteFill, Sequence } from "remotion";
 import { BeatScene } from "./BeatScene";
+import { FontLoader } from "./FontLoader";
 import type {
   AnimationKind,
   Beat,
@@ -125,8 +126,17 @@ export const AdComposition: React.FC<AdProps> = ({
   projectStyle,
 }) => {
   const ps = projectStyle ?? FALLBACK_PROJECT_STYLE;
+  // V64: dedup + filter — alguns drafts podem ter fontHook == fontTransition,
+  // não precisamos carregar 2x.
+  const fontFamilies = Array.from(
+    new Set([fontHook, fontTransition].filter(Boolean)),
+  );
   return (
     <AbsoluteFill style={{ backgroundColor: "#000000" }}>
+      {/* V64: Carrega Google Fonts ANTES de renderizar — bloqueia delayRender
+          até as fontes estarem disponíveis. Sem isso o MP4 final saía com
+          fonte fallback (Arial) em vez da fonte escolhida. */}
+      <FontLoader families={fontFamilies} />
       {beats.map((beat, idx) => {
         const animation =
           animations?.[idx] ??

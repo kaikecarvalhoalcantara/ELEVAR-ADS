@@ -457,47 +457,54 @@ export const BeatScene: React.FC<Props> = ({
           </>
         )
       ) : null}
-      <AbsoluteFill
-        style={{
-          background:
-            projectStyle.template === "cinema"
-              ? // Cinema: gradient fade SUAVE da metade do canvas pro preto.
-                // Sem linha dura — vídeo aparece nítido em cima, transição
-                // suave no meio (onde fica o texto), preto denso embaixo.
-                `linear-gradient(180deg, rgba(0,0,0,${overlayOpacity * 0.4}) 0%, rgba(0,0,0,${overlayOpacity * 0.4}) 38%, rgba(0,0,0,0.6) 55%, rgba(0,0,0,0.92) 72%, #000 88%, #000 100%)`
-              : `linear-gradient(180deg, rgba(0,0,0,${overlayOpacity * 0.6}) 0%, rgba(0,0,0,${overlayOpacity}) 100%)`,
-        }}
-      />
-      {/* V14: VINHETA — escurece os 4 cantos */}
-      {(projectStyle.vignetteIntensity ?? 0) > 0 && (
-        <AbsoluteFill
-          style={{
-            background: `radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,${projectStyle.vignetteIntensity}) 100%)`,
-            pointerEvents: "none",
-          }}
-        />
-      )}
-      {/* V14: LIGHT LEAKS — vazamentos de luz colorida nos cantos */}
-      {(projectStyle.lightLeakIntensity ?? 0) > 0 && (
-        <AbsoluteFill
-          style={{
-            background: `radial-gradient(ellipse at 85% 15%, ${projectStyle.lightLeakColor ?? "#ffd27a"}${alphaHex2((projectStyle.lightLeakIntensity ?? 0) * 0.85)} 0%, transparent 45%), radial-gradient(ellipse at 15% 85%, ${projectStyle.lightLeakColor ?? "#ffd27a"}${alphaHex2((projectStyle.lightLeakIntensity ?? 0) * 0.5)} 0%, transparent 40%)`,
-            mixBlendMode: "screen",
-            pointerEvents: "none",
-          }}
-        />
-      )}
-      {/* V14: GRANULADO de filme — noise via SVG turbulence */}
-      {(projectStyle.grainIntensity ?? 0) > 0 && (
-        <AbsoluteFill style={{ pointerEvents: "none", mixBlendMode: "overlay", opacity: projectStyle.grainIntensity }}>
-          <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-            <filter id={`beat-grain-${animation}`}>
-              <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" />
-              <feColorMatrix type="saturate" values="0" />
-            </filter>
-            <rect width="100%" height="100%" filter={`url(#beat-grain-${animation})`} />
-          </svg>
-        </AbsoluteFill>
+      {/* V64: Os efeitos abaixo (overlay/vinheta/light-leak/granulado) só
+          aplicam quando há VÍDEO sendo mostrado. Quando videoRemoved=true
+          ou videoSrc vazio, o slide vira preto puro — não é mais clareado
+          por gradient/light-leak (que faz "cinza escuro" indesejado). */}
+      {showVideo && (
+        <>
+          <AbsoluteFill
+            style={{
+              background:
+                projectStyle.template === "cinema"
+                  ? // Cinema: gradient fade SUAVE da metade do canvas pro preto.
+                    `linear-gradient(180deg, rgba(0,0,0,${overlayOpacity * 0.4}) 0%, rgba(0,0,0,${overlayOpacity * 0.4}) 38%, rgba(0,0,0,0.6) 55%, rgba(0,0,0,0.92) 72%, #000 88%, #000 100%)`
+                  : `linear-gradient(180deg, rgba(0,0,0,${overlayOpacity * 0.6}) 0%, rgba(0,0,0,${overlayOpacity}) 100%)`,
+              pointerEvents: "none",
+            }}
+          />
+          {/* V14: VINHETA — escurece os 4 cantos */}
+          {(projectStyle.vignetteIntensity ?? 0) > 0 && (
+            <AbsoluteFill
+              style={{
+                background: `radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,${projectStyle.vignetteIntensity}) 100%)`,
+                pointerEvents: "none",
+              }}
+            />
+          )}
+          {/* V14: LIGHT LEAKS — vazamentos de luz colorida nos cantos */}
+          {(projectStyle.lightLeakIntensity ?? 0) > 0 && (
+            <AbsoluteFill
+              style={{
+                background: `radial-gradient(ellipse at 85% 15%, ${projectStyle.lightLeakColor ?? "#ffd27a"}${alphaHex2((projectStyle.lightLeakIntensity ?? 0) * 0.85)} 0%, transparent 45%), radial-gradient(ellipse at 15% 85%, ${projectStyle.lightLeakColor ?? "#ffd27a"}${alphaHex2((projectStyle.lightLeakIntensity ?? 0) * 0.5)} 0%, transparent 40%)`,
+                mixBlendMode: "screen",
+                pointerEvents: "none",
+              }}
+            />
+          )}
+          {/* V14: GRANULADO de filme — noise via SVG turbulence */}
+          {(projectStyle.grainIntensity ?? 0) > 0 && (
+            <AbsoluteFill style={{ pointerEvents: "none", mixBlendMode: "overlay", opacity: projectStyle.grainIntensity }}>
+              <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                <filter id={`beat-grain-${animation}`}>
+                  <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" />
+                  <feColorMatrix type="saturate" values="0" />
+                </filter>
+                <rect width="100%" height="100%" filter={`url(#beat-grain-${animation})`} />
+              </svg>
+            </AbsoluteFill>
+          )}
+        </>
       )}
       {beat.elements && beat.elements.length > 0 && (
         <ElementsLayer elements={beat.elements} />

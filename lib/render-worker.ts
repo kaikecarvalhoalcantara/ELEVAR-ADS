@@ -1,6 +1,7 @@
 import { loadDraft, saveDraft } from "./drafts";
 import { buildProjectName, renderAd } from "./render";
-import { cleanOldRenders } from "./cleanup";
+import { cleanOldRenders, cleanOldVideoCache } from "./cleanup";
+import { prefetchVideos } from "./video-cache";
 import { promises as fs } from "node:fs";
 import type { PageWithStyle } from "../remotion/AdComposition";
 import type { ProjectStyle } from "./types";
@@ -49,7 +50,14 @@ export async function renderAdsInBackground(
     const c = await cleanOldRenders();
     if (c.deletedCount > 0) {
       console.log(
-        `[render-worker ${draftId}] cleanup: liberou ${(c.freedBytes / 1024 / 1024).toFixed(1)}MB (${c.deletedCount} arquivos)`,
+        `[render-worker ${draftId}] cleanup MP4s: liberou ${(c.freedBytes / 1024 / 1024).toFixed(1)}MB (${c.deletedCount} arquivos)`,
+      );
+    }
+    // V64: também limpa cache de vídeos do Pexels >7 dias
+    const vc = await cleanOldVideoCache();
+    if (vc.deletedCount > 0) {
+      console.log(
+        `[render-worker ${draftId}] cleanup video-cache: liberou ${(vc.freedBytes / 1024 / 1024).toFixed(1)}MB (${vc.deletedCount} arquivos)`,
       );
     }
   } catch (e) {
@@ -185,7 +193,18 @@ export async function renderAdsInBackground(
     // V58: sanitiza videoSrcs — checa se cada arquivo local existe.
     // Se foi apagado (cleanup, user deletou), substitui por "" pra render
     // não falhar com 404. Slide vira fundo preto, mas o ad inteiro renderiza.
-    const videos = await sanitizeVideoSrcs(ad.pages.map((p) => p.videoSrc));
+    const sanitized = await sanitizeVideoSrcs(ad.pages.map((p) => p.videoSrc));
+    // V64: prefetch dos vídeos do Pexels CDN com retry de 3x — baixa pra
+    // /data/video-cache/ ANTES do render. Render usa filepath local em
+    // vez da CDN, eliminando timeouts/throttling do Pexels durante render.
+    cur.rendering!.message = `Baixando vídeos pra render…`;
+    await saveDraft(cur);
+    console.log(
+      `[render-worker ${draftId}] prefetching ${sanitized.length} vídeos…`,
+    );
+    const videos = await prefetchVideos(sanitized);
+    cur.rendering!.message = `Renderizando AD ${String(adNum).padStart(2, "0")}…`;
+    await saveDraft(cur);
     const animations = ad.pages.map((p) => p.animation);
     const projectStyle: ProjectStyle = {
       toneFilter: cur.toneFilter,

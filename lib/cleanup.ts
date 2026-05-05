@@ -3,8 +3,10 @@ import { join } from "node:path";
 import { storagePath } from "./storage";
 
 const OUTPUT_ROOT = storagePath("generated");
+const CACHE_ROOT = storagePath("video-cache");
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface CleanupResult {
   deletedCount: number;
@@ -76,6 +78,50 @@ export async function cleanOldRenders(
  */
 export async function cleanAllRenders(): Promise<CleanupResult> {
   return cleanOldRenders(0);
+}
+
+/**
+ * V64: Apaga vídeos cached do Pexels (video-cache/) mais velhos que 7 dias.
+ * Esses são re-baixáveis, então cleanup mais agressivo é OK.
+ */
+export async function cleanOldVideoCache(
+  maxAgeMs: number = SEVEN_DAYS_MS,
+): Promise<CleanupResult> {
+  const result: CleanupResult = {
+    deletedCount: 0,
+    freedBytes: 0,
+    scanned: 0,
+    errors: [],
+  };
+  try {
+    await fs.mkdir(CACHE_ROOT, { recursive: true });
+    const entries = await fs.readdir(CACHE_ROOT, { withFileTypes: true });
+    const now = Date.now();
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      result.scanned++;
+      const filepath = join(CACHE_ROOT, entry.name);
+      try {
+        const stat = await fs.stat(filepath);
+        const ageMs = now - stat.mtimeMs;
+        if (ageMs >= maxAgeMs) {
+          result.freedBytes += stat.size;
+          await fs.unlink(filepath);
+          result.deletedCount++;
+        }
+      } catch (err) {
+        result.errors.push(`${entry.name}: ${(err as Error).message}`);
+      }
+    }
+    if (result.deletedCount > 0) {
+      console.log(
+        `[cleanup-cache] apagou ${result.deletedCount} vídeos (${(result.freedBytes / 1024 / 1024).toFixed(1)}MB liberados)`,
+      );
+    }
+  } catch (err) {
+    result.errors.push(`readdir: ${(err as Error).message}`);
+  }
+  return result;
 }
 
 /**
