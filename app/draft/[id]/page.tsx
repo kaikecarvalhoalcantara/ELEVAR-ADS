@@ -1100,6 +1100,69 @@ export default function EditorPage() {
         </div>
       </header>
 
+      {/* V79: Banner inteligente — detecta se o AD selecionado tem muitos
+          slides sem vídeo (pretos) e sugere "🔄 Regenerar AD" com 1 click.
+          Antes V76 tinha throttle/retry, então drafts antigos podem ter
+          AD com slides pretos. Banner ajuda o user a resolver. */}
+      {(() => {
+        const totalPages = ad.pages.length;
+        if (totalPages < 4) return null; // não mostra pra ADs pequenos
+        const emptyVideos = ad.pages.filter(
+          (p) => !p.videoRemoved && (!p.videoSrc || p.videoSrc.trim() === ""),
+        ).length;
+        const ratio = emptyVideos / totalPages;
+        // Mostra se ≥30% dos slides estão sem vídeo (não-removidos)
+        if (ratio < 0.3) return null;
+        return (
+          <div className="bg-gradient-to-r from-amber-900/40 via-orange-900/30 to-amber-900/40 border-b border-amber-700/50 px-5 py-2.5 flex items-center justify-between gap-3 text-amber-100">
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-base">💡</span>
+              <span>
+                <strong className="text-amber-200">
+                  AD {String(ad.number).padStart(2, "0")} tem {emptyVideos} de {totalPages} slides sem vídeo
+                </strong>
+                {" "}(provavelmente rate-limit do Pexels na geração).
+                <span className="opacity-80 ml-1">
+                  Click pra regenerar — vai trocar os slides pretos por vídeos.
+                </span>
+              </span>
+            </div>
+            <button
+              onClick={async () => {
+                if (
+                  !confirm(
+                    `Regenerar AD ${String(ad.number).padStart(2, "0")}?\n\n` +
+                    `Vai re-rodar a IA pra recortar texto e buscar novos vídeos. ` +
+                    `Os MP4s já renderizados deste AD serão apagados.`,
+                  )
+                )
+                  return;
+                try {
+                  const res = await fetch(
+                    `/api/draft/${draft.id}/retry?adNumber=${ad.number}`,
+                    { method: "POST" },
+                  );
+                  const data = await res.json();
+                  if (!data.ok) {
+                    alert(`Erro: ${data.error ?? "falha"}`);
+                    return;
+                  }
+                  setRenderStatus(
+                    `🔄 Regenerando AD ${String(ad.number).padStart(2, "0")}…`,
+                  );
+                  setTimeout(() => reload(), 3000);
+                } catch (err) {
+                  alert(`Erro: ${(err as Error).message}`);
+                }
+              }}
+              className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold whitespace-nowrap shadow-lg shadow-amber-900/30 transition-all flex items-center gap-1.5"
+            >
+              🔄 Regenerar agora
+            </button>
+          </div>
+        );
+      })()}
+
       <RenderStatusBar draft={draft} draftId={id} renderStatus={renderStatus} />
 
 
