@@ -3,6 +3,7 @@ import { renderMedia, selectComposition } from "@remotion/renderer";
 import { promises as fs } from "node:fs";
 import { spawn } from "node:child_process";
 import { join, relative, resolve, sep } from "node:path";
+import { startStaticServer } from "./static-server";
 import type { AdProps, PageWithStyle } from "../remotion/AdComposition";
 import type { AnimationKind, Format, PageStyle, ProjectStyle } from "./types";
 import { getStorageRoot, storagePath } from "./storage";
@@ -11,30 +12,18 @@ const REMOTION_ENTRY = resolve(process.cwd(), "remotion/index.ts");
 const OUTPUT_ROOT = storagePath("generated");
 
 /**
- * V66: Converte filepath local em URL HTTP pro Remotion.
+ * V67: Converte filepath local em URL HTTP usando o servidor estático
+ * dedicado. Antes dependia de PUBLIC_BASE_URL ou $PORT do Next.js que
+ * não era confiável no Railway. Agora cada render spawneia seu próprio
+ * servidor HTTP em porta efêmera.
  *
- * Remotion SÓ aceita http:// ou https:// (V65 tentou file:// e falhou:
- * "Can only download URLs starting with http:// or https://").
- *
- * Volta pra HTTP via /api/local-video/... — agora com log claro da URL
- * pra debug. PORT vem de process.env.PORT (Railway define corretamente),
- * fallback 3000 pra dev local. PUBLIC_BASE_URL override se setado.
+ * URLs HTTP (Pexels CDN, etc) continuam passando direto.
  */
-function getPublicBaseUrl(): string {
-  const explicit = process.env.PUBLIC_BASE_URL?.replace(/\/$/, "");
-  if (explicit) return explicit;
-  const port = process.env.PORT || "3000";
-  return `http://127.0.0.1:${port}`;
-}
-
-function localPathToHttpUrl(absPath: string): string {
+function localPathToHttpUrl(absPath: string, baseUrl: string): string {
   if (!absPath) return "";
-  // Já é URL HTTP (Pexels CDN) → passa direto pro Remotion
   if (absPath.startsWith("http://") || absPath.startsWith("https://")) {
     return absPath;
   }
-  // Filepath local → serve via /api/local-video
-  const baseUrl = getPublicBaseUrl();
   const rel = relative(getStorageRoot(), absPath);
   if (rel.startsWith("..")) {
     throw new Error(`Caminho fora do storage: ${absPath}`);
@@ -43,7 +32,7 @@ function localPathToHttpUrl(absPath: string): string {
     .split(sep)
     .filter(Boolean)
     .map((s) => encodeURIComponent(s));
-  return `${baseUrl}/api/local-video/${segments.join("/")}`;
+  return `${baseUrl}/${segments.join("/")}`;
 }
 
 let cachedBundleUrl: string | null = null;
@@ -119,14 +108,13 @@ function ffmpegConcat(chunks: string[], outputPath: string): Promise<void> {
 
 export async function renderAd(input: RenderAdInput): Promise<string> {
   const bundleUrl = await getBundle();
-  const httpVideos = input.videos.map((p) => localPathToHttpUrl(p));
-  // V66: log das URLs usadas pra debug — se alguma vier com porta errada,
-  // a gente vê no log do Railway antes de o render falhar.
-  console.log(
-    `[render] PUBLIC_BASE_URL = ${process.env.PUBLIC_BASE_URL ?? "(não setado)"}`,
+  // V67: spawn servidor estático dedicado pro render. Serve os arquivos
+  // do storageRoot direto, sem depender do Next.js / PORT / PROXY.
+  const staticServer = await startStaticServer(getStorageRoot());
+  const httpVideos = input.videos.map((p) =>
+    localPathToHttpUrl(p, staticServer.baseUrl),
   );
-  console.log(`[render] PORT = ${process.env.PORT ?? "(não setado, usando 3000)"}`);
-  const sample = httpVideos.find((u) => u && !u.startsWith("https://"));
+  const sample = httpVideos.find((u) => u && u.startsWith("http://127."));
   if (sample) {
     console.log(`[render] sample local video URL: ${sample}`);
   }
@@ -213,6 +201,9 @@ export async function renderAd(input: RenderAdInput): Promise<string> {
     }
     console.error(`[render] ✗ "${input.outputName}" falhou: ${(err as Error).message}`);
     throw err;
+  } finally {
+    // V67: Para o servidor estático SEMPRE (success ou fail) pra liberar a porta
+    await staticServer.stop().catch(() => undefined);
   }
 }
 
