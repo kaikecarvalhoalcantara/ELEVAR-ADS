@@ -213,22 +213,28 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-6xl p-6 space-y-6">
-      <header>
-        <h1 className="text-3xl font-bold">Automador de Ads</h1>
-        <p className="text-neutral-400 text-sm mt-1">
-          Brand brief detalhado → IA gera draft personalizado → editor visual completo → MP4 pronto.
+      <header className="text-center md:text-left">
+        <div className="flex items-center gap-3 justify-center md:justify-start">
+          <span className="text-4xl">⚡</span>
+          <h1 className="text-4xl md:text-5xl font-black tracking-tight">
+            <span className="brand-gradient-text">ELEVAR ADS</span>
+          </h1>
+        </div>
+        <p className="text-neutral-400 text-sm mt-2 max-w-2xl">
+          Cole sua copy. A IA gera os slides. Edita visualmente. Baixa o MP4 pronto.
+          <span className="brand-gradient-text font-semibold"> 10 anúncios em 7 minutos.</span>
         </p>
       </header>
 
-      <nav className="flex gap-2 border-b border-neutral-800 pb-2">
+      <nav className="flex gap-2 border-b border-purple-900/30 pb-2">
         <TabBtn active={tab === "generate"} onClick={() => setTab("generate")}>
-          Brand Brief & Gerar
+          ✨ Criar anúncio
         </TabBtn>
         <TabBtn active={tab === "projects"} onClick={() => setTab("projects")}>
-          📁 Projetos salvos
+          📁 Meus projetos
         </TabBtn>
         <TabBtn active={tab === "assets"} onClick={() => setTab("assets")}>
-          Assets do cliente
+          🎬 Vídeos importados
         </TabBtn>
       </nav>
 
@@ -255,13 +261,16 @@ function TabBtn({
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-2 rounded-t border-b-2 ${
+      className={`relative px-5 py-2.5 rounded-t-lg font-medium transition-all ${
         active
-          ? "border-purple-500 text-white"
-          : "border-transparent text-neutral-400 hover:text-neutral-200"
+          ? "text-white bg-gradient-to-b from-purple-900/40 to-transparent"
+          : "text-neutral-400 hover:text-neutral-100 hover:bg-purple-900/10"
       }`}
     >
       {children}
+      {active && (
+        <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full" />
+      )}
     </button>
   );
 }
@@ -284,12 +293,12 @@ function Section({
   badge?: string; // V39: legacy, ignorado
 }) {
   return (
-    <section className="space-y-3 border border-neutral-800 rounded-lg p-3.5 bg-neutral-950/40 h-full">
+    <section className="space-y-3 border border-purple-900/30 rounded-xl p-4 bg-gradient-to-br from-neutral-950/80 via-purple-950/10 to-neutral-950/80 h-full backdrop-blur-sm shadow-lg shadow-black/30 hover:border-purple-700/40 transition-colors">
       <div>
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-200">
+        <h2 className="text-sm font-bold uppercase tracking-wider brand-gradient-text">
           {title}
         </h2>
-        {hint && <p className="text-xs text-neutral-500 mt-0.5">{hint}</p>}
+        {hint && <p className="text-xs text-neutral-400 mt-1 leading-relaxed">{hint}</p>}
       </div>
       {children}
     </section>

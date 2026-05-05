@@ -956,21 +956,31 @@ export default function EditorPage() {
           </span>
         </div>
       )}
-      <header className="px-4 py-2.5 border-b border-neutral-800 flex items-center justify-between gap-3 flex-wrap">
+      <header className="px-5 py-3 border-b border-purple-900/30 flex items-center justify-between gap-3 flex-wrap bg-gradient-to-r from-purple-950/30 via-neutral-950 to-pink-950/20 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push("/")} className="text-xs text-neutral-400 hover:text-neutral-200">
+          <button
+            onClick={() => router.push("/")}
+            className="text-xs text-neutral-400 hover:text-purple-300 px-2 py-1 rounded transition-colors hover:bg-purple-900/20"
+          >
             ← voltar
           </button>
-          <h1 className="text-sm font-semibold truncate max-w-md">
-            {draft.cliente} — {draft.nicho} — {draft.nome}
-          </h1>
+          <div className="flex items-center gap-1.5 text-sm">
+            <span className="text-lg">⚡</span>
+            <h1 className="font-semibold truncate max-w-md">
+              <span className="brand-gradient-text font-bold">{draft.cliente}</span>
+              <span className="text-neutral-500 mx-1.5">·</span>
+              <span className="text-neutral-300">{draft.nicho}</span>
+              <span className="text-neutral-500 mx-1.5">·</span>
+              <span className="text-neutral-400 text-xs">{draft.nome}</span>
+            </h1>
+          </div>
           <div className="flex items-center gap-1">
             <button
               key={`undo-${historyVersion}`}
               onClick={undo}
               disabled={!canUndo}
               title="Desfazer (Ctrl+Z)"
-              className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-600 text-sm disabled:opacity-30"
+              className="w-8 h-8 rounded-lg bg-neutral-900/60 hover:bg-purple-900/40 border border-purple-900/30 hover:border-purple-500/50 text-base disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             >
               ↶
             </button>
@@ -979,20 +989,24 @@ export default function EditorPage() {
               onClick={redo}
               disabled={!canRedo}
               title="Refazer (Ctrl+Shift+Z)"
-              className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-600 text-sm disabled:opacity-30"
+              className="w-8 h-8 rounded-lg bg-neutral-900/60 hover:bg-purple-900/40 border border-purple-900/30 hover:border-purple-500/50 text-base disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             >
               ↷
             </button>
           </div>
           <span
-            className="text-xs text-neutral-500"
+            className="text-xs flex items-center gap-1.5"
             title="Tudo é salvo automaticamente na nuvem. Pode acessar de qualquer dispositivo."
           >
-            {saveStatus === "saving"
-              ? "💾 salvando…"
-              : saveStatus === "saved"
-                ? "✓ salvo (nuvem)"
-                : ""}
+            {saveStatus === "saving" ? (
+              <span className="text-amber-400">
+                <span className="inline-block animate-pulse">●</span> salvando
+              </span>
+            ) : saveStatus === "saved" ? (
+              <span className="text-emerald-400">
+                ✓ salvo na nuvem
+              </span>
+            ) : null}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -1002,7 +1016,7 @@ export default function EditorPage() {
               setSelectedAd(Number(e.target.value));
               setSelectedPage(0);
             }}
-            className="rounded bg-neutral-900 border border-neutral-700 px-2 py-1 text-sm"
+            className="rounded-lg bg-neutral-900/80 border border-purple-900/40 hover:border-purple-500/50 px-3 py-1.5 text-sm transition-colors cursor-pointer"
           >
             {draft.ads.map((a, i) => (
               <option key={a.number} value={i}>
@@ -1012,10 +1026,10 @@ export default function EditorPage() {
           </select>
           <button
             onClick={() => setShowAnimPreview(true)}
-            className="px-3 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-sm border border-neutral-600"
+            className="px-3 py-1.5 rounded-lg bg-cyan-900/30 hover:bg-cyan-800/50 text-sm border border-cyan-700/50 hover:border-cyan-500 text-cyan-200 font-medium transition-all flex items-center gap-1.5"
             title="Pré-visualizar com animação rodando"
           >
-            ▶ Animação
+            <span>▶</span> Animação
           </button>
           {/* V50: Toggle "▦ Réguas" REMOVIDO. As réguas agora aparecem
               automaticamente durante o drag, igual Canva. */}
@@ -1055,30 +1069,30 @@ export default function EditorPage() {
                   alert(`Erro: ${(err as Error).message}`);
                 }
               }}
-              className="px-3 py-1 rounded bg-amber-700/40 hover:bg-amber-700/60 text-sm border border-amber-700 text-amber-200"
+              className="px-3 py-1.5 rounded-lg bg-amber-900/30 hover:bg-amber-800/50 text-sm border border-amber-700/50 hover:border-amber-500 text-amber-200 font-medium transition-all flex items-center gap-1.5"
               title="Re-gera este AD (texto + vídeos). Usa quando alguns slides ficaram pretos."
             >
-              🔄 Regenerar AD
+              <span>🔄</span> Regenerar AD
             </button>
           )}
           <button
             onClick={() => renderAds([ad.number])}
             disabled={draft.rendering?.status === "in_progress"}
-            className="px-3 py-1 rounded bg-purple-600 hover:bg-purple-500 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-purple-500/20 transition-all"
           >
-            Baixar este AD
+            ↓ Baixar este AD
           </button>
           <button
             onClick={() => renderAds(null)}
             disabled={draft.rendering?.status === "in_progress"}
-            className="px-3 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-sm border border-neutral-600 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 rounded-lg bg-neutral-900/80 hover:bg-purple-900/40 text-sm border border-purple-900/40 hover:border-purple-500/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
             Baixar todos ({draft.ads.length})
           </button>
           <button
             onClick={() => cleanupRenders(true)}
             disabled={draft.rendering?.status === "in_progress"}
-            className="px-2 py-1 rounded bg-neutral-900 hover:bg-red-900 text-sm border border-neutral-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-9 h-9 rounded-lg bg-neutral-900/80 hover:bg-red-900/40 text-base border border-neutral-700/60 hover:border-red-700/60 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center"
             title="Apaga TODOS os MP4s renderizados pra liberar disco. Volume Railway é 500MB."
           >
             🗑️

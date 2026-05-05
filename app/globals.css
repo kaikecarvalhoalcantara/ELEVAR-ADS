@@ -4,12 +4,67 @@
 
 :root {
   color-scheme: dark;
+  /* V78: paleta da marca — gradientes vibrantes pra dar vida */
+  --brand-primary: #a855f7;       /* roxo principal */
+  --brand-secondary: #ec4899;     /* pink complementar */
+  --brand-accent: #06b6d4;        /* cyan accent */
+  --brand-success: #10b981;       /* emerald */
+  --brand-warning: #f59e0b;       /* amber */
+  --bg-base: #0a0613;             /* preto com leve toque roxo */
+  --bg-card: #16111f;             /* card base com tonalidade */
+  --bg-card-hover: #1f1729;
+  --border-subtle: #2a1f3d;       /* borda com toque roxo */
 }
 
 body {
-  background: #0a0a0a;
+  background:
+    radial-gradient(ellipse 1200px 800px at 0% 0%, rgba(168, 85, 247, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 1200px 800px at 100% 100%, rgba(236, 72, 153, 0.06) 0%, transparent 60%),
+    var(--bg-base);
+  background-attachment: fixed;
   color: #f5f5f5;
-  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* V78: scrollbar customizada */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0613;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #2a1f3d, #1f1729);
+  border-radius: 6px;
+  border: 2px solid #0a0613;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #4c2f7d, #2a1f3d);
+}
+
+/* V78: hover suave em botões e cards */
+button, [role="button"] {
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* V78: foco com glow roxo */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid rgba(168, 85, 247, 0.5);
+  outline-offset: 1px;
+}
+
+/* V78: classe utilitária pro gradient text da marca */
+.brand-gradient-text {
+  background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
 }
 
 /* ============================================================
