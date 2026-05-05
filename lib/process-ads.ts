@@ -62,6 +62,79 @@ async function videoForScene(args: {
 }
 
 /**
+ * V76: Processa UM ad — extraído do loop pra permitir retry. Recebe o
+ * ad e devolve as pages geradas + contagem de vídeos OK.
+ */
+async function processSingleAd(args: {
+  draftId: string;
+  parsedAd: ParsedAd;
+  adDraft: { number: number };
+  draft: { mood: import("./types").Mood; audience: import("./types").Audience; language: import("./types").Lang; toneFilter?: import("./types").ToneFilter; vibe?: import("./types").Vibe; format: Format; template?: import("./types").TemplateStyle; accentColor: string };
+  pageCount: number;
+  attempt: number;
+}): Promise<{ pages: PageDraft[]; videosOk: number; videosErr: number }> {
+  const { draftId, parsedAd, adDraft, draft, pageCount, attempt } = args;
+  console.log(`[worker ${draftId}] cutIntoBeats…`);
+  const beats = await cutIntoBeats({
+    copy: parsedAd.copy,
+    pageCount,
+    mood: draft.mood,
+    audience: draft.audience,
+    language: draft.language,
+  });
+  console.log(`[worker ${draftId}] beats=${beats.length}, planScenes…`);
+  const scenes = await planScenes({
+    ad: parsedAd,
+    beats,
+    mood: draft.mood,
+    audience: draft.audience,
+    language: draft.language,
+    toneFilter: draft.toneFilter,
+    vibe: draft.vibe,
+  });
+  console.log(
+    `[worker ${draftId}] scenes=${scenes.length}, baixando vídeos (attempt ${attempt})…`,
+  );
+  const wordlessIndices = pickWordlessIndices(scenes.length);
+  const pages: PageDraft[] = [];
+  let videosOk = 0;
+  let videosErr = 0;
+  for (let j = 0; j < scenes.length; j++) {
+    const scene = scenes[j]!;
+    let videoSrc = "";
+    try {
+      videoSrc = await videoForScene({
+        adNumber: adDraft.number,
+        scene,
+        format: draft.format,
+      });
+      if (videoSrc) videosOk++;
+      else videosErr++;
+    } catch (err) {
+      console.error(
+        `[worker ${draftId}] videoForScene p${j + 1} falhou: ${(err as Error).message}`,
+      );
+      videosErr++;
+    }
+    const trimmedText = scene.text.split(" / ").slice(0, 2).join(" / ");
+    const basePage: PageDraft = {
+      text: trimmedText,
+      weight: scene.weight,
+      query: scene.query,
+      tags: scene.tags,
+      videoSrc,
+      animation: ANIMATION_ROTATION[j % ANIMATION_ROTATION.length]!,
+      hideText: wordlessIndices.has(j),
+    };
+    const enriched = enrichPageWithTemplate(basePage, draft.template, {
+      accentColor: draft.accentColor,
+    });
+    pages.push(enriched);
+  }
+  return { pages, videosOk, videosErr };
+}
+
+/**
  * Processa todos os ads pendentes de um draft, salvando o estado a cada
  * passo. Pode ser chamado várias vezes (idempotente — só processa o
  * próximo ad com pages.length === 0).
@@ -126,60 +199,57 @@ export async function processDraftAds(draftId: string): Promise<void> {
       continue;
     }
 
-    try {
-      console.log(`[worker ${draftId}] cutIntoBeats…`);
-      const beats = await cutIntoBeats({
-        copy: parsedAd.copy,
-        pageCount,
-        mood: draft.mood,
-        audience: draft.audience,
-        language: draft.language,
-      });
-      console.log(`[worker ${draftId}] beats=${beats.length}, planScenes…`);
-      const scenes = await planScenes({
-        ad: parsedAd as ParsedAd,
-        beats,
-        mood: draft.mood,
-        audience: draft.audience,
-        language: draft.language,
-        toneFilter: draft.toneFilter,
-        vibe: draft.vibe,
-      });
-      console.log(`[worker ${draftId}] scenes=${scenes.length}, baixando vídeos…`);
-      const wordlessIndices = pickWordlessIndices(scenes.length);
-      const pages: PageDraft[] = [];
-      let videosOk = 0;
-      let videosErr = 0;
-      for (let j = 0; j < scenes.length; j++) {
-        const scene = scenes[j]!;
-        let videoSrc = "";
-        try {
-          videoSrc = await videoForScene({
-            adNumber: adDraft.number,
-            scene,
-            format: draft.format,
-          });
-          if (videoSrc) videosOk++; else videosErr++;
-        } catch (err) {
-          console.error(`[worker ${draftId}] videoForScene ad${i+1} p${j+1} falhou: ${(err as Error).message}`);
-          videosErr++;
-        }
-        const trimmedText = scene.text.split(" / ").slice(0, 2).join(" / ");
-        const basePage: PageDraft = {
-          text: trimmedText,
-          weight: scene.weight,
-          query: scene.query,
-          tags: scene.tags,
-          videoSrc,
-          animation: ANIMATION_ROTATION[j % ANIMATION_ROTATION.length]!,
-          hideText: wordlessIndices.has(j),
-        };
-        const enriched = enrichPageWithTemplate(basePage, draft.template, {
-          accentColor: draft.accentColor,
+    // V76: throttle entre ADs — pausa 5s pra não bater rate limit do Pexels.
+    // Pula a pausa do AD 1 (não tem AD anterior).
+    if (i > 0) {
+      console.log(`[worker ${draftId}] aguardando 5s antes de processar próximo AD (anti rate-limit)…`);
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+
+    // V76: retry de até 2 tentativas. Se a 1ª resultar em <50% dos vídeos
+    // preenchidos (sintoma típico de Pexels rate-limit), tenta de novo.
+    let pages: PageDraft[] = [];
+    let attempts = 0;
+    const MAX_ATTEMPTS = 2;
+    while (attempts < MAX_ATTEMPTS) {
+      attempts++;
+      try {
+        const result = await processSingleAd({
+          draftId,
+          parsedAd: parsedAd as ParsedAd,
+          adDraft,
+          draft,
+          pageCount,
+          attempt: attempts,
         });
-        pages.push(enriched);
+        pages = result.pages;
+        const ratio = result.videosOk / Math.max(1, pages.length);
+        console.log(
+          `[worker ${draftId}] AD ${i+1} attempt ${attempts}: ${result.videosOk}/${pages.length} vídeos preenchidos (${Math.round(ratio * 100)}%)`,
+        );
+        // Se >50% dos vídeos OK, aceita. Senão tenta de novo.
+        if (ratio >= 0.5 || attempts >= MAX_ATTEMPTS) break;
+        console.warn(
+          `[worker ${draftId}] AD ${i+1} attempt ${attempts}: cobertura baixa ${Math.round(ratio * 100)}%, retry em 8s…`,
+        );
+        await new Promise((r) => setTimeout(r, 8000));
+      } catch (err) {
+        const msg = `AD ${adDraft.number} attempt ${attempts}: ${(err as Error).message}`;
+        console.error(`[worker ${draftId}] ${msg}`);
+        if (attempts >= MAX_ATTEMPTS) {
+          const cur = await loadDraft(draftId);
+          if (cur && cur.processing) {
+            cur.processing.errors = [...(cur.processing.errors ?? []), msg];
+            await saveDraft(cur);
+          }
+          break;
+        }
+        // Espera mais tempo no retry após erro
+        await new Promise((r) => setTimeout(r, 10000));
       }
-      console.log(`[worker ${draftId}] AD ${i+1} pronto — videos: ${videosOk} ok / ${videosErr} sem`);
+    }
+
+    if (pages.length > 0) {
       // Atualiza o ad e salva imediatamente
       const fresh = await loadDraft(draftId);
       if (!fresh) {
@@ -190,14 +260,6 @@ export async function processDraftAds(draftId: string): Promise<void> {
       fresh.processing = draft.processing;
       await saveDraft(fresh);
       draft = fresh;
-    } catch (err) {
-      const msg = `AD ${adDraft.number}: ${(err as Error).message}`;
-      console.error(`[worker ${draftId}] ${msg}`);
-      const cur = await loadDraft(draftId);
-      if (cur && cur.processing) {
-        cur.processing.errors = [...(cur.processing.errors ?? []), msg];
-        await saveDraft(cur);
-      }
     }
   }
 

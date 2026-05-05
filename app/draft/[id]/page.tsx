@@ -983,6 +983,48 @@ export default function EditorPage() {
           </button>
           {/* V50: Toggle "▦ Réguas" REMOVIDO. As réguas agora aparecem
               automaticamente durante o drag, igual Canva. */}
+          {/* V76: Botão pra REGENERAR este AD — re-roda a IA + busca de
+              vídeos. Útil quando o AD foi gerado com slides pretos por
+              causa de rate-limit do Pexels. Só aparece se o AD já tem
+              páginas geradas. */}
+          {ad.pages.length > 0 && (
+            <button
+              onClick={async () => {
+                if (
+                  !confirm(
+                    `Regenerar AD ${String(ad.number).padStart(2, "0")}?\n\n` +
+                    `Vai re-rodar a IA pra recortar texto e buscar novos vídeos. ` +
+                    `Os MP4s já renderizados deste AD serão apagados.\n\n` +
+                    `Use isso quando alguns slides ficaram com fundo preto ` +
+                    `(rate limit do Pexels).`,
+                  )
+                )
+                  return;
+                try {
+                  const res = await fetch(
+                    `/api/draft/${draft.id}/retry?adNumber=${ad.number}`,
+                    { method: "POST" },
+                  );
+                  const data = await res.json();
+                  if (!data.ok) {
+                    alert(`Erro: ${data.error ?? "falha"}`);
+                    return;
+                  }
+                  setRenderStatus(
+                    `🔄 Regenerando AD ${String(ad.number).padStart(2, "0")}…`,
+                  );
+                  // Recarrega o draft após uns segundos
+                  setTimeout(() => reload(), 3000);
+                } catch (err) {
+                  alert(`Erro: ${(err as Error).message}`);
+                }
+              }}
+              className="px-3 py-1 rounded bg-amber-700/40 hover:bg-amber-700/60 text-sm border border-amber-700 text-amber-200"
+              title="Re-gera este AD (texto + vídeos). Usa quando alguns slides ficaram pretos."
+            >
+              🔄 Regenerar AD
+            </button>
+          )}
           <button
             onClick={() => renderAds([ad.number])}
             disabled={draft.rendering?.status === "in_progress"}
