@@ -4021,6 +4021,28 @@ function ControlPanel({
               format={(v) => `${Math.round(v * 100)}%`}
               onChange={(v) => updateElement({ opacity: v })}
             />
+            {/* V74: Pra sombras gradiente, slider de DENSIDADE — controla o
+                "teor" do escurecimento (quão denso é antes do fade). */}
+            {(selectedElement.shape === "shadow-oval" ||
+              selectedElement.shape === "shadow-radial" ||
+              selectedElement.shape === "shadow-band" ||
+              selectedElement.shape === "shadow-edge") && (
+              <Range
+                label="Densidade da sombra (teor)"
+                value={selectedElement.shadowDensity ?? 0.5}
+                min={0}
+                max={1}
+                step={0.05}
+                format={(v) =>
+                  v < 0.3
+                    ? `fraco (${Math.round(v * 100)}%)`
+                    : v > 0.7
+                      ? `denso (${Math.round(v * 100)}%)`
+                      : `médio (${Math.round(v * 100)}%)`
+                }
+                onChange={(v) => updateElement({ shadowDensity: v })}
+              />
+            )}
             <Range
               label="Rotação"
               value={selectedElement.rotation}

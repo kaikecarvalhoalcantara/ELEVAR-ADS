@@ -404,42 +404,56 @@ export function elementStyle(
         boxShadow: undefined,
         filter: boxShadow ? `drop-shadow(${boxShadow})` : undefined,
       };
-    // V41: 4 sombras com gradiente. Sem boxShadow externo — o blur vem
-    // do próprio gradiente CSS. Cor do elemento controla o tom da sombra
-    // (default preto, mas pode ser branco pra "highlight" inverso).
-    case "shadow-oval":
-      // Oval horizontal blurado — gradiente radial achatado, fade pras bordas
+    // V41: 4 sombras com gradiente. V74: densidade controlada por
+    // shadowDensity (0-1, default 0.5). Quanto maior, mais "denso" o
+    // efeito antes do fade. Cor do elemento define a tonalidade.
+    case "shadow-oval": {
+      const d = (el.shadowDensity ?? 0.5);
+      // Oval — sólido até d*50%, fade até 100% (zero pra fora)
+      const solid = Math.round(d * 50); // 0-50%
+      const fadeEnd = Math.min(100, solid + Math.round((1 - d) * 50) + 25);
       return {
         ...base,
-        background: `radial-gradient(ellipse at center, ${el.color} 0%, ${el.color} 25%, transparent 75%)`,
+        background: `radial-gradient(ellipse at center, ${el.color} 0%, ${el.color} ${solid}%, transparent ${fadeEnd}%)`,
         transform: `rotate(${el.rotation}deg)`,
         boxShadow: undefined,
       };
-    case "shadow-radial":
-      // Círculo perfeito com gradiente radial — vinheta pontual
+    }
+    case "shadow-radial": {
+      const d = (el.shadowDensity ?? 0.5);
+      const solid = Math.round(d * 40);
+      const fadeEnd = Math.min(100, solid + Math.round((1 - d) * 50) + 30);
       return {
         ...base,
-        background: `radial-gradient(circle at center, ${el.color} 0%, ${el.color} 18%, transparent 70%)`,
+        background: `radial-gradient(circle at center, ${el.color} 0%, ${el.color} ${solid}%, transparent ${fadeEnd}%)`,
         transform: `rotate(${el.rotation}deg)`,
         boxShadow: undefined,
       };
-    case "shadow-band":
-      // Banda lateral com fade — usa-se pra split-screen (lado preto +
-      // lado vídeo). Por default fade do esquerda pra direita.
+    }
+    case "shadow-band": {
+      const d = (el.shadowDensity ?? 0.5);
+      // Banda lateral split-screen: sólido até X%, fade até 100%.
+      // d=0 → 30% sólido (bem fraco), d=1 → 90% sólido (quase total)
+      const solidEnd = Math.round(20 + d * 70); // 20-90%
       return {
         ...base,
-        background: `linear-gradient(90deg, ${el.color} 0%, ${el.color} 60%, transparent 100%)`,
+        background: `linear-gradient(90deg, ${el.color} 0%, ${el.color} ${solidEnd}%, transparent 100%)`,
         transform: `rotate(${el.rotation}deg)`,
         boxShadow: undefined,
       };
-    case "shadow-edge":
-      // Letterbox/edge — barra horizontal grossa com fade pra cima
+    }
+    case "shadow-edge": {
+      const d = (el.shadowDensity ?? 0.5);
+      // Letterbox: transparent no topo, fade pra sólido. Quanto mais
+      // denso, mais cedo começa o sólido.
+      const solidStart = Math.round(80 - d * 70); // 10-80%
       return {
         ...base,
-        background: `linear-gradient(180deg, transparent 0%, ${el.color} 70%)`,
+        background: `linear-gradient(180deg, transparent 0%, ${el.color} ${solidStart}%)`,
         transform: `rotate(${el.rotation}deg)`,
         boxShadow: undefined,
       };
+    }
     case "video-overlay":
       // V59: container do vídeo overlay — sem background, vídeo é renderizado
       // como tag <video>/<OffthreadVideo> filho. Mantém transforms (rotation,

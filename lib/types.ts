@@ -238,6 +238,9 @@ export interface PageElement {
   videoTrimStart?: number;      // segundos cortados do início
   videoTrimEnd?: number;        // segundos onde parar
   videoZoom?: number;           // zoom dentro do overlay (default 1)
+  // V74: pra shapes shadow-* — densidade do gradient (quão "denso" é o
+  // escurecimento antes do fade). 0 = bem fraco, 1 = quase sólido. Default 0.5.
+  shadowDensity?: number;
 }
 
 export interface PageDraft extends PageStyle {
