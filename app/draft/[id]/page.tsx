@@ -692,6 +692,48 @@ export default function EditorPage() {
     scheduleSave({ ...draft, ...patch });
   }
 
+  /**
+   * V73: Padroniza tipografia em TODOS os slides do projeto. Limpa
+   * overrides per-slide (fontSize, color, letterSpacing, lineHeight,
+   * fontWeightOverride, italic, letterCase, etc) pra TODOS usarem o
+   * mesmo do projeto. Plus: força a fonte gancho (transitionFontDisabled)
+   * pra ficar UMA fonte só.
+   *
+   * Resultado: todos os slides com mesmo tamanho + mesma fonte =
+   * visual uniforme estilo Canva.
+   */
+  function standardizeTypography() {
+    if (!draft) return;
+    const next: EnrichedDraft = {
+      ...draft,
+      // Força usar SÓ a fonte gancho (sem transição = mesma fonte em tudo)
+      transitionFontDisabled: true,
+      ads: draft.ads.map((a) => ({
+        ...a,
+        pages: a.pages.map((p) => ({
+          ...p,
+          // Limpa overrides per-slide pra usar o base do projeto
+          fontSize: undefined, // usa baseFontSize ou auto-fit
+          color: undefined,    // usa baseColor
+          letterSpacing: undefined,
+          lineHeight: undefined,
+          // Limpa estilos pontuais que mudam aparência
+          fontWeightOverride: undefined,
+          italic: undefined,
+          letterCase: undefined,
+          textScaleX: undefined,
+          textBoxWidth: undefined,
+        })),
+      })),
+    };
+    scheduleSave(next);
+    const total = next.ads.reduce((n, a) => n + a.pages.length, 0);
+    setRenderStatus(
+      `✅ Tipografia padronizada em ${total} slides — todos usando ${next.fontHook}.`,
+    );
+    setTimeout(() => setRenderStatus(null), 4000);
+  }
+
   function bulkApplyFromCurrent(scope: "this-ad" | "all-ads") {
     if (!draft) return;
     const ad = draft.ads[selectedAd];
@@ -1035,6 +1077,7 @@ export default function EditorPage() {
               onUpdatePage={(patch) => updatePage(selectedAd, selectedPage, patch)}
               onUpdateProject={updateProject}
               onBulkApply={bulkApplyFromCurrent}
+              onStandardizeTypography={standardizeTypography}
               format={draft.format}
               selectedElementId={selectedElementId}
               selectedElementIds={selectedElementIds}
@@ -3153,6 +3196,7 @@ function ControlPanel({
   onUpdatePage,
   onUpdateProject,
   onBulkApply,
+  onStandardizeTypography,
   format,
   selectedElementId,
   selectedElementIds,
@@ -3170,6 +3214,7 @@ function ControlPanel({
     },
   ) => void;
   onBulkApply: (scope: "this-ad" | "all-ads") => void;
+  onStandardizeTypography: () => void;
   format: ProjectDraft["format"];
   selectedElementId: string | null;
   selectedElementIds: Set<string>;
@@ -3414,6 +3459,35 @@ function ControlPanel({
             gancho ({draft.fontHook}).
           </p>
         )}
+
+        {/* V73: Botão pra padronizar tipografia em TODOS os slides */}
+        <div className="border-t border-neutral-800 pt-3 mt-3">
+          <button
+            onClick={() => {
+              if (
+                confirm(
+                  "Padronizar tipografia em TODOS os slides do projeto?\n\n" +
+                  "Vai limpar ajustes individuais (tamanho, cor, espaçamento, " +
+                  "negrito, itálico, etc) de cada slide e aplicar APENAS a fonte " +
+                  "gancho com tamanho automático. Ideal pra ter um visual " +
+                  "uniforme estilo Canva.\n\n" +
+                  "Pode desfazer com Ctrl+Z.",
+                )
+              ) {
+                onStandardizeTypography();
+              }
+            }}
+            className="w-full text-xs px-2 py-2 rounded border bg-purple-900/30 border-purple-600 text-purple-200 hover:bg-purple-900/50 font-semibold flex items-center justify-center gap-2"
+            title="Aplica a mesma fonte e tamanho em todos os slides do projeto inteiro. Limpa overrides individuais."
+          >
+            🎯 Padronizar fonte + tamanho em TODOS os slides
+          </button>
+          <p className="text-[10px] text-neutral-500 mt-1.5 leading-tight">
+            Limpa ajustes individuais (fonte, tamanho, cor, etc) e força todos
+            os slides usarem a mesma fonte gancho do projeto. Bom pra visual
+            uniforme. Pode desfazer com Ctrl+Z.
+          </p>
+        </div>
       </CollapsibleGroup>
 
       {/* V58: Painel de animação estilo Canva — Animar/Estilo/Direção/Velocidade */}
