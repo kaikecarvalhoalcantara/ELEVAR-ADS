@@ -187,7 +187,55 @@ export async function planScenes(input: PlanInput): Promise<ScenePlan[]> {
   if (start < 0 || end < 0) {
     throw new Error(`JSON ausente (planScenes): ${raw.slice(0, 200)}`);
   }
-  const parsed = JSON.parse(raw.slice(start, end + 1)) as { scenes: ScenePlan[] };
+  // V82: Parser resiliente pra cenas — mesmas estratégias do beats.ts
+  const slice = raw.slice(start, end + 1);
+  let parsed: { scenes: ScenePlan[] } | null = null;
+  try {
+    parsed = JSON.parse(slice) as { scenes: ScenePlan[] };
+  } catch {
+    // Estratégia 1: remove vírgulas trailing
+    try {
+      const fixed = slice.replace(/,(\s*[}\]])/g, "$1");
+      parsed = JSON.parse(fixed) as { scenes: ScenePlan[] };
+    } catch {
+      // Estratégia 2: extrai scenes via regex mesmo com JSON quebrado
+      try {
+        const arrStart = slice.indexOf("[");
+        const arrEnd = slice.lastIndexOf("]");
+        if (arrStart >= 0 && arrEnd > arrStart) {
+          const arrText = slice.slice(arrStart, arrEnd + 1);
+          const cleaned = arrText.replace(/,(\s*[}\]])/g, "$1");
+          const scenes = JSON.parse(cleaned) as ScenePlan[];
+          parsed = { scenes };
+        }
+      } catch {
+        // Estratégia 3: regex direto extraindo query+tags
+        const re = /"query"\s*:\s*"((?:[^"\\]|\\.)*)"\s*(?:,\s*"tags"\s*:\s*\[([^\]]*)\])?/gi;
+        const scenes: ScenePlan[] = [];
+        let m;
+        while ((m = re.exec(slice)) !== null) {
+          const tagsRaw = m[2] ?? "";
+          const tags = tagsRaw
+            .split(",")
+            .map((t) => t.replace(/^[\s"]+|[\s"]+$/g, ""))
+            .filter(Boolean);
+          scenes.push({
+            text: input.beats[scenes.length]?.text ?? "",
+            weight: input.beats[scenes.length]?.weight ?? "hook",
+            query: m[1]!,
+            tags,
+          });
+          if (scenes.length >= input.beats.length) break;
+        }
+        if (scenes.length >= input.beats.length) {
+          parsed = { scenes };
+        }
+      }
+    }
+  }
+  if (!parsed) {
+    throw new Error(`JSON inválido planScenes (não reparou): ${slice.slice(0, 200)}`);
+  }
   if (!Array.isArray(parsed.scenes) || parsed.scenes.length !== input.beats.length) {
     throw new Error(
       `Cenas invalidas: esperado ${input.beats.length}, veio ${parsed.scenes?.length}`,

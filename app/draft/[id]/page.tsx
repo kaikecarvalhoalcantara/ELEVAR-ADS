@@ -1100,11 +1100,19 @@ export default function EditorPage() {
         </div>
       </header>
 
-      {/* V79: Banner inteligente — detecta se o AD selecionado tem muitos
+      {/* V79+V82: Banner inteligente — detecta se o AD selecionado tem muitos
           slides sem vídeo (pretos) e sugere "🔄 Regenerar AD" com 1 click.
           Antes V76 tinha throttle/retry, então drafts antigos podem ter
-          AD com slides pretos. Banner ajuda o user a resolver. */}
+          AD com slides pretos. Banner ajuda o user a resolver.
+          V82: NÃO mostra durante processamento (in_progress) ou regeneração —
+          banner antes era falso positivo aparecendo no meio da criação. */}
       {(() => {
+        // V82: pula se draft ainda está sendo processado/regenerado
+        if (
+          draft.processing &&
+          draft.processing.status !== "complete"
+        )
+          return null;
         const totalPages = ad.pages.length;
         if (totalPages < 4) return null; // não mostra pra ADs pequenos
         const emptyVideos = ad.pages.filter(
@@ -2163,16 +2171,32 @@ function ProcessingScreen({
           </div>
         </div>
 
-        {p.errors && p.errors.length > 0 && (
-          <div className="text-xs text-amber-400 bg-amber-950/30 border border-amber-900 rounded p-2 max-h-32 overflow-y-auto">
-            <div className="font-semibold mb-1">{p.errors.length} avisos:</div>
-            <ul className="space-y-0.5">
-              {p.errors.slice(-5).map((e, i) => (
-                <li key={i} className="break-all">• {e}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {(() => {
+          // V82: Filtra erros TRANSITÓRIOS — JSON parse error de attempt 1
+          // ou 2 não são problema final pro user (retry V76 trata). Só
+          // mostra avisos PERSISTENTES (após esgotar tentativas).
+          if (!p.errors || p.errors.length === 0) return null;
+          const persistentErrors = p.errors.filter((e) => {
+            // Esconde avisos de attempt intermediário (1, 2 — V76 retenta)
+            if (/attempt [12]:/i.test(e) && /JSON|Expected|Unexpected/i.test(e)) {
+              return false;
+            }
+            return true;
+          });
+          if (persistentErrors.length === 0) return null;
+          return (
+            <div className="text-xs text-amber-400 bg-amber-950/30 border border-amber-900 rounded p-2 max-h-32 overflow-y-auto">
+              <div className="font-semibold mb-1">
+                {persistentErrors.length} aviso{persistentErrors.length === 1 ? "" : "s"}:
+              </div>
+              <ul className="space-y-0.5">
+                {persistentErrors.slice(-5).map((e, i) => (
+                  <li key={i} className="break-all">• {e}</li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
 
         {isPending && (
           <p className="text-xs text-neutral-500">

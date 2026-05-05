@@ -96,6 +96,60 @@ function countWords(s: string): number {
   return (s.match(/[\p{L}\p{N}]+/gu) ?? []).length;
 }
 
+/**
+ * V82: Parser de JSON resiliente — tenta consertar JSON da IA quando vier
+ * malformado (vírgula extra, falta de aspas, etc). Retorna null se não dá.
+ */
+function tryParseJsonResilient(raw: string): { beats: Beat[] } | null {
+  // Tenta direto primeiro
+  try {
+    return JSON.parse(raw) as { beats: Beat[] };
+  } catch {
+    // Estratégia 1: remove vírgulas trailing antes de } ou ]
+    try {
+      const fixed = raw
+        .replace(/,(\s*[}\]])/g, "$1")
+        .replace(/}\s*{/g, "},{") // adiciona vírgula entre objetos consecutivos
+        .replace(/]\s*\[/g, "],[");
+      return JSON.parse(fixed) as { beats: Beat[] };
+    } catch {
+      // Estratégia 2: corta depois do último }] válido + extrai só beats
+      try {
+        // Acha primeiro [ e último ]  pra pegar só o array
+        const arrStart = raw.indexOf("[");
+        const arrEnd = raw.lastIndexOf("]");
+        if (arrStart >= 0 && arrEnd > arrStart) {
+          const arrText = raw.slice(arrStart, arrEnd + 1);
+          const cleaned = arrText.replace(/,(\s*[}\]])/g, "$1");
+          const beats = JSON.parse(cleaned) as Beat[];
+          if (Array.isArray(beats)) {
+            return { beats };
+          }
+        }
+      } catch {
+        // Estratégia 3: regex direto pra extrair pares text+weight
+        try {
+          const re = /"text"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"weight"\s*:\s*"(hook|punch|transition)"/gi;
+          const beats: Beat[] = [];
+          let match;
+          while ((match = re.exec(raw)) !== null) {
+            beats.push({
+              text: match[1]!.replace(/\\"/g, '"').replace(/\\\\/g, "\\"),
+              weight: match[2] as Beat["weight"],
+            });
+          }
+          if (beats.length >= 8) {
+            return { beats };
+          }
+        } catch {
+          // ignore — retorna null
+        }
+      }
+    }
+  }
+  return null;
+}
+
 export async function cutIntoBeats(input: CutInput): Promise<Beat[]> {
   if (!process.env.CLAUDE_KEY) {
     throw new Error("CLAUDE_KEY não configurada no .env.local");
@@ -118,7 +172,13 @@ export async function cutIntoBeats(input: CutInput): Promise<Beat[]> {
   if (start < 0 || end < 0) {
     throw new Error(`JSON ausente: ${raw.slice(0, 200)}`);
   }
-  const parsed = JSON.parse(raw.slice(start, end + 1)) as { beats: Beat[] };
+  // V82: parser resiliente — tenta consertar JSON malformado da IA antes
+  // de jogar erro. Cobre vírgulas extras, falta de fechamento, etc.
+  const slice = raw.slice(start, end + 1);
+  const parsed = tryParseJsonResilient(slice);
+  if (!parsed) {
+    throw new Error(`JSON inválido (não conseguiu reparar): ${slice.slice(0, 200)}`);
+  }
   if (!Array.isArray(parsed.beats) || parsed.beats.length < 8) {
     throw new Error(`Beats insuficientes: ${parsed.beats?.length}`);
   }
