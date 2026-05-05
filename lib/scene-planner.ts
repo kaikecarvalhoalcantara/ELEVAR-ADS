@@ -104,7 +104,25 @@ function buildPrompt(input: PlanInput): string {
   const paletteSuffix = paletteSuffixByTone[tone] ?? "cinematic moody";
 
   return `Anúncio nº ${input.ad.number} (PADRÃO ${input.ad.padrao}).
-Estratégia: ${input.ad.description || "(não informada)"}
+
+📋 BRIEFING DETALHADO DESTE ANÚNCIO (use pra escolher imagens certas):
+${input.ad.description || "(não informado)"}
+
+⚠️ IMPORTANTE: Se o briefing acima tem MECANISMO, ÂNGULO ou ICP, use TUDO
+isso pra orientar suas escolhas:
+- ICP (público-alvo) → ajusta gênero/idade dos personagens nos vídeos.
+  Ex: "ICP: Noiva 28-42 anos" → use mulher dessa faixa etária, vestido,
+  ambiente romântico, planejamento de casamento.
+- ÂNGULO → orienta o tom emocional. "Descoberta/Educação" = curiosidade,
+  introspecção. "Frustração" = expressões tensas, escuro. "Conquista"
+  = celebração, luz.
+- MECANISMO → o "produto/método" sendo vendido. Ajuda a escolher
+  cenários que reforcem o conceito (ex: "Arquitetura de Luz Invisível"
+  → ambientes com iluminação dramática, elegante).
+
+Use o BRIEFING acima como bússola pra cada query do Pexels. As cenas
+têm que parecer feitas pra ESSE público específico, não genéricas.
+
 Mood narrativo: ${input.mood} | Público: ${input.audience} | Idioma: ${input.language}
 Tone filter: ${tone}
 Vibe: ${vibe}
