@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import { join, relative, resolve, sep } from "node:path";
 import { startStaticServer } from "./static-server";
 import type { AdProps, PageWithStyle } from "../remotion/AdComposition";
-import type { AnimationKind, Format, PageStyle, ProjectStyle } from "./types";
+import type { AnimationKind, Format, ProjectStyle } from "./types";
 import { getStorageRoot, storagePath } from "./storage";
 
 const REMOTION_ENTRY = resolve(process.cwd(), "remotion/index.ts");

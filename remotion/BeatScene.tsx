@@ -1,7 +1,6 @@
 import {
   AbsoluteFill,
   Img,
-  OffthreadVideo,
   Video,
   useCurrentFrame,
   useVideoConfig,
@@ -163,14 +162,10 @@ export const BeatScene: React.FC<Props> = ({
 }) => {
   const { width, fps } = useVideoConfig();
 
-  // V70: Voltei pra <Video> em vez de <OffthreadVideo>.
-  // OffthreadVideo extrai frames via FFmpeg server-side. Pelos logs
-  // V69, os vídeos eram baixados com sucesso (200 OK, MB transferidos)
-  // mas SUMIAM no MP4 final — provavelmente bug silencioso no FFmpeg
-  // do OffthreadVideo (ou path do binário no Railway). Video usa o
-  // próprio <video> HTML5 do Chromium pra renderizar — mais robusto,
-  // sem dependência de pipeline FFmpeg externa pro vídeo de fundo.
-  // OffthreadVideo continua importado pra video-overlay se necessário.
+  // V70+V72: Usa <Video> (HTML5 nativo do Chromium) em vez de
+  // <OffthreadVideo>. OffthreadVideo extrai frames via FFmpeg server-side
+  // que falhava silenciosamente no Railway (vídeo sumindo no MP4).
+  // Video usa o player HTML5 nativo — mais robusto.
   const VideoComp = Video;
 
   const isHook = beat.weight === "hook" || beat.weight === "punch";
