@@ -125,6 +125,25 @@ export async function renderAd(input: RenderAdInput): Promise<string> {
   const sampleCdn = httpVideos.find((u) => u && !u.startsWith("http://127."));
   if (sampleLocal) console.log(`[render]   sample LOCAL: ${sampleLocal}`);
   if (sampleCdn) console.log(`[render]   sample CDN:   ${sampleCdn.slice(0, 100)}`);
+
+  // V69: Self-test — fetch da própria sample LOCAL via fetch() Node pra
+  // confirmar que o servidor estático responde de fato ANTES de invocar
+  // o Remotion. Se falhar aqui, o problema é na rede do container.
+  if (sampleLocal) {
+    try {
+      const testRes = await fetch(sampleLocal, {
+        method: "HEAD",
+        signal: AbortSignal.timeout(5000),
+      });
+      console.log(
+        `[render] self-test fetch: ${testRes.status} ${testRes.statusText}, content-length=${testRes.headers.get("content-length")}, content-type=${testRes.headers.get("content-type")}`,
+      );
+    } catch (err) {
+      console.error(
+        `[render] self-test FALHOU: ${(err as Error).message} — Remotion provavelmente vai falhar também`,
+      );
+    }
+  }
   const inputProps: AdProps = {
     beats: input.beats,
     videos: httpVideos,

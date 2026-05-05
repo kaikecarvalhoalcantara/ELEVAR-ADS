@@ -26,14 +26,21 @@ export async function startStaticServer(
 ): Promise<StaticServerHandle> {
   const root = resolve(rootDir);
 
+  let requestCount = 0;
   const server: Server = createServer(async (req, res) => {
+    const id = ++requestCount;
+    const method = req.method ?? "GET";
+    const reqUrl = req.url ?? "/";
+    // V69: Log COMPACTO de cada request — assim a gente vê EXATAMENTE
+    // o que Remotion pede.
+    const logLine = `[static-server] #${id} ${method} ${reqUrl.slice(0, 80)}`;
     try {
-      const reqUrl = req.url ?? "/";
       // Decode + normalize. Bloqueia path traversal (../).
       const decoded = decodeURIComponent(reqUrl.split("?")[0]!);
       const requested = normalize(decoded).replace(/^[/\\]+/, "");
       const fullPath = resolve(root, requested);
       if (!fullPath.startsWith(root)) {
+        console.log(`${logLine} → 403 forbidden`);
         res.writeHead(403);
         res.end("forbidden");
         return;
@@ -42,11 +49,13 @@ export async function startStaticServer(
       try {
         stat = await fs.stat(fullPath);
       } catch {
+        console.log(`${logLine} → 404 not found (${fullPath})`);
         res.writeHead(404);
         res.end("not found");
         return;
       }
       if (!stat.isFile()) {
+        console.log(`${logLine} → 404 not a file`);
         res.writeHead(404);
         res.end("not a file");
         return;
@@ -70,6 +79,18 @@ export async function startStaticServer(
                       ? "image/gif"
                       : "application/octet-stream";
 
+      // V69: HEAD request — retorna headers sem body
+      if (method === "HEAD") {
+        res.writeHead(200, {
+          "Content-Type": ct,
+          "Content-Length": String(stat.size),
+          "Accept-Ranges": "bytes",
+        });
+        res.end();
+        console.log(`${logLine} → 200 HEAD ${ct} ${stat.size}b`);
+        return;
+      }
+
       // Suporte a Range request — Remotion/Chromium pede ranges
       const range = req.headers.range;
       if (range) {
@@ -83,6 +104,7 @@ export async function startStaticServer(
             start > end ||
             end >= stat.size
           ) {
+            console.log(`${logLine} → 416 invalid range ${range}`);
             res.writeHead(416, {
               "Content-Range": `bytes */${stat.size}`,
             });
@@ -96,6 +118,7 @@ export async function startStaticServer(
             "Accept-Ranges": "bytes",
           });
           createReadStream(fullPath, { start, end }).pipe(res);
+          console.log(`${logLine} → 206 ${range} ${end - start + 1}b`);
           return;
         }
       }
@@ -105,7 +128,9 @@ export async function startStaticServer(
         "Accept-Ranges": "bytes",
       });
       createReadStream(fullPath).pipe(res);
+      console.log(`${logLine} → 200 ${ct} ${stat.size}b`);
     } catch (err) {
+      console.log(`${logLine} → 500 ${(err as Error).message}`);
       res.writeHead(500);
       res.end(`internal: ${(err as Error).message}`);
     }
