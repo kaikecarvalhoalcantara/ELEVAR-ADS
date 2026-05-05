@@ -142,6 +142,26 @@ export default function EditorPage() {
   const [elementClipboard, setElementClipboard] = useState<PageElement | null>(null);
   // V49: toast fugaz pra confirmar Ctrl+C/V — antes user não tinha feedback algum
   const [copyToast, setCopyToast] = useState<string | null>(null);
+  // V77: status do storage — banner avisa se tá volátil (arquivos somem no redeploy)
+  const [storageStatus, setStorageStatus] = useState<{
+    persistent: boolean;
+    reason: string;
+  } | null>(null);
+  useEffect(() => {
+    fetch("/api/storage-status")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.ok && data.storage) {
+          setStorageStatus({
+            persistent: data.storage.persistent,
+            reason: data.storage.reason,
+          });
+        }
+      })
+      .catch(() => {
+        // Falha silenciosa — sem banner é melhor que banner errado
+      });
+  }, []);
   // V57: escuta evento "duplicate-video" disparado pelo botão no painel
   useEffect(() => {
     function onDup(e: Event) {
@@ -918,6 +938,22 @@ export default function EditorPage() {
           className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-emerald-600 text-white text-xs font-semibold px-4 py-2 rounded-md shadow-2xl border border-emerald-400 animate-in fade-in slide-in-from-top-2 pointer-events-none"
         >
           {copyToast}
+        </div>
+      )}
+      {/* V77: Banner de aviso se storage volátil — arquivos importados somem em redeploy */}
+      {storageStatus && !storageStatus.persistent && (
+        <div className="bg-red-900/30 border-b border-red-700 px-4 py-2 text-xs text-red-200 flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2">
+            <span className="text-base">⚠️</span>
+            <strong>STORAGE VOLÁTIL:</strong>
+            <span>
+              os vídeos importados serão APAGADOS no próximo redeploy do
+              servidor. <span className="opacity-70">({storageStatus.reason})</span>
+            </span>
+          </span>
+          <span className="text-[10px] text-red-300/80 whitespace-nowrap">
+            Configure volume Railway em <code className="bg-black/30 px-1 rounded">/data</code>
+          </span>
         </div>
       )}
       <header className="px-4 py-2.5 border-b border-neutral-800 flex items-center justify-between gap-3 flex-wrap">
