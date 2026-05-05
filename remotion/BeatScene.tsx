@@ -2,6 +2,7 @@ import {
   AbsoluteFill,
   Img,
   OffthreadVideo,
+  Video,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
@@ -162,16 +163,15 @@ export const BeatScene: React.FC<Props> = ({
 }) => {
   const { width, fps } = useVideoConfig();
 
-  // V55: SEMPRE usa OffthreadVideo, sem detecção de environment.
-  // OffthreadVideo funciona TANTO no render server-side QUANTO no Player.
-  // No render: extrai frames via ffmpeg, sem delayRender. ZERO timeout.
-  // No Player: usa <video> HTML5 normal, playback pode ser ~10% mais lento
-  //   mas zero overhead de detecção que pode falhar em edge cases.
-  // V54 usava getRemotionEnvironment().isRendering mas em alguns cenários
-  // de bundle, isRendering retornava false durante o render real → Video
-  // era usado e quebrava com delayRender timeout. Solução robusta: sempre
-  // OffthreadVideo, independente do contexto.
-  const VideoComp = OffthreadVideo;
+  // V70: Voltei pra <Video> em vez de <OffthreadVideo>.
+  // OffthreadVideo extrai frames via FFmpeg server-side. Pelos logs
+  // V69, os vídeos eram baixados com sucesso (200 OK, MB transferidos)
+  // mas SUMIAM no MP4 final — provavelmente bug silencioso no FFmpeg
+  // do OffthreadVideo (ou path do binário no Railway). Video usa o
+  // próprio <video> HTML5 do Chromium pra renderizar — mais robusto,
+  // sem dependência de pipeline FFmpeg externa pro vídeo de fundo.
+  // OffthreadVideo continua importado pra video-overlay se necessário.
+  const VideoComp = Video;
 
   const isHook = beat.weight === "hook" || beat.weight === "punch";
   const fontFamily = isHook ? fontHook : fontTransition;
@@ -405,6 +405,7 @@ export const BeatScene: React.FC<Props> = ({
               startFrom={startFrom}
               endAt={endAt}
               playbackRate={playbackRate}
+              delayRenderTimeoutInMilliseconds={120000}
               style={{
                 width: "100%",
                 height: "100%",
@@ -446,6 +447,7 @@ export const BeatScene: React.FC<Props> = ({
                   startFrom={startFrom}
                   endAt={endAt}
                   playbackRate={playbackRate}
+                  delayRenderTimeoutInMilliseconds={120000}
                   style={{
                     width: "100%",
                     height: "100%",
@@ -606,12 +608,15 @@ const ElementsLayer: React.FC<{ elements: PageElement[] }> = ({ elements }) => {
             {el.text && elementSupportsText(el.shape) && (
               <div style={elementTextStyle(el)}>{el.text}</div>
             )}
-            {/* V59: video-overlay — vídeo extra dentro do slide via OffthreadVideo */}
+            {/* V70: video-overlay com <Video> (não OffthreadVideo). Mesma
+                razão da V70 BeatScene principal — OffthreadVideo era confiável
+                em teoria, mas no Railway dava render silencioso sem frames. */}
             {el.shape === "video-overlay" && el.videoSrc && (
-              <OffthreadVideo
+              <Video
                 src={el.videoSrc}
                 muted
                 playbackRate={el.videoPlaybackRate ?? 1}
+                delayRenderTimeoutInMilliseconds={120000}
                 style={{
                   width: "100%",
                   height: "100%",
