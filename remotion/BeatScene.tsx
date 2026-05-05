@@ -373,7 +373,9 @@ export const BeatScene: React.FC<Props> = ({
   const iconSize = Math.round(fontSizeBase * 0.6);
 
   // V18: cor de fundo + flag pra remover o vídeo
-  const bgColor = beat.backgroundColor ?? "#0a0a0a";
+  // V65: era "#0a0a0a" (cinza muito escuro mas não preto). User reclamou
+  // que "fundo não está totalmente preto". Mudei pra preto puro.
+  const bgColor = beat.backgroundColor ?? "#000000";
   const showVideo = !beat.videoRemoved && !!videoSrc;
   // V33: detecta se é IMAGEM (png/jpg/etc) — renderiza com <Img/> em vez de <Video>
   const isImage = videoSrc ? isImageMedia(videoSrc) : false;

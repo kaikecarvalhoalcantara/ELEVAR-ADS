@@ -2,20 +2,27 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { promises as fs } from "node:fs";
 import { spawn } from "node:child_process";
-import { join, relative, resolve, sep } from "node:path";
+import { join, resolve } from "node:path";
 import type { AdProps, PageWithStyle } from "../remotion/AdComposition";
 import type { AnimationKind, Format, PageStyle, ProjectStyle } from "./types";
-import { getStorageRoot, storagePath } from "./storage";
+import { storagePath } from "./storage";
 
 const REMOTION_ENTRY = resolve(process.cwd(), "remotion/index.ts");
 const OUTPUT_ROOT = storagePath("generated");
-const PUBLIC_BASE_URL =
-  process.env.PUBLIC_BASE_URL?.replace(/\/$/, "") ||
-  `http://127.0.0.1:${process.env.PORT || 3000}`;
 
 /**
- * Remotion only accepts http(s) URLs for video sources. Convert an absolute
- * file path inside the project into an HTTP URL served by /api/local-video/...
+ * V65: Converte filepath local em URL pro Remotion.
+ *
+ * MUDANÇA: antes usava HTTP via /api/local-video/... mas isso dependia
+ * de PUBLIC_BASE_URL ou PORT corretos. No Railway, $PORT é variável
+ * (8080 normalmente) e se não estiver setado direito, dá 404.
+ *
+ * Agora retorna `file://` direto. O Chromium do Remotion lê o arquivo
+ * do filesystem do container — sem depender de servidor HTTP rodando
+ * em porta específica. disableWebSecurity:true (já configurado) permite
+ * file:// access. Bem mais robusto.
+ *
+ * URLs HTTP (Pexels CDN, etc) continuam passando direto.
  */
 function localPathToHttpUrl(absPath: string): string {
   if (!absPath) return "";
@@ -23,16 +30,12 @@ function localPathToHttpUrl(absPath: string): string {
   if (absPath.startsWith("http://") || absPath.startsWith("https://")) {
     return absPath;
   }
-  // Filepath local (client assets) → serve via /api/local-video
-  const rel = relative(getStorageRoot(), absPath);
-  if (rel.startsWith("..")) {
-    throw new Error(`Caminho fora do storage: ${absPath}`);
-  }
-  const segments = rel
-    .split(sep)
+  // V65: filepath local → file:// direto. Encoding por path component.
+  const segments = absPath
+    .split(/[/\\]/)
     .filter(Boolean)
     .map((s) => encodeURIComponent(s));
-  return `${PUBLIC_BASE_URL}/api/local-video/${segments.join("/")}`;
+  return `file:///${segments.join("/")}`;
 }
 
 let cachedBundleUrl: string | null = null;
