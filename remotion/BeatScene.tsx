@@ -383,38 +383,46 @@ export const BeatScene: React.FC<Props> = ({
   return (
     <AbsoluteFill>
       {/* V18: cor sólida sempre primeiro (fica atrás do vídeo, ou aparece sozinha se removido) */}
-      <AbsoluteFill style={{ backgroundColor: bgColor }} />
+      <AbsoluteFill style={{ backgroundColor: bgColor, zIndex: 0 }} />
       {showVideo ? (
         isFullCanvasVideo ? (
           isImage ? (
-            <Img
-              src={videoSrc}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                objectPosition,
-                filter: filterCss || undefined,
-                transform: videoTransform !== "scale(1, 1)" ? videoTransform : undefined,
-              }}
-            />
+            <AbsoluteFill style={{ zIndex: 1 }}>
+              <Img
+                src={videoSrc}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  objectPosition,
+                  filter: filterCss || undefined,
+                  transform: videoTransform !== "scale(1, 1)" ? videoTransform : undefined,
+                }}
+              />
+            </AbsoluteFill>
           ) : (
-            <VideoComp
-              src={videoSrc}
-              muted
-              startFrom={startFrom}
-              endAt={endAt}
-              playbackRate={playbackRate}
-              delayRenderTimeoutInMilliseconds={120000}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                objectPosition,
-                filter: filterCss || undefined,
-                transform: videoTransform !== "scale(1, 1)" ? videoTransform : undefined,
-              }}
-            />
+            // V71: Wrap Video em AbsoluteFill explícito + zIndex.
+            // Sem o wrapper, o <video> HTML5 podia render com size 0 em
+            // alguns casos do flex container do AbsoluteFill pai. Plus,
+            // zIndex garante que fica EM CIMA do background preto.
+            <AbsoluteFill style={{ zIndex: 1 }}>
+              <VideoComp
+                src={videoSrc}
+                muted
+                startFrom={startFrom}
+                endAt={endAt}
+                playbackRate={playbackRate}
+                delayRenderTimeoutInMilliseconds={120000}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  objectPosition,
+                  filter: filterCss || undefined,
+                  transform: videoTransform !== "scale(1, 1)" ? videoTransform : undefined,
+                }}
+              />
+            </AbsoluteFill>
           )
         ) : (
           <>

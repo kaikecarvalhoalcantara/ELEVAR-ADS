@@ -144,6 +144,21 @@ export async function renderAd(input: RenderAdInput): Promise<string> {
       );
     }
   }
+
+  // V71: log dos primeiros 3 beats — mostra se o vídeo realmente está
+  // chegando pra renderizar. Se os beats têm videoUrl mas o MP4 sai preto,
+  // problema é Render/Chromium. Se beats vêm sem videoUrl, problema é
+  // antes (sanitize/prefetch/wiring).
+  console.log(
+    `[render] beats sample (primeiros 3 de ${input.beats.length}):`,
+  );
+  for (let i = 0; i < Math.min(3, input.beats.length); i++) {
+    const b = input.beats[i]!;
+    const v = httpVideos[i] ?? "(undefined)";
+    console.log(
+      `  beat[${i}] text="${b.text.slice(0, 30)}..." weight=${b.weight} videoUrl=${v ? v.slice(0, 60) : "(vazio)"}`,
+    );
+  }
   const inputProps: AdProps = {
     beats: input.beats,
     videos: httpVideos,
