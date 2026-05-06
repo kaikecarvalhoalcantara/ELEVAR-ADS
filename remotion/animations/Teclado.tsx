@@ -2,7 +2,10 @@ import { useCurrentFrame, useVideoConfig } from "remotion";
 import type { AnimationProps } from "../BeatScene";
 import { LineContent } from "./LineRenderer";
 
-const CHARS_PER_FRAME = 1.4;
+// V83: era 1.4 (texto digitando muito rápido). Diminuí pra 0.6 — frases
+// de 30 chars demoram ~50 frames (~2s) pra digitar, deixando os outros
+// 4 segundos pra leitura confortável.
+const CHARS_PER_FRAME = 0.6;
 
 export const Teclado: React.FC<AnimationProps> = ({ lines, lineSegments, style }) => {
   const frame = useCurrentFrame();

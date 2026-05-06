@@ -9,8 +9,8 @@ export const Girar: React.FC<AnimationProps> = ({
   lines,
   lineSegments,
   style,
-  entryDuration = 14,
-  exitDuration = 14,
+  entryDuration = 48,
+  exitDuration = 48,
 }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();

@@ -71,7 +71,7 @@ const ANIMATION_LABELS: Record<AnimationKind, string> = {
   balancar: "Balançar (legacy)",
   flutuar: "Flutuar (legacy)",
 };
-const FRAMES_PER_BEAT = 48;
+const FRAMES_PER_BEAT = 144; // V83: 6s por beat (entrada 2s + estático 2s + saída 2s)
 const FPS = 24;
 
 /** V14: 0..1 → hex alpha "00".."ff" */
@@ -3743,28 +3743,30 @@ function ControlPanel({
           />
         </label>
 
-        {/* Velocidade entrada / saída */}
+        {/* V83: Velocidade entrada / saída — defaults agora 48 (2s) e
+            range subiu pra max 96 frames (4s). Slide tem 144 frames (6s).
+            Recomendado: 48 entrada + 48 estático + 48 saída. */}
         <Range
           label="Velocidade entrada (frames)"
-          value={page.animationEntryDuration ?? 14}
+          value={page.animationEntryDuration ?? 48}
           min={4}
-          max={48}
-          step={1}
+          max={96}
+          step={2}
           format={(v) => `${v}f (~${(v / 24).toFixed(2)}s)`}
           onChange={(v) => onUpdatePage({ animationEntryDuration: v })}
         />
         <Range
           label="Velocidade saída (frames)"
-          value={page.animationExitDuration ?? 14}
+          value={page.animationExitDuration ?? 48}
           min={4}
-          max={48}
-          step={1}
+          max={96}
+          step={2}
           format={(v) => `${v}f (~${(v / 24).toFixed(2)}s)`}
           onChange={(v) => onUpdatePage({ animationExitDuration: v })}
         />
         <button
           onClick={() => {
-            const entry = page.animationEntryDuration ?? 14;
+            const entry = page.animationEntryDuration ?? 48;
             onUpdatePage({ animationExitDuration: entry });
           }}
           className="text-[10px] px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 w-full"

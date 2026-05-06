@@ -9,7 +9,10 @@ import type {
 } from "../lib/types";
 import { defaultProjectStyle } from "../lib/style-defaults";
 
-export const FRAMES_PER_BEAT = 48; // 2s a 24fps
+// V83: 144 frames = 6 segundos a 24fps. Antes eram 48 (2s) — vídeos
+// ficavam muito curtos pra editar bem. Agora cada slide tem:
+// ~2s entrada + ~2s estático (respiro) + ~2s saída = 6s total.
+export const FRAMES_PER_BEAT = 144;
 
 export interface PageWithStyle extends Beat, PageStyle {
   hideText?: boolean;

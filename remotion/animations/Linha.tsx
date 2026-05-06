@@ -12,8 +12,8 @@ export const Linha: React.FC<AnimationProps> = ({
   lines,
   lineSegments,
   style,
-  entryDuration = 18,
-  exitDuration = 14,
+  entryDuration = 48,
+  exitDuration = 48,
 }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();

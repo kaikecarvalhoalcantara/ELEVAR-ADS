@@ -11,8 +11,8 @@ export const Deslocar: React.FC<AnimationProps> = ({
   lines,
   lineSegments,
   style,
-  entryDuration = 18,
-  exitDuration = 14,
+  entryDuration = 48,
+  exitDuration = 48,
   direction = "ambos",
   flipExit = false,
 }) => {

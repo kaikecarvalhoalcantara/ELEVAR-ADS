@@ -6,8 +6,8 @@ export const Fade: React.FC<AnimationProps> = ({
   lines,
   lineSegments,
   style,
-  entryDuration = 14,
-  exitDuration = 14,
+  entryDuration = 48,
+  exitDuration = 48,
 }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();

@@ -6,8 +6,9 @@ export const Mesclar: React.FC<AnimationProps> = ({ lines, lineSegments, style }
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
 
-  const inEnd = 14;
-  const outStart = durationInFrames - 12;
+  // V83: durations alongadas pra match com FRAMES_PER_BEAT 144 (6s)
+  const inEnd = 48;
+  const outStart = durationInFrames - 48;
 
   const opacity = interpolate(
     frame,

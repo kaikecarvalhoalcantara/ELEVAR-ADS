@@ -9,16 +9,17 @@ export const Bloco: React.FC<AnimationProps> = ({ lines, lineSegments, style }) 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
       {lines.map((line, idx) => {
-        const delay = idx * 6;
+        // V83: durations alongadas pra match com FRAMES_PER_BEAT 144 (6s)
+        const delay = idx * 12;
         const localFrame = frame - delay;
-        const reveal = interpolate(localFrame, [0, 14], [0, 100], {
+        const reveal = interpolate(localFrame, [0, 48], [0, 100], {
           extrapolateLeft: "clamp",
           extrapolateRight: "clamp",
         });
-        const exitStart = durationInFrames - 14 - delay;
+        const exitStart = durationInFrames - 48 - delay;
         const exitProgress = interpolate(
           localFrame,
-          [exitStart, exitStart + 14],
+          [exitStart, exitStart + 48],
           [100, 0],
           { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
         );

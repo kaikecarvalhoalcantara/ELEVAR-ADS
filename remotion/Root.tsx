@@ -2,7 +2,7 @@ import { Composition } from "remotion";
 import { AdComposition, type AdProps } from "./AdComposition";
 
 const FPS = 24; // 30 era o ideal, mas 24 é cinema-standard e 20% mais rápido pra render
-const FRAMES_PER_BEAT = 48; // 2 segundos por beat em 24fps
+const FRAMES_PER_BEAT = 144; // V83: 6 segundos por beat em 24fps (antes 2s)
 
 const previewProps: AdProps = {
   beats: [
