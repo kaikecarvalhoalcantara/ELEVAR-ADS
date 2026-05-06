@@ -754,6 +754,34 @@ export default function EditorPage() {
     setTimeout(() => setRenderStatus(null), 4000);
   }
 
+  /**
+   * V84: Padroniza timing de animação em TODOS os slides do projeto.
+   * Limpa animationEntryDuration/animationExitDuration per-slide pra que
+   * todos usem o default V83 (48 frames = 2s entrada + 2s estático + 2s saída).
+   * Resolve drafts antigos com timing pequeno (14 frames) preso nos slides.
+   */
+  function standardizeTiming() {
+    if (!draft) return;
+    const next: EnrichedDraft = {
+      ...draft,
+      ads: draft.ads.map((a) => ({
+        ...a,
+        pages: a.pages.map((p) => ({
+          ...p,
+          animationEntryDuration: undefined, // usa default V83 (48 = 2s)
+          animationExitDuration: undefined,
+          animationSpeed: undefined,
+        })),
+      })),
+    };
+    scheduleSave(next);
+    const total = next.ads.reduce((n, a) => n + a.pages.length, 0);
+    setRenderStatus(
+      `✅ Timing padronizado em ${total} slides — 6s por slide (2s entrada + 2s estático + 2s saída).`,
+    );
+    setTimeout(() => setRenderStatus(null), 4000);
+  }
+
   function bulkApplyFromCurrent(scope: "this-ad" | "all-ads") {
     if (!draft) return;
     const ad = draft.ads[selectedAd];
@@ -1241,6 +1269,7 @@ export default function EditorPage() {
               onUpdateProject={updateProject}
               onBulkApply={bulkApplyFromCurrent}
               onStandardizeTypography={standardizeTypography}
+              onStandardizeTiming={standardizeTiming}
               format={draft.format}
               selectedElementId={selectedElementId}
               selectedElementIds={selectedElementIds}
@@ -3376,6 +3405,7 @@ function ControlPanel({
   onUpdateProject,
   onBulkApply,
   onStandardizeTypography,
+  onStandardizeTiming,
   format,
   selectedElementId,
   selectedElementIds,
@@ -3394,6 +3424,7 @@ function ControlPanel({
   ) => void;
   onBulkApply: (scope: "this-ad" | "all-ads") => void;
   onStandardizeTypography: () => void;
+  onStandardizeTiming: () => void;
   format: ProjectDraft["format"];
   selectedElementId: string | null;
   selectedElementIds: Set<string>;
@@ -3773,6 +3804,36 @@ function ControlPanel({
         >
           ⇄ Igualar saída à entrada
         </button>
+
+        {/* V84: Botão pra padronizar timing em TODOS os slides do projeto */}
+        <div className="border-t border-neutral-800 pt-3 mt-3">
+          <button
+            onClick={() => {
+              if (
+                confirm(
+                  "Padronizar timing em TODOS os slides do projeto?\n\n" +
+                  "Vai aplicar 6 segundos por slide em todos:\n" +
+                  "  • 2s entrada (animação aparecendo)\n" +
+                  "  • 2s estático (RESPIRO pra ler)\n" +
+                  "  • 2s saída (animação saindo)\n\n" +
+                  "Limpa ajustes individuais de velocidade. Ideal pra " +
+                  "drafts antigos que ficaram com timing curto demais.\n\n" +
+                  "Pode desfazer com Ctrl+Z.",
+                )
+              ) {
+                onStandardizeTiming();
+              }
+            }}
+            className="w-full text-xs px-2 py-2 rounded border bg-purple-900/30 border-purple-600 text-purple-200 hover:bg-purple-900/50 font-semibold flex items-center justify-center gap-2"
+            title="Aplica 6s por slide (2s entrada + 2s estático + 2s saída) em TODOS os ADs do projeto. Resolve drafts antigos com timing curto."
+          >
+            🎬 Padronizar timing 6s em TODOS os slides
+          </button>
+          <p className="text-[10px] text-neutral-500 mt-1.5 leading-tight">
+            Aplica em todos os ADs do projeto. Útil pra drafts antigos que
+            ficaram com slides curtos (2s). Pode desfazer com Ctrl+Z.
+          </p>
+        </div>
       </CollapsibleGroup>
 
       {/* V21: Efeitos de letra — grid 3x3 estilo Canva */}
