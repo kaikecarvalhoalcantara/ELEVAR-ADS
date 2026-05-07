@@ -722,43 +722,91 @@ export default function EditorPage() {
    * Resultado: todos os slides com mesmo tamanho + mesma fonte =
    * visual uniforme estilo Canva.
    */
-  function standardizeTypography() {
+  /**
+   * V85: Padroniza apenas o TAMANHO da fonte em TODOS os slides.
+   * Limpa fontSize per-slide (todos usam baseFontSize ou auto-fit).
+   * NÃO mexe em cor, italic, animação ou outros ajustes individuais.
+   */
+  function standardizeFontSize() {
     if (!draft) return;
     const next: EnrichedDraft = {
       ...draft,
-      // Força usar SÓ a fonte gancho (sem transição = mesma fonte em tudo)
-      transitionFontDisabled: true,
       ads: draft.ads.map((a) => ({
         ...a,
         pages: a.pages.map((p) => ({
           ...p,
-          // Limpa overrides per-slide pra usar o base do projeto
-          fontSize: undefined, // usa baseFontSize ou auto-fit
-          color: undefined,    // usa baseColor
-          letterSpacing: undefined,
-          lineHeight: undefined,
-          // Limpa estilos pontuais que mudam aparência
-          fontWeightOverride: undefined,
-          italic: undefined,
-          letterCase: undefined,
-          textScaleX: undefined,
-          textBoxWidth: undefined,
+          fontSize: undefined, // usa baseFontSize do projeto ou auto-fit
         })),
       })),
     };
     scheduleSave(next);
     const total = next.ads.reduce((n, a) => n + a.pages.length, 0);
     setRenderStatus(
-      `✅ Tipografia padronizada em ${total} slides — todos usando ${next.fontHook}.`,
+      `✅ Tamanho da fonte padronizado em ${total} slides.`,
     );
     setTimeout(() => setRenderStatus(null), 4000);
   }
 
   /**
-   * V84: Padroniza timing de animação em TODOS os slides do projeto.
-   * Limpa animationEntryDuration/animationExitDuration per-slide pra que
-   * todos usem o default V83 (48 frames = 2s entrada + 2s estático + 2s saída).
-   * Resolve drafts antigos com timing pequeno (14 frames) preso nos slides.
+   * V85: Padroniza apenas a FONTE GANCHO em TODOS os slides.
+   * Liga transitionFontDisabled = true (todos beats usam fontHook).
+   * NÃO mexe em tamanho, cor, animação. Só força UMA fonte só.
+   */
+  function standardizeFont() {
+    if (!draft) return;
+    const next: EnrichedDraft = {
+      ...draft,
+      transitionFontDisabled: true,
+    };
+    scheduleSave(next);
+    setRenderStatus(
+      `✅ Fonte padronizada — todos beats usando ${draft.fontHook}.`,
+    );
+    setTimeout(() => setRenderStatus(null), 4000);
+  }
+
+  /**
+   * V85: Padroniza ANIMAÇÃO em TODOS os slides — pega o tipo de animação
+   * (subir, deslocar, etc) + timing do slide ATUALMENTE selecionado e
+   * aplica em todos os slides do projeto. NÃO mexe em fonte/tamanho.
+   */
+  function standardizeAnimation() {
+    if (!draft) return;
+    const ad = draft.ads[selectedAd];
+    const src = ad?.pages[selectedPage];
+    if (!src) return;
+    const refAnimation = src.animation;
+    const refEntry = src.animationEntryDuration;
+    const refExit = src.animationExitDuration;
+    const refDirection = src.animationDirection;
+    const refStyle = src.animationStyle;
+    const refFlipExit = src.animationFlipExit;
+    const next: EnrichedDraft = {
+      ...draft,
+      ads: draft.ads.map((a) => ({
+        ...a,
+        pages: a.pages.map((p) => ({
+          ...p,
+          animation: refAnimation,
+          animationEntryDuration: refEntry,
+          animationExitDuration: refExit,
+          animationDirection: refDirection,
+          animationStyle: refStyle,
+          animationFlipExit: refFlipExit,
+        })),
+      })),
+    };
+    scheduleSave(next);
+    const total = next.ads.reduce((n, a) => n + a.pages.length, 0);
+    setRenderStatus(
+      `✅ Animação "${refAnimation}" aplicada em ${total} slides do projeto.`,
+    );
+    setTimeout(() => setRenderStatus(null), 4000);
+  }
+
+  /**
+   * V84/V85: Reset timing das animações pro novo padrão (6s por slide).
+   * Limpa apenas durations — animation type fica intacto.
    */
   function standardizeTiming() {
     if (!draft) return;
@@ -777,7 +825,7 @@ export default function EditorPage() {
     scheduleSave(next);
     const total = next.ads.reduce((n, a) => n + a.pages.length, 0);
     setRenderStatus(
-      `✅ Timing padronizado em ${total} slides — 6s por slide (2s entrada + 2s estático + 2s saída).`,
+      `✅ Timing 6s aplicado em ${total} slides.`,
     );
     setTimeout(() => setRenderStatus(null), 4000);
   }
@@ -1268,7 +1316,9 @@ export default function EditorPage() {
               onUpdatePage={(patch) => updatePage(selectedAd, selectedPage, patch)}
               onUpdateProject={updateProject}
               onBulkApply={bulkApplyFromCurrent}
-              onStandardizeTypography={standardizeTypography}
+              onStandardizeFontSize={standardizeFontSize}
+              onStandardizeFont={standardizeFont}
+              onStandardizeAnimation={standardizeAnimation}
               onStandardizeTiming={standardizeTiming}
               format={draft.format}
               selectedElementId={selectedElementId}
@@ -3404,7 +3454,9 @@ function ControlPanel({
   onUpdatePage,
   onUpdateProject,
   onBulkApply,
-  onStandardizeTypography,
+  onStandardizeFontSize,
+  onStandardizeFont,
+  onStandardizeAnimation,
   onStandardizeTiming,
   format,
   selectedElementId,
@@ -3423,7 +3475,9 @@ function ControlPanel({
     },
   ) => void;
   onBulkApply: (scope: "this-ad" | "all-ads") => void;
-  onStandardizeTypography: () => void;
+  onStandardizeFontSize: () => void;
+  onStandardizeFont: () => void;
+  onStandardizeAnimation: () => void;
   onStandardizeTiming: () => void;
   format: ProjectDraft["format"];
   selectedElementId: string | null;
@@ -3670,33 +3724,54 @@ function ControlPanel({
           </p>
         )}
 
-        {/* V73: Botão pra padronizar tipografia em TODOS os slides */}
-        <div className="border-t border-neutral-800 pt-3 mt-3">
+        {/* V85: Padronizar EM MASSA — separado em 2 botões independentes:
+            tamanho da fonte (não muda fonte/cor/animação) e fonte gancho. */}
+        <div className="border-t border-neutral-800 pt-3 mt-3 space-y-2">
+          <div className="text-[10px] uppercase text-neutral-500">
+            ⚙ Aplicar em MASSA (todos os slides do projeto)
+          </div>
+          {/* Botão 1: padronizar TAMANHO */}
           <button
             onClick={() => {
               if (
                 confirm(
-                  "Padronizar tipografia em TODOS os slides do projeto?\n\n" +
-                  "Vai limpar ajustes individuais (tamanho, cor, espaçamento, " +
-                  "negrito, itálico, etc) de cada slide e aplicar APENAS a fonte " +
-                  "gancho com tamanho automático. Ideal pra ter um visual " +
-                  "uniforme estilo Canva.\n\n" +
+                  "Padronizar TAMANHO da fonte em TODOS os slides do projeto?\n\n" +
+                  "Vai zerar o tamanho individual de cada slide. Todos passam " +
+                  "a usar o tamanho global do projeto (ou auto-fit baseado na " +
+                  "frase).\n\n" +
+                  "NÃO mexe em fonte, cor, ou animação. Só tamanho.\n\n" +
                   "Pode desfazer com Ctrl+Z.",
                 )
               ) {
-                onStandardizeTypography();
+                onStandardizeFontSize();
               }
             }}
-            className="w-full text-xs px-2 py-2 rounded border bg-purple-900/30 border-purple-600 text-purple-200 hover:bg-purple-900/50 font-semibold flex items-center justify-center gap-2"
-            title="Aplica a mesma fonte e tamanho em todos os slides do projeto inteiro. Limpa overrides individuais."
+            className="w-full text-xs px-2 py-2 rounded border bg-purple-900/20 border-purple-700 text-purple-200 hover:bg-purple-900/40 font-medium flex items-center justify-center gap-2"
+            title="Zera o tamanho individual de cada slide. Todos usam o tamanho global do projeto."
           >
-            🎯 Padronizar fonte + tamanho em TODOS os slides
+            📏 Padronizar TAMANHO em todos slides
           </button>
-          <p className="text-[10px] text-neutral-500 mt-1.5 leading-tight">
-            Limpa ajustes individuais (fonte, tamanho, cor, etc) e força todos
-            os slides usarem a mesma fonte gancho do projeto. Bom pra visual
-            uniforme. Pode desfazer com Ctrl+Z.
-          </p>
+          {/* Botão 2: padronizar FONTE (forçar usar fontHook só) */}
+          <button
+            onClick={() => {
+              if (
+                confirm(
+                  "Padronizar FONTE em TODOS os beats do projeto?\n\n" +
+                  "Vai forçar TODOS os slides usarem a fonte gancho " +
+                  "(desabilita fonte de transição). Resultado: uma fonte " +
+                  "só em todo o anúncio.\n\n" +
+                  "NÃO mexe em tamanho, cor ou animação. Só na fonte.\n\n" +
+                  "Pode desfazer com Ctrl+Z.",
+                )
+              ) {
+                onStandardizeFont();
+              }
+            }}
+            className="w-full text-xs px-2 py-2 rounded border bg-purple-900/20 border-purple-700 text-purple-200 hover:bg-purple-900/40 font-medium flex items-center justify-center gap-2"
+            title="Força todos os slides usarem a mesma fonte gancho. Sem mexer em outros ajustes."
+          >
+            🔤 Padronizar FONTE em todos beats
+          </button>
         </div>
       </CollapsibleGroup>
 
@@ -3805,19 +3880,47 @@ function ControlPanel({
           ⇄ Igualar saída à entrada
         </button>
 
-        {/* V84: Botão pra padronizar timing em TODOS os slides do projeto */}
-        <div className="border-t border-neutral-800 pt-3 mt-3">
+        {/* V85: Padronizar EM MASSA — separado em 2 botões independentes
+            (animação type+style+direção do slide atual) e (timing 6s).
+            User reclamou que botão único forçava ambos sem querer. */}
+        <div className="border-t border-neutral-800 pt-3 mt-3 space-y-2">
+          <div className="text-[10px] uppercase text-neutral-500">
+            ⚙ Aplicar em MASSA (todos os slides do projeto)
+          </div>
           <button
             onClick={() => {
               if (
                 confirm(
-                  "Padronizar timing em TODOS os slides do projeto?\n\n" +
-                  "Vai aplicar 6 segundos por slide em todos:\n" +
+                  "Padronizar ANIMAÇÃO em TODOS os slides?\n\n" +
+                  `Vai pegar a animação do slide ATUAL (${page.animation ?? "default"})\n` +
+                  "e aplicar em todos os slides do projeto:\n" +
+                  "  • Tipo de animação (subir/deslocar/etc)\n" +
+                  "  • Estilo (palavra/linha)\n" +
+                  "  • Direção (entrando/saindo/ambos)\n" +
+                  "  • Durations entrada/saída\n\n" +
+                  "NÃO mexe em fonte nem tamanho.\n" +
+                  "Pode desfazer com Ctrl+Z.",
+                )
+              ) {
+                onStandardizeAnimation();
+              }
+            }}
+            className="w-full text-xs px-2 py-2 rounded border bg-fuchsia-900/30 border-fuchsia-600 text-fuchsia-200 hover:bg-fuchsia-900/50 font-semibold flex items-center justify-center gap-2"
+            title="Pega a animação do slide ATUAL (tipo + estilo + direção + timings) e aplica em TODOS os slides do projeto."
+          >
+            🎬 Padronizar ANIMAÇÃO em todos slides
+          </button>
+          <button
+            onClick={() => {
+              if (
+                confirm(
+                  "Padronizar TIMING em TODOS os slides do projeto?\n\n" +
+                  "Vai aplicar 6 segundos por slide:\n" +
                   "  • 2s entrada (animação aparecendo)\n" +
                   "  • 2s estático (RESPIRO pra ler)\n" +
                   "  • 2s saída (animação saindo)\n\n" +
-                  "Limpa ajustes individuais de velocidade. Ideal pra " +
-                  "drafts antigos que ficaram com timing curto demais.\n\n" +
+                  "Limpa ajustes individuais de velocidade.\n" +
+                  "NÃO mexe em fonte, tamanho ou tipo de animação.\n\n" +
                   "Pode desfazer com Ctrl+Z.",
                 )
               ) {
@@ -3825,13 +3928,12 @@ function ControlPanel({
               }
             }}
             className="w-full text-xs px-2 py-2 rounded border bg-purple-900/30 border-purple-600 text-purple-200 hover:bg-purple-900/50 font-semibold flex items-center justify-center gap-2"
-            title="Aplica 6s por slide (2s entrada + 2s estático + 2s saída) em TODOS os ADs do projeto. Resolve drafts antigos com timing curto."
+            title="Aplica 6s por slide (2s entrada + 2s estático + 2s saída) em TODOS os ADs. Não mexe em animação."
           >
-            🎬 Padronizar timing 6s em TODOS os slides
+            ⏱️ Padronizar TIMING 6s em todos slides
           </button>
-          <p className="text-[10px] text-neutral-500 mt-1.5 leading-tight">
-            Aplica em todos os ADs do projeto. Útil pra drafts antigos que
-            ficaram com slides curtos (2s). Pode desfazer com Ctrl+Z.
+          <p className="text-[10px] text-neutral-500 leading-tight">
+            Use independente: só animação OU só timing. Pode desfazer com Ctrl+Z.
           </p>
         </div>
       </CollapsibleGroup>
