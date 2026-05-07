@@ -1049,6 +1049,28 @@ export default function EditorPage() {
               <span className="text-neutral-500 mx-1.5">·</span>
               <span className="text-neutral-400 text-xs">{draft.nome}</span>
             </h1>
+            {/* V86: indicador discreto de storage. Verde se persistente
+                (vídeos importados ficam salvos pra sempre), âmbar se
+                volátil (banner vermelho separado também aparece). */}
+            {storageStatus && (
+              <span
+                title={
+                  storageStatus.persistent
+                    ? `Storage persistente — ${storageStatus.reason}. Tudo que você importar fica salvo pra sempre.`
+                    : `Storage VOLÁTIL — ${storageStatus.reason}. Arquivos importados somem em redeploy.`
+                }
+                className={
+                  "ml-2 text-[10px] px-1.5 py-0.5 rounded border font-medium whitespace-nowrap " +
+                  (storageStatus.persistent
+                    ? "bg-emerald-900/30 border-emerald-700 text-emerald-300"
+                    : "bg-amber-900/30 border-amber-700 text-amber-300")
+                }
+              >
+                {storageStatus.persistent
+                  ? "💾 salvando permanente"
+                  : "⚠️ storage volátil"}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -3724,13 +3746,13 @@ function ControlPanel({
           </p>
         )}
 
-        {/* V85: Padronizar EM MASSA — separado em 2 botões independentes:
-            tamanho da fonte (não muda fonte/cor/animação) e fonte gancho. */}
+        {/* V86: Padronizar EM MASSA — só TAMANHO no painel de texto.
+            User pediu pra remover o botão de FONTE (a fonte é definida
+            globalmente em outro lugar, não precisa de massa aqui). */}
         <div className="border-t border-neutral-800 pt-3 mt-3 space-y-2">
           <div className="text-[10px] uppercase text-neutral-500">
             ⚙ Aplicar em MASSA (todos os slides do projeto)
           </div>
-          {/* Botão 1: padronizar TAMANHO */}
           <button
             onClick={() => {
               if (
@@ -3750,27 +3772,6 @@ function ControlPanel({
             title="Zera o tamanho individual de cada slide. Todos usam o tamanho global do projeto."
           >
             📏 Padronizar TAMANHO em todos slides
-          </button>
-          {/* Botão 2: padronizar FONTE (forçar usar fontHook só) */}
-          <button
-            onClick={() => {
-              if (
-                confirm(
-                  "Padronizar FONTE em TODOS os beats do projeto?\n\n" +
-                  "Vai forçar TODOS os slides usarem a fonte gancho " +
-                  "(desabilita fonte de transição). Resultado: uma fonte " +
-                  "só em todo o anúncio.\n\n" +
-                  "NÃO mexe em tamanho, cor ou animação. Só na fonte.\n\n" +
-                  "Pode desfazer com Ctrl+Z.",
-                )
-              ) {
-                onStandardizeFont();
-              }
-            }}
-            className="w-full text-xs px-2 py-2 rounded border bg-purple-900/20 border-purple-700 text-purple-200 hover:bg-purple-900/40 font-medium flex items-center justify-center gap-2"
-            title="Força todos os slides usarem a mesma fonte gancho. Sem mexer em outros ajustes."
-          >
-            🔤 Padronizar FONTE em todos beats
           </button>
         </div>
       </CollapsibleGroup>
@@ -5732,6 +5733,12 @@ function VideoSourcesGroup({
         onUpdate={(patch) => onUpdatePage(patch)}
         onUploaded={() => setRefreshKey((k) => k + 1)}
       />
+      {/* V86: Botão pra salvar permanentemente na biblioteca o vídeo
+          atual quando ele veio de fora (Pexels cache, etc). */}
+      <SaveCurrentToLibraryButton
+        currentPath={page.videoSrc}
+        onSaved={() => setRefreshKey((k) => k + 1)}
+      />
       <ClientAssetPicker
         refreshKey={refreshKey}
         onPick={(path, url) =>
@@ -5752,6 +5759,107 @@ function VideoSourcesGroup({
         onPick={(path, url) => onUpdatePage({ videoSrc: path, videoUrl: url })}
       />
     </CollapsibleGroup>
+  );
+}
+
+/**
+ * V86: Botão "Salvar este vídeo na minha biblioteca". Aparece quando
+ * o vídeo de fundo atual NÃO está em client-assets (típico: vídeo do
+ * Pexels que ficou só no cache). Resolve a queixa "tudo que eu botar
+ * num projeto fica salvo numa pastinha pra sempre".
+ *
+ * Quando JÁ está na biblioteca, mostra indicador "✓ na biblioteca"
+ * (tranquiliza o user de que tá persistente).
+ */
+function SaveCurrentToLibraryButton({
+  currentPath,
+  onSaved,
+}: {
+  currentPath: string | undefined;
+  onSaved?: () => void;
+}) {
+  const [inLibrary, setInLibrary] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Verifica se o path atual já está na biblioteca
+  useEffect(() => {
+    if (!currentPath) {
+      setInLibrary(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/save-to-library?path=${encodeURIComponent(currentPath)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled && d.ok) setInLibrary(d.inLibrary);
+      })
+      .catch(() => {
+        if (!cancelled) setInLibrary(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPath]);
+
+  async function handleSave() {
+    if (!currentPath) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/save-to-library", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourcePath: currentPath }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error ?? "Falha ao salvar");
+      setInLibrary(true);
+      onSaved?.();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Sem vídeo selecionado: não mostra nada
+  if (!currentPath) return null;
+
+  // Já está na biblioteca: indicador discreto
+  if (inLibrary === true) {
+    return (
+      <div className="mt-1.5 text-[10px] text-emerald-400 flex items-center gap-1.5 px-2">
+        <span>✓</span>
+        <span>Vídeo já está salvo na sua biblioteca permanente</span>
+      </div>
+    );
+  }
+
+  // Não está + ainda checando: nada
+  if (inLibrary === null) return null;
+
+  // Não está: botão pra salvar
+  return (
+    <div className="mt-1.5 space-y-1">
+      <button
+        onClick={handleSave}
+        disabled={busy}
+        className="w-full text-xs px-2 py-1.5 rounded border bg-emerald-900/30 border-emerald-600 text-emerald-200 hover:bg-emerald-900/50 disabled:opacity-50 flex items-center justify-center gap-2 font-medium"
+        title="Copia este vídeo pra biblioteca permanente em /data/client-assets. Você pode reusar em outros slides."
+      >
+        {busy
+          ? "⏳ Salvando…"
+          : "💾 Salvar este vídeo na minha biblioteca"}
+      </button>
+      {error && (
+        <p className="text-[10px] text-red-400">Erro: {error}</p>
+      )}
+      <p className="text-[10px] text-neutral-500 leading-tight">
+        Vídeos do Pexels ficam só em cache. Salve aqui pra reusar em
+        outros slides via "Meus vídeos importados".
+      </p>
+    </div>
   );
 }
 

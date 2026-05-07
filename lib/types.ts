@@ -388,6 +388,12 @@ export interface ClientAsset {
   id: string;
   filename: string;
   filepath: string;
+  /**
+   * V86: caminho original quando o asset foi COPIADO pra biblioteca
+   * (ex: vídeo do Pexels-cache trazido pra cá). Usado pra idempotência —
+   * evita duplicar quando o mesmo vídeo é "salvo" mais de uma vez.
+   */
+  originPath?: string;
   type: AssetKind;
   ad: number | null;
   beatType: AssetBeatType;

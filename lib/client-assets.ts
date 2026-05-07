@@ -153,6 +153,78 @@ export async function saveStreamedUpload(args: {
   return asset;
 }
 
+/**
+ * V86: Salva na biblioteca permanente um arquivo que JÁ EXISTE em outro
+ * lugar do storage (tipicamente video-cache do Pexels). Copia o arquivo
+ * pra client-assets/raw e registra em metadata.json — assim o user pode
+ * reusá-lo via "Meus vídeos importados" em qualquer slide.
+ *
+ * Idempotente: se já existe um asset com o mesmo filepath de origem,
+ * retorna o existente sem duplicar.
+ */
+export async function saveExternalToLibrary(args: {
+  sourcePath: string;
+  filename?: string;
+}): Promise<ClientAsset> {
+  // Confirma que arquivo existe + lê tamanho
+  const stat = await fs.stat(args.sourcePath).catch(() => null);
+  if (!stat || !stat.isFile()) {
+    throw new Error(`Arquivo de origem não existe: ${args.sourcePath}`);
+  }
+
+  // Idempotente: se já tem asset com originPath = sourcePath, retorna
+  const map = await loadMetaMap();
+  for (const ex of Object.values(map)) {
+    if (ex.originPath === args.sourcePath) return ex;
+  }
+
+  const originalName =
+    args.filename ?? args.sourcePath.split(/[\\/]/).pop() ?? "video.mp4";
+  const type = inferType(originalName);
+  if (!type) {
+    throw new Error(`Tipo de arquivo não suportado: ${originalName}`);
+  }
+  await ensureDirs();
+  const id = sha1(`${originalName}-${Date.now()}-${Math.random()}`);
+  const safeName = originalName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const stored = `${id}-${safeName}`;
+  const filepath = join(RAW_DIR, stored);
+  // copyFile preserva o original (Pexels cache continua disponível pra
+  // outros drafts que usam o mesmo path)
+  await fs.copyFile(args.sourcePath, filepath);
+  const asset: ClientAsset = {
+    id,
+    filename: originalName,
+    filepath,
+    originPath: args.sourcePath, // V86: rastreia origem pra evitar duplicar
+    type,
+    ad: null,
+    beatType: "any",
+    tags: autoTag(originalName),
+    uploadedAt: Date.now(),
+  };
+  map[id] = asset;
+  await saveMetaMap(map);
+  return asset;
+}
+
+/**
+ * V86: Verifica se um filepath JÁ está na biblioteca permanente —
+ * tanto direto (filepath dentro de client-assets/raw) quanto indireto
+ * (sourcePath registrado em originPath de algum asset).
+ */
+export async function isInLibrary(filepath: string): Promise<boolean> {
+  if (!filepath) return false;
+  const norm = filepath.replace(/\\/g, "/");
+  if (norm.includes("/client-assets/raw/")) return true;
+  const map = await loadMetaMap();
+  for (const ex of Object.values(map)) {
+    if (ex.filepath === filepath) return true;
+    if (ex.originPath === filepath) return true;
+  }
+  return false;
+}
+
 export interface AssetUpdate {
   ad?: number | null;
   beatType?: AssetBeatType;
