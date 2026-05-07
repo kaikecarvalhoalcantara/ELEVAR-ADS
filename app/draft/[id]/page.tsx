@@ -3784,18 +3784,33 @@ function ControlPanel({
       >
         {/* Animar: Ambos / Entrando / Saindo */}
         <div>
-          <div className="text-[10px] uppercase text-neutral-500 mb-1.5">Animar</div>
+          <div className="text-[10px] uppercase text-neutral-500 mb-1.5">
+            Direção da animação
+          </div>
           <div className="grid grid-cols-3 gap-1">
             {([
-              { v: "ambos", label: "Ambos" },
-              { v: "entrando", label: "Entrando" },
-              { v: "saindo", label: "Saindo" },
+              {
+                v: "ambos",
+                label: "Ambos",
+                hint: "Letra entra E sai (default)",
+              },
+              {
+                v: "entrando",
+                label: "Entrando",
+                hint: "Letra entra e FICA até o vídeo acabar (não sai)",
+              },
+              {
+                v: "saindo",
+                label: "Saindo",
+                hint: "Letra começa visível e SÓ sai no fim",
+              },
             ] as const).map((opt) => {
               const cur = page.animationDirection ?? "ambos";
               return (
                 <button
                   key={opt.v}
                   onClick={() => onUpdatePage({ animationDirection: opt.v })}
+                  title={opt.hint}
                   className={`text-xs py-1.5 rounded border ${
                     cur === opt.v
                       ? "bg-purple-700/40 border-purple-500 text-purple-200"
@@ -3807,6 +3822,17 @@ function ControlPanel({
               );
             })}
           </div>
+          {/* V87: legenda do que cada modo faz */}
+          <p className="text-[10px] text-neutral-500 mt-1.5 leading-tight">
+            {(() => {
+              const cur = page.animationDirection ?? "ambos";
+              if (cur === "entrando")
+                return "✓ A letra entra e FICA visível até o vídeo do slide acabar (sem sumir).";
+              if (cur === "saindo")
+                return "A letra começa visível desde o frame 0 e sai animada no fim.";
+              return "A letra entra animada, fica visível, e sai animada no fim.";
+            })()}
+          </p>
         </div>
 
         {/* Estilo de escrita: Palavra / Linha */}
