@@ -1,6 +1,7 @@
 import { cutIntoBeats } from "./beats";
 import { planScenes } from "./scene-planner";
-import { findBestAssetFor } from "./client-assets";
+import { findBestAssetFor, listClientAssets } from "./client-assets";
+import { findSemanticAssetMatch } from "./asset-matcher";
 import { findOrFetchVideoForQuery } from "./video-library";
 import { loadDraft, saveDraft } from "./drafts";
 import { parseSourceDoc } from "./parser";
@@ -43,17 +44,68 @@ function pickWordlessIndices(total: number): Set<number> {
   return result;
 }
 
+/**
+ * V92: Cascata de escolha de mídia pro slide.
+ *
+ * 1. MATCH SEMÂNTICO via Claude IA (NOVO) — pega TODOS os assets do
+ *    cliente e pergunta pra IA qual ilustra melhor a frase do slide.
+ *    Acerta muito mais que palavras-chave.
+ *
+ * 2. MATCH POR TAGS (legado) — se IA falar "nenhum combina" ou falhar,
+ *    cai pro match clássico baseado em tags+ad number.
+ *
+ * 3. PEXELS — último recurso, busca online.
+ */
 async function videoForScene(args: {
   adNumber: number;
   scene: ScenePlan;
   format: Format;
 }): Promise<string> {
+  // V92: Tenta IA primeiro
+  try {
+    const allAssets = await listClientAssets();
+    // Filtra por ad number se houver, mas inclui os "any" também
+    const candidates = allAssets.filter(
+      (a) => a.ad === null || a.ad === args.adNumber,
+    );
+    if (candidates.length > 0) {
+      const iaMatch = await findSemanticAssetMatch({
+        sceneText: args.scene.text,
+        query: args.scene.query,
+        assets: candidates,
+        preferType: "video", // prefere vídeo, mas aceita imagem
+      });
+      if (iaMatch.asset && iaMatch.confidence !== "none") {
+        console.log(
+          `[videoForScene] 🎯 IA escolheu "${iaMatch.asset.filename}" (${iaMatch.confidence}) — ${iaMatch.reason}`,
+        );
+        return iaMatch.asset.filepath;
+      }
+      if (iaMatch.reason) {
+        console.log(
+          `[videoForScene] IA passou (${iaMatch.confidence}): ${iaMatch.reason}`,
+        );
+      }
+    }
+  } catch (err) {
+    // IA falhou: cai pra cascata clássica sem quebrar
+    console.warn(
+      `[videoForScene] match IA falhou: ${(err as Error).message}`,
+    );
+  }
+
+  // V92 fallback: match clássico por tags
   const asset = await findBestAssetFor({
     adNumber: args.adNumber,
     weight: args.scene.weight,
     tags: args.scene.tags,
   });
-  if (asset && asset.type === "video") return asset.filepath;
+  if (asset && asset.type === "video") {
+    console.log(`[videoForScene] 🏷️ tag match "${asset.filename}"`);
+    return asset.filepath;
+  }
+
+  // V92 fallback final: Pexels
   const v = await findOrFetchVideoForQuery({
     query: args.scene.query,
     format: args.format,
