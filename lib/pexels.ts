@@ -1,4 +1,8 @@
+import { promises as fs } from "node:fs";
+import { createHash } from "node:crypto";
+import { join } from "node:path";
 import type { MoodAudience } from "./types";
+import { storagePath } from "./storage";
 
 const PEXELS_SEARCH_URL = "https://api.pexels.com/videos/search";
 // V51: API de FOTOS do Pexels — endpoint diferente do de vídeos.
@@ -131,6 +135,15 @@ const PEXELS_PHOTO_CACHE = new Map<
 >();
 const PEXELS_CACHE_TTL_MS = 60 * 60 * 1000; // 1h
 
+// V90: cache PERSISTENTE em disco. Cada query salva um JSON
+// em /elevar-storage/pexels-cache/{videos|photos}/{sha1}.json.
+// TTL longo (30 dias) — vídeos do Pexels não mudam significativamente.
+// Resolve o rate-limit DEFINITIVAMENTE: a mesma query nunca mais bate
+// no Pexels, nem entre sessões, nem entre projetos, nem entre dias.
+const PEXELS_DISK_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 dias
+const PEXELS_VIDEO_CACHE_DIR = storagePath("pexels-cache/videos");
+const PEXELS_PHOTO_CACHE_DIR = storagePath("pexels-cache/photos");
+
 function cacheKey(
   query: string,
   orientation: string,
@@ -138,6 +151,44 @@ function cacheKey(
   perPage: number,
 ): string {
   return `${query}|${orientation}|p${page}|n${perPage}`;
+}
+
+function diskKey(key: string): string {
+  return createHash("sha1").update(key).digest("hex").slice(0, 16);
+}
+
+async function readDiskCache<T>(
+  dir: string,
+  key: string,
+): Promise<T | null> {
+  try {
+    const file = join(dir, `${diskKey(key)}.json`);
+    const raw = await fs.readFile(file, "utf8");
+    const obj = JSON.parse(raw) as { ts: number; data: T };
+    if (Date.now() - obj.ts > PEXELS_DISK_TTL_MS) return null;
+    return obj.data;
+  } catch {
+    return null;
+  }
+}
+
+async function writeDiskCache<T>(
+  dir: string,
+  key: string,
+  data: T,
+): Promise<void> {
+  try {
+    await fs.mkdir(dir, { recursive: true });
+    const file = join(dir, `${diskKey(key)}.json`);
+    await fs.writeFile(
+      file,
+      JSON.stringify({ ts: Date.now(), key, data }),
+      "utf8",
+    );
+  } catch (err) {
+    // Cache em disco é otimização — falha aqui não quebra o flow
+    console.warn(`[pexels] writeDiskCache falhou: ${(err as Error).message}`);
+  }
 }
 
 /**
@@ -187,11 +238,22 @@ export async function searchPexelsVideos(args: {
   const page = args.page ?? 1;
   const perPage = args.perPage ?? 80;
 
-  // V89: cache hit?
+  // V89: cache em memória (sessão atual)
   const key = cacheKey(args.query, orientation, page, perPage);
   const cached = PEXELS_VIDEO_CACHE.get(key);
   if (cached && Date.now() - cached.ts < PEXELS_CACHE_TTL_MS) {
     return cached.videos;
+  }
+
+  // V90: cache em DISCO (persistente entre sessões — TTL 30 dias)
+  const disk = await readDiskCache<PexelsVideo[]>(
+    PEXELS_VIDEO_CACHE_DIR,
+    key,
+  );
+  if (disk) {
+    console.log(`[pexels] 💾 cache HIT (disco) — "${args.query}"`);
+    PEXELS_VIDEO_CACHE.set(key, { videos: disk, ts: Date.now() });
+    return disk;
   }
 
   // V32: per_page padrão 80 (máximo do Pexels). Antes era 15 → poucos resultados.
@@ -207,6 +269,9 @@ export async function searchPexelsVideos(args: {
   );
   const data = (await res.json()) as PexelsSearchResponse;
   PEXELS_VIDEO_CACHE.set(key, { videos: data.videos, ts: Date.now() });
+  // V90: salva no disco pra próximas sessões
+  await writeDiskCache(PEXELS_VIDEO_CACHE_DIR, key, data.videos);
+  console.log(`[pexels] 🌐 hit Pexels API — "${args.query}" (salvo no cache)`);
   return data.videos;
 }
 
@@ -259,11 +324,22 @@ export async function searchPexelsPhotos(args: {
   const page = args.page ?? 1;
   const perPage = args.perPage ?? 80;
 
-  // V89: cache hit?
+  // V89: cache em memória
   const key = cacheKey(args.query, orientation, page, perPage);
   const cached = PEXELS_PHOTO_CACHE.get(key);
   if (cached && Date.now() - cached.ts < PEXELS_CACHE_TTL_MS) {
     return cached.photos;
+  }
+
+  // V90: cache em DISCO (persistente)
+  const disk = await readDiskCache<PexelsPhoto[]>(
+    PEXELS_PHOTO_CACHE_DIR,
+    key,
+  );
+  if (disk) {
+    console.log(`[pexels] 💾 cache HIT (disco/photos) — "${args.query}"`);
+    PEXELS_PHOTO_CACHE.set(key, { photos: disk, ts: Date.now() });
+    return disk;
   }
 
   const params = new URLSearchParams({
@@ -278,6 +354,8 @@ export async function searchPexelsPhotos(args: {
   );
   const data = (await res.json()) as PexelsPhotosResponse;
   PEXELS_PHOTO_CACHE.set(key, { photos: data.photos, ts: Date.now() });
+  await writeDiskCache(PEXELS_PHOTO_CACHE_DIR, key, data.photos);
+  console.log(`[pexels] 🌐 hit Pexels API (photos) — "${args.query}"`);
   return data.photos;
 }
 
