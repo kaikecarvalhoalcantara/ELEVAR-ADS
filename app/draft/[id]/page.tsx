@@ -1429,6 +1429,8 @@ function EditableCanvas({
   const scale = previewW / dims.width;
 
   const [editing, setEditing] = useState(false);
+  // V93: state pro modal de quick-swap de vídeo
+  const [quickSwapOpen, setQuickSwapOpen] = useState(false);
   // V42: state interno sincronizado com o externo (textSelected) — pai usa
   // pra deletar via Delete; canvas controla internamente.
   const selected = textSelected;
@@ -1725,6 +1727,37 @@ function EditableCanvas({
         >
           📥 Colar vídeo aqui
         </button>
+      )}
+      {/* V93: Quick-swap — botão visível no canto superior direito do preview.
+          Resolve "trocar vídeo é trabalhoso" — 1 click abre 12 opções
+          (6 IA + 6 Pexels) e troca instantâneo. */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setQuickSwapOpen(true);
+        }}
+        className="absolute top-2 right-2 px-2.5 py-1.5 rounded-md bg-purple-700/90 hover:bg-purple-600 text-white text-[11px] font-semibold shadow-lg border border-purple-400 whitespace-nowrap z-40 flex items-center gap-1.5 backdrop-blur-sm"
+        title="Abre 12 opções de vídeo (6 do seu banco + 6 Pexels) pra trocar rápido"
+      >
+        🔄 Trocar vídeo
+      </button>
+      {/* V93: Modal de quick-swap */}
+      {quickSwapOpen && (
+        <QuickVideoSwapModal
+          page={page}
+          format={draft.format}
+          adNumber={
+            // V93: adNumber não tá no page direto; pegamos do parent
+            // via draft.ads[X].number — mas EditableCanvas não tem ad
+            // index. Usamos 0 (any) como fallback — findBestAssetFor
+            // filtra null|matching.
+            0
+          }
+          onPick={(path, url) => {
+            onUpdate({ videoSrc: path, videoUrl: url, videoRemoved: false });
+          }}
+          onClose={() => setQuickSwapOpen(false)}
+        />
       )}
       {/* Background sólido (V18: cor escolhida pelo user, default preto) */}
       <div className="absolute inset-0" style={{ background: bgColor }} />
@@ -5740,6 +5773,241 @@ function VideoControlsPanel({
  * Quando user importa um arquivo, o picker (lista) atualiza automaticamente
  * pra mostrar o novo arquivo na pastinha.
  */
+
+/**
+ * V93: Quick-swap modal — abre quando user clica "🔄 Trocar vídeo" no canvas.
+ * Grid 4x3 com 6 client-assets (escolhidos pela IA) + 6 vídeos Pexels.
+ * Click numa opção troca o vídeo do slide e fecha o modal.
+ *
+ * Carrega opções via /api/quick-swap-options (assíncrono, primeira render
+ * mostra skeleton).
+ */
+function QuickVideoSwapModal({
+  page,
+  format,
+  adNumber,
+  onPick,
+  onClose,
+}: {
+  page: EnrichedPage;
+  format: ProjectDraft["format"];
+  adNumber: number;
+  onPick: (path: string, url: string) => void;
+  onClose: () => void;
+}) {
+  type Option =
+    | { kind: "client"; id: string; filename: string; filepath: string; url: string; thumbnail: string }
+    | { kind: "pexels"; id: string; url: string; thumbnail: string };
+
+  const [clientAssets, setClientAssets] = useState<Option[]>([]);
+  const [pexelsVideos, setPexelsVideos] = useState<Option[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch("/api/quick-swap-options", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sceneText: page.text,
+        query: page.query ?? page.text,
+        format,
+        currentSrc: page.videoSrc ?? "",
+        adNumber,
+      }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (!data.ok) {
+          setError(data.error ?? "Erro desconhecido");
+          return;
+        }
+        setClientAssets(
+          (data.clientAssets ?? []).map((a: {
+            id: string;
+            filename: string;
+            filepath: string;
+            url: string;
+            thumbnail: string;
+          }) => ({ kind: "client" as const, ...a })),
+        );
+        setPexelsVideos(
+          (data.pexelsVideos ?? []).map((v: {
+            id: string;
+            url: string;
+            thumbnail: string;
+          }) => ({ kind: "pexels" as const, ...v })),
+        );
+      })
+      .catch((e) => {
+        if (!cancelled) setError((e as Error).message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page.text, page.query, page.videoSrc, format, adNumber]);
+
+  // ESC fecha
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  function handlePick(opt: Option) {
+    if (opt.kind === "client") {
+      onPick(opt.filepath, opt.url);
+    } else {
+      onPick(opt.url, opt.url); // Pexels: filepath = url (Remotion baixa CDN)
+    }
+    onClose();
+  }
+
+  function OptionTile({ opt }: { opt: Option }) {
+    const isClient = opt.kind === "client";
+    return (
+      <button
+        onClick={() => handlePick(opt)}
+        className="group relative aspect-[9/16] bg-neutral-900 rounded-lg overflow-hidden border border-neutral-700 hover:border-purple-400 hover:scale-[1.02] transition-all"
+        title={isClient ? `Seu: ${opt.filename}` : "Pexels"}
+      >
+        {isClient ? (
+          // Client asset: usa <video> com poster (ou mostra primeiro frame)
+          <video
+            src={opt.url}
+            muted
+            playsInline
+            preload="metadata"
+            className="absolute inset-0 w-full h-full object-cover"
+            onMouseEnter={(e) => {
+              const v = e.currentTarget;
+              v.currentTime = 1;
+              v.play().catch(() => {});
+            }}
+            onMouseLeave={(e) => {
+              const v = e.currentTarget;
+              v.pause();
+              v.currentTime = 0;
+            }}
+          />
+        ) : (
+          // Pexels: thumbnail é image da CDN
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={opt.thumbnail}
+            alt="Pexels video"
+            className="absolute inset-0 w-full h-full object-cover"
+            loading="lazy"
+          />
+        )}
+        <div
+          className={`absolute top-1 left-1 text-[9px] uppercase font-bold px-1.5 py-0.5 rounded ${
+            isClient
+              ? "bg-emerald-600/90 text-white"
+              : "bg-purple-700/90 text-white"
+          }`}
+        >
+          {isClient ? "💾 SEU" : "🌐 Pexels"}
+        </div>
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6"
+      onClick={onClose}
+    >
+      <div
+        className="bg-neutral-950 border border-purple-800 rounded-xl p-5 max-w-5xl w-full max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-base font-bold text-purple-200">
+              🔄 Trocar vídeo do slide
+            </h2>
+            <p className="text-xs text-neutral-400 mt-0.5 max-w-2xl">
+              "{page.text}" — 6 do seu banco (IA escolheu) + 6 do Pexels
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-neutral-400 hover:text-white text-sm"
+          >
+            fechar (Esc)
+          </button>
+        </div>
+
+        {loading && (
+          <div className="grid grid-cols-6 gap-3">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div
+                key={i}
+                className="aspect-[9/16] bg-neutral-900 rounded-lg animate-pulse"
+              />
+            ))}
+          </div>
+        )}
+
+        {error && (
+          <div className="text-sm text-red-400 p-3 rounded bg-red-900/20 border border-red-800">
+            Erro: {error}
+          </div>
+        )}
+
+        {!loading && !error && (
+          <>
+            {clientAssets.length === 0 && pexelsVideos.length === 0 && (
+              <p className="text-sm text-neutral-400">
+                Nenhuma opção encontrada. Importe vídeos no painel da direita.
+              </p>
+            )}
+
+            {clientAssets.length > 0 && (
+              <div className="mb-4">
+                <div className="text-[10px] uppercase text-emerald-400 mb-2 font-semibold">
+                  💾 SEU BANCO ({clientAssets.length})
+                </div>
+                <div className="grid grid-cols-6 gap-3">
+                  {clientAssets.map((opt) => (
+                    <OptionTile key={`c-${opt.id}`} opt={opt} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {pexelsVideos.length > 0 && (
+              <div>
+                <div className="text-[10px] uppercase text-purple-400 mb-2 font-semibold">
+                  🌐 PEXELS ({pexelsVideos.length})
+                </div>
+                <div className="grid grid-cols-6 gap-3">
+                  {pexelsVideos.map((opt) => (
+                    <OptionTile key={`p-${opt.id}`} opt={opt} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        <p className="text-[10px] text-neutral-500 mt-4">
+          Esc fecha. Mouse no thumbnail dos seus toca o vídeo no preview.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function VideoSourcesGroup({
   format,
   page,
