@@ -12,12 +12,17 @@ export async function getDb(): Promise<PoolType | null> {
   const url = process.env.DATABASE_URL;
   if (!url) return null;
   if (!pool) {
+    // V88: detecta localhost — Postgres nativo Windows não usa SSL.
+    // Railway interno também não. Demais (Neon, Supabase, etc) usam.
+    const isLocal =
+      url.includes("localhost") ||
+      url.includes("127.0.0.1") ||
+      url.includes("railway.internal");
     pool = new Pool({
       connectionString: url,
       max: 5,
       idleTimeoutMillis: 30000,
-      // Railway internal Postgres não usa SSL; externo (Neon, etc) usa
-      ssl: url.includes("railway.internal") ? false : { rejectUnauthorized: false },
+      ssl: isLocal ? false : { rejectUnauthorized: false },
     });
     pool.on("error", (err) => console.error("[db] pool error:", err));
   }
