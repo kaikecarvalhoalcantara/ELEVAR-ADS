@@ -1728,19 +1728,32 @@ function EditableCanvas({
           📥 Colar vídeo aqui
         </button>
       )}
-      {/* V93: Quick-swap — botão visível no canto superior direito do preview.
-          Resolve "trocar vídeo é trabalhoso" — 1 click abre 12 opções
-          (6 IA + 6 Pexels) e troca instantâneo. */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setQuickSwapOpen(true);
-        }}
-        className="absolute top-2 right-2 px-2.5 py-1.5 rounded-md bg-purple-700/90 hover:bg-purple-600 text-white text-[11px] font-semibold shadow-lg border border-purple-400 whitespace-nowrap z-40 flex items-center gap-1.5 backdrop-blur-sm"
-        title="Abre 12 opções de vídeo (6 do seu banco + 6 Pexels) pra trocar rápido"
-      >
-        🔄 Trocar vídeo
-      </button>
+      {/* V93+V94: Quick-actions bar no canto superior direito do preview.
+          Resolve "trocar vídeo trabalhoso" + "editar texto chato".
+          Atalhos visíveis pras 2 ações mais frequentes. */}
+      <div className="absolute top-2 right-2 z-40 flex items-center gap-1.5">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelected(true);
+            setEditing(true);
+          }}
+          className="px-2.5 py-1.5 rounded-md bg-blue-700/90 hover:bg-blue-600 text-white text-[11px] font-semibold shadow-lg border border-blue-400 whitespace-nowrap flex items-center gap-1.5 backdrop-blur-sm"
+          title="Edita o texto deste slide direto (sem double-click)"
+        >
+          ✏️ Editar texto
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setQuickSwapOpen(true);
+          }}
+          className="px-2.5 py-1.5 rounded-md bg-purple-700/90 hover:bg-purple-600 text-white text-[11px] font-semibold shadow-lg border border-purple-400 whitespace-nowrap flex items-center gap-1.5 backdrop-blur-sm"
+          title="Abre 12 opções de vídeo (6 do seu banco + 6 Pexels) pra trocar rápido"
+        >
+          🔄 Trocar vídeo
+        </button>
+      </div>
       {/* V93: Modal de quick-swap */}
       {quickSwapOpen && (
         <QuickVideoSwapModal
