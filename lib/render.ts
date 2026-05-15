@@ -2,6 +2,7 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { promises as fs } from "node:fs";
 import { spawn } from "node:child_process";
+import { cpus } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
 import { startStaticServer } from "./static-server";
 import type { AdProps, PageWithStyle } from "../remotion/AdComposition";
@@ -58,9 +59,20 @@ export interface RenderAdInput {
   outputDir?: string;
 }
 
-// Tamanho de chunk em frames. 200 frames @ 24fps = ~8 segundos de vídeo.
-// Cada chunk é renderizado num Chromium fresh — memória zera entre chunks.
-const CHUNK_FRAMES = 200;
+// V91: Chunk maior — antes 200 (~8s). Cada chunk é renderizado num
+// Chromium fresh, e bootar o Chromium leva 3-5s. Pra um vídeo de 100s
+// isso eram ~12 chunks = 50s só de overhead de boot. Agora 600 frames
+// (~25s) = 4 chunks = ~15s overhead. Limite respeitado pela RAM
+// (cada chunk acumula ~1-2GB durante render). Override via env var
+// pra Railway que tem menos RAM.
+const CHUNK_FRAMES = Number(process.env.REMOTION_CHUNK_FRAMES) || 600;
+
+// V91: Concorrência de renderização. Antes era 1 (single thread) que
+// fazia sentido pro Railway (RAM limitada), mas LOCAL Kaike tem 12
+// cores e 16GB. Default 8 paralelos = 8x mais rápido. Override via env.
+const RENDER_CONCURRENCY =
+  Number(process.env.REMOTION_CONCURRENCY) ||
+  Math.min(8, Math.max(2, cpus().length - 2));
 
 function ffmpegConcat(chunks: string[], outputPath: string): Promise<void> {
   return new Promise((resolveP, rejectP) => {
@@ -183,6 +195,13 @@ export async function renderAd(input: RenderAdInput): Promise<string> {
     `[render] start "${input.outputName}" — ${totalFrames} frames em ${chunkCount} chunks`,
   );
 
+  // V91: Log das configs ativas — ajuda debugar "tá lento" sem precisar
+  // ler o código. Em ambiente com 12 cores e 16GB, esperado: 8 concur,
+  // 600 frames/chunk. Em Railway pequeno: 1 concur, 200 frames/chunk.
+  console.log(
+    `[render] config: concurrency=${RENDER_CONCURRENCY}, chunkFrames=${CHUNK_FRAMES}, cpus=${cpus().length}`,
+  );
+
   const chunkPaths: string[] = [];
   try {
     for (let i = 0; i < chunkCount; i++) {
@@ -199,7 +218,8 @@ export async function renderAd(input: RenderAdInput): Promise<string> {
         outputLocation: chunkPath,
         inputProps: propsForRemotion,
         frameRange: [startFrame, endFrame],
-        concurrency: 1,
+        // V91: era 1 (single thread Railway). Local Kaike: 8 paralelos.
+        concurrency: RENDER_CONCURRENCY,
         // CRF (qualidade variável) — mais previsível que bitrate fixo.
         // 23-26 é qualidade alta, 27-30 é boa, 30+ é compressivo.
         crf: 23,
