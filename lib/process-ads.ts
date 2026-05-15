@@ -199,11 +199,14 @@ export async function processDraftAds(draftId: string): Promise<void> {
       continue;
     }
 
-    // V76: throttle entre ADs — pausa 5s pra não bater rate limit do Pexels.
-    // Pula a pausa do AD 1 (não tem AD anterior).
+    // V76: throttle entre ADs — pausa pra não bater rate limit do Pexels.
+    // V89: reduzido de 5s pra 2s — com o cache de queries + retry expo
+    // implementados na lib/pexels.ts, dá pra ir mais rápido. O retry
+    // detecta 429 e espera 2s/4s/8s automaticamente, então não precisa
+    // mais a margem grande aqui.
     if (i > 0) {
-      console.log(`[worker ${draftId}] aguardando 5s antes de processar próximo AD (anti rate-limit)…`);
-      await new Promise((r) => setTimeout(r, 5000));
+      console.log(`[worker ${draftId}] aguardando 2s antes do próximo AD…`);
+      await new Promise((r) => setTimeout(r, 2000));
     }
 
     // V76: retry de até 2 tentativas. Se a 1ª resultar em <50% dos vídeos

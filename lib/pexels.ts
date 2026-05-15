@@ -119,6 +119,60 @@ export function keywordsFor({ mood, audience }: MoodAudience): string[] {
   return [`${mood} cinematic dark`];
 }
 
+// V89: cache em memória de queries Pexels — reduz drasticamente os hits.
+// Mesma query+orientation+page = mesmo result na sessão. TTL 1h.
+const PEXELS_VIDEO_CACHE = new Map<
+  string,
+  { videos: PexelsVideo[]; ts: number }
+>();
+const PEXELS_PHOTO_CACHE = new Map<
+  string,
+  { photos: PexelsPhoto[]; ts: number }
+>();
+const PEXELS_CACHE_TTL_MS = 60 * 60 * 1000; // 1h
+
+function cacheKey(
+  query: string,
+  orientation: string,
+  page: number,
+  perPage: number,
+): string {
+  return `${query}|${orientation}|p${page}|n${perPage}`;
+}
+
+/**
+ * V89: Fetch com retry exponencial — detecta 429 (rate-limit) e
+ * outros 5xx, espera 2s/4s/8s e tenta de novo. Antes dava null
+ * direto e a UI mostrava "AD com 10/32 slides sem vídeo".
+ */
+async function fetchPexelsWithRetry(
+  url: string,
+  apiKey: string,
+  maxAttempts = 3,
+): Promise<Response> {
+  let lastErr: Error | null = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const res = await fetch(url, { headers: { Authorization: apiKey } });
+    // Sucesso ou erro do cliente (4xx exceto 429) → não retry
+    if (res.ok) return res;
+    if (res.status === 429 || res.status >= 500) {
+      const waitMs = 2000 * Math.pow(2, attempt - 1); // 2s, 4s, 8s
+      console.warn(
+        `[pexels] ${res.status} na attempt ${attempt}/${maxAttempts}, aguardando ${waitMs}ms…`,
+      );
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, waitMs));
+        continue;
+      }
+    }
+    // 4xx que não é 429: erro permanente, joga
+    const text = await res.text();
+    lastErr = new Error(`Pexels falhou (${res.status}): ${text}`);
+    if (res.status !== 429 && res.status < 500) throw lastErr;
+  }
+  throw lastErr ?? new Error("Pexels falhou após retries");
+}
+
 export async function searchPexelsVideos(args: {
   query: string;
   orientation?: "portrait" | "landscape" | "square";
@@ -129,21 +183,30 @@ export async function searchPexelsVideos(args: {
   if (!apiKey) {
     throw new Error("PEXELS_API_KEY ausente no .env.local");
   }
+  const orientation = args.orientation ?? "portrait";
+  const page = args.page ?? 1;
+  const perPage = args.perPage ?? 80;
+
+  // V89: cache hit?
+  const key = cacheKey(args.query, orientation, page, perPage);
+  const cached = PEXELS_VIDEO_CACHE.get(key);
+  if (cached && Date.now() - cached.ts < PEXELS_CACHE_TTL_MS) {
+    return cached.videos;
+  }
+
   // V32: per_page padrão 80 (máximo do Pexels). Antes era 15 → poucos resultados.
   const params = new URLSearchParams({
     query: args.query,
-    orientation: args.orientation ?? "portrait",
-    per_page: String(args.perPage ?? 80),
-    page: String(args.page ?? 1),
+    orientation,
+    per_page: String(perPage),
+    page: String(page),
   });
-  const res = await fetch(`${PEXELS_SEARCH_URL}?${params.toString()}`, {
-    headers: { Authorization: apiKey },
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Pexels search falhou (${res.status}): ${text}`);
-  }
+  const res = await fetchPexelsWithRetry(
+    `${PEXELS_SEARCH_URL}?${params.toString()}`,
+    apiKey,
+  );
   const data = (await res.json()) as PexelsSearchResponse;
+  PEXELS_VIDEO_CACHE.set(key, { videos: data.videos, ts: Date.now() });
   return data.videos;
 }
 
@@ -192,20 +255,29 @@ export async function searchPexelsPhotos(args: {
   if (!apiKey) {
     throw new Error("PEXELS_API_KEY ausente no .env.local");
   }
+  const orientation = args.orientation ?? "portrait";
+  const page = args.page ?? 1;
+  const perPage = args.perPage ?? 80;
+
+  // V89: cache hit?
+  const key = cacheKey(args.query, orientation, page, perPage);
+  const cached = PEXELS_PHOTO_CACHE.get(key);
+  if (cached && Date.now() - cached.ts < PEXELS_CACHE_TTL_MS) {
+    return cached.photos;
+  }
+
   const params = new URLSearchParams({
     query: args.query,
-    orientation: args.orientation ?? "portrait",
-    per_page: String(args.perPage ?? 80),
-    page: String(args.page ?? 1),
+    orientation,
+    per_page: String(perPage),
+    page: String(page),
   });
-  const res = await fetch(`${PEXELS_PHOTOS_URL}?${params.toString()}`, {
-    headers: { Authorization: apiKey },
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Pexels photos search falhou (${res.status}): ${text}`);
-  }
+  const res = await fetchPexelsWithRetry(
+    `${PEXELS_PHOTOS_URL}?${params.toString()}`,
+    apiKey,
+  );
   const data = (await res.json()) as PexelsPhotosResponse;
+  PEXELS_PHOTO_CACHE.set(key, { photos: data.photos, ts: Date.now() });
   return data.photos;
 }
 
